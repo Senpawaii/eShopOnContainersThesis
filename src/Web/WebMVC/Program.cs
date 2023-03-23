@@ -29,12 +29,17 @@ if (!string.IsNullOrEmpty(pathBase))
     app.UsePathBase(pathBase);
 }
 
+List<double> testInts = new List<double>();
 // Added a simple Middleware example.
 // This MiddleWare will run before the Static Files middleware layer
 app.Use(async (ctx, next) => {
     var start = DateTime.UtcNow;
     await next.Invoke(ctx);
-    app.Logger.LogInformation($"Request {ctx.Request.Path}: {(DateTime.UtcNow - start).TotalMilliseconds} ms.");
+    testInts.Add((DateTime.UtcNow - start).TotalMilliseconds);
+    for (int i = 0; i < testInts.Count; i++) {
+        app.Logger.LogInformation($"Registered double #{i}: {testInts[i]}");
+    }
+    //app.Logger.LogInformation($"Request {ctx.Request.Path}: {} ms.");
 });
 
 app.UseStaticFiles();
