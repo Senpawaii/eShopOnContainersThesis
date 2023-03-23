@@ -49,7 +49,7 @@ public static class API
 
     public static class Catalog
     {
-        public static string GetAllCatalogItems(string baseUri, int page, int take, int? brand, int? type)
+        public static string GetAllCatalogItems(string baseUri, int page, int take, int? brand, int? type, int tokens)
         {
             var filterQs = "";
 

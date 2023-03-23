@@ -17,10 +17,12 @@ public class CatalogService : ICatalogService
         _remoteServiceBaseUrl = $"{_settings.Value.PurchaseUrl}/c/api/v1/catalog/";
     }
 
-    public async Task<Catalog> GetCatalogItems(int page, int take, int? brand, int? type)
+    public async Task<Catalog> GetCatalogItems(int page, int take, int? brand, int? type, int tokens)
     {
-        var uri = API.Catalog.GetAllCatalogItems(_remoteServiceBaseUrl, page, take, brand, type);
+        // Generate the URI string
+        var uri = API.Catalog.GetAllCatalogItems(_remoteServiceBaseUrl, page, take, brand, type, tokens);
 
+        // Contact the address identified by the URI
         var responseString = await _httpClient.GetStringAsync(uri);
 
         var catalog = JsonSerializer.Deserialize<Catalog>(responseString, new JsonSerializerOptions
@@ -33,6 +35,7 @@ public class CatalogService : ICatalogService
 
     public async Task<IEnumerable<SelectListItem>> GetBrands()
     {
+
         var uri = API.Catalog.GetAllBrands(_remoteServiceBaseUrl);
 
         var responseString = await _httpClient.GetStringAsync(uri);

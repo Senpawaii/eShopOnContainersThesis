@@ -10,7 +10,18 @@ public class CatalogController : Controller
     public async Task<IActionResult> Index(int? BrandFilterApplied, int? TypesFilterApplied, int? page, [FromQuery] string errorMsg)
     {
         var itemsPage = 9;
-        var catalog = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied);
+
+        // 3 async calls are executed to the Catalog.API microservice, without guaranteeing that they always use the same snapshot. -- Possible read-consistency anomaly
+
+        // Generate the wrapper metadata
+        // Step 1: Generate the number of tokens to be split across the microservice calls along the functionality
+        List<int> tokens = new List<int> { 100, 100, 100 } ;
+
+        if(page != null) {
+            Console.WriteLine("Index, Page number: " + page.ToString());
+        }
+           
+        var catalog = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, tokens[0]);
         var vm = new IndexViewModel()
         {
             CatalogItems = catalog.Data,

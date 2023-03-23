@@ -29,6 +29,14 @@ if (!string.IsNullOrEmpty(pathBase))
     app.UsePathBase(pathBase);
 }
 
+// Added a simple Middleware example.
+// This MiddleWare will run before the Static Files middleware layer
+app.Use(async (ctx, next) => {
+    var start = DateTime.UtcNow;
+    await next.Invoke(ctx);
+    app.Logger.LogInformation($"Request {ctx.Request.Path}: {(DateTime.UtcNow - start).TotalMilliseconds} ms.");
+});
+
 app.UseStaticFiles();
 app.UseSession();
 
