@@ -69,7 +69,7 @@ public static class API
                 filterQs = string.Empty;
             }
 
-            return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}";
+            return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}&tokens={tokens}";
         }
 
         public static string GetAllBrands(string baseUri)

@@ -9,15 +9,21 @@ public class CatalogController : Controller
 
     public async Task<IActionResult> Index(int? BrandFilterApplied, int? TypesFilterApplied, int? page, [FromQuery] string errorMsg)
     {
+        /**
+         * Issue: 3 async calls are executed to the Catalog.API microservice, without guaranteeing that they always use the same snapshot. 
+         * -- Possible read-consistency anomaly
+         * 
+         *  Define functionality: 
+         * WebMVC call to Catalog.API -> get items
+         * WebMVC call to Catalog.API -> get brands
+         * WebMVC call to Catalog.API -> get catalog types
+         * **/
+
         var itemsPage = 9;
 
-        // 3 async calls are executed to the Catalog.API microservice, without guaranteeing that they always use the same snapshot. -- Possible read-consistency anomaly
+        List<int> tokens = new List<int> { 100, 100, 100 };
 
-        // Generate the wrapper metadata
-        // Step 1: Generate the number of tokens to be split across the microservice calls along the functionality
-        List<int> tokens = new List<int> { 100, 100, 100 } ;
-
-        if(page != null) {
+        if (page != null) {
             Console.WriteLine("Index, Page number: " + page.ToString());
         }
            

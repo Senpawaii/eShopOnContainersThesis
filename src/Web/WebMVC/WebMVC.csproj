@@ -47,4 +47,8 @@
     <None Include="ViewModels\CampaignItem.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Middleware\" />
+  </ItemGroup>
+
 </Project>

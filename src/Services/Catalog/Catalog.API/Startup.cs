@@ -1,3 +1,7 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.eShopOnContainers.Services.Catalog.API.Middleware;
+
 namespace Microsoft.eShopOnContainers.Services.Catalog.API;
 
 public class Startup
@@ -50,10 +54,19 @@ public class Startup
 
         app.UseRouting();
         app.UseCors("CorsPolicy");
+
+        //app.MapWhen(context => context.Request.Path.StartsWithSegments("/api/v1/catalog/items"), 
+        //    appBuilder => appBuilder.UseInteger());
+        
+        // TODO The middleware should only be called for the /api/v1/catalog/items (and 2 more routes), instead of all Catalog routes. How can we do this? 
+        app.UseInteger();
+
         app.UseEndpoints(endpoints =>
         {
             endpoints.MapDefaultControllerRoute();
+
             endpoints.MapControllers();
+
             endpoints.MapGet("/_proto/", async ctx =>
             {
                 ctx.Response.ContentType = "text/plain";
@@ -68,17 +81,22 @@ public class Startup
                     }
                 }
             });
+
             endpoints.MapGrpcService<CatalogService>();
+            
             endpoints.MapHealthChecks("/hc", new HealthCheckOptions()
             {
                 Predicate = _ => true,
                 ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
             });
+            
             endpoints.MapHealthChecks("/liveness", new HealthCheckOptions
             {
                 Predicate = r => r.Name.Contains("self")
             });
         });
+        
+        //app.UseRouter(buildRouter(app));
 
         ConfigureEventBus(app);
     }
@@ -89,7 +107,20 @@ public class Startup
         eventBus.Subscribe<OrderStatusChangedToAwaitingValidationIntegrationEvent, OrderStatusChangedToAwaitingValidationIntegrationEventHandler>();
         eventBus.Subscribe<OrderStatusChangedToPaidIntegrationEvent, OrderStatusChangedToPaidIntegrationEventHandler>();
     }
+
+    //public IRouter buildRouter(IApplicationBuilder applicationBuilder) {
+    //    var builder = new RouteBuilder(applicationBuilder);
+
+    //    // Middleware to define the route
+    //    builder.MapMiddlewareGet("api/v1/catalog/items", appBuilder => {
+    //        appBuilder.UseMiddleware<IntegerMiddleware>();
+    //        appBuilder.Run();
+    //    });
+
+    //    return builder.Build();
+    //}
 }
+
 
 public static class CustomExtensionMethods
 {

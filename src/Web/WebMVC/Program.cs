@@ -1,4 +1,6 @@
-﻿var builder = WebApplication.CreateBuilder(args);
+﻿using WebMVC.Middleware;
+
+var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 
 AddApplicationInsights(builder);
@@ -29,18 +31,12 @@ if (!string.IsNullOrEmpty(pathBase))
     app.UsePathBase(pathBase);
 }
 
+// This is an example of a data structure that is used to store integers across multiple received requests.
 List<double> testInts = new List<double>();
+
 // Added a simple Middleware example.
 // This MiddleWare will run before the Static Files middleware layer
-app.Use(async (ctx, next) => {
-    var start = DateTime.UtcNow;
-    await next.Invoke(ctx);
-    testInts.Add((DateTime.UtcNow - start).TotalMilliseconds);
-    for (int i = 0; i < testInts.Count; i++) {
-        app.Logger.LogInformation($"Registered double #{i}: {testInts[i]}");
-    }
-    //app.Logger.LogInformation($"Request {ctx.Request.Path}: {} ms.");
-});
+app.UseInteger();
 
 app.UseStaticFiles();
 app.UseSession();

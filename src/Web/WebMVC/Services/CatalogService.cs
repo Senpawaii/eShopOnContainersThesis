@@ -22,7 +22,7 @@ public class CatalogService : ICatalogService
         // Generate the URI string
         var uri = API.Catalog.GetAllCatalogItems(_remoteServiceBaseUrl, page, take, brand, type, tokens);
 
-        // Contact the address identified by the URI
+        // Contact the address identified by the URI using HTTP GET request
         var responseString = await _httpClient.GetStringAsync(uri);
 
         var catalog = JsonSerializer.Deserialize<Catalog>(responseString, new JsonSerializerOptions
