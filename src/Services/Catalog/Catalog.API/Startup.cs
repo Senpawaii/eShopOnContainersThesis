@@ -1,6 +1,11 @@
+using Catalog.API.DependencyServices;
+using Catalog.API.Infrastructure.Interceptors;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Middleware;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API;
 
@@ -15,15 +20,27 @@ public class Startup
 
     public IServiceProvider ConfigureServices(IServiceCollection services)
     {
-        services.AddAppInsight(Configuration)
+        services
+            .AddAppInsight(Configuration)
             .AddGrpc().Services
             .AddCustomMVC(Configuration)
+            .AddHttpContextAccessor()
+            .AddScoped<IScopedMetadata, ScopedMetadata>()
+            .AddEntityFrameworkSqlServer()
+            .AddDbContext<CatalogContext>(options => {
+                options.UseSqlServer(Configuration["ConnectionString"], sqlServerOptionsAction: sqlOptions => {
+                    sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+                    //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+                    sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+                });
+            })
             .AddCustomDbContext(Configuration)
             .AddCustomOptions(Configuration)
             .AddIntegrationServices(Configuration)
             .AddEventBus(Configuration)
             .AddSwagger(Configuration)
             .AddCustomHealthCheck(Configuration);
+
 
         var container = new ContainerBuilder();
         container.Populate(services);
@@ -54,6 +71,11 @@ public class Startup
 
         app.UseRouting();
         app.UseCors("CorsPolicy");
+
+        //app.Use(async (httpContext, next) => {
+        //    CallContext.LogicalSetData("CurrentContextKey", httpContext);
+
+        //})
 
         //app.MapWhen(context => context.Request.Path.StartsWithSegments("/api/v1/catalog/items"), 
         //    appBuilder => appBuilder.UseInteger());
@@ -199,17 +221,17 @@ public static class CustomExtensionMethods
 
     public static IServiceCollection AddCustomDbContext(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddEntityFrameworkSqlServer()
-            .AddDbContext<CatalogContext>(options =>
-        {
-            options.UseSqlServer(configuration["ConnectionString"],
-                                    sqlServerOptionsAction: sqlOptions =>
-                                    {
-                                        sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
-                                        //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-                                        sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-                                    });
-        });
+        //services.AddEntityFrameworkSqlServer()
+        //    .AddDbContext<CatalogContext>(options =>
+        //{
+        //    options.UseSqlServer(configuration["ConnectionString"],
+        //                            sqlServerOptionsAction: sqlOptions => {
+        //                                sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+        //                                //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+        //                                sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+        //                            });
+
+        //});
 
         services.AddDbContext<IntegrationEventLogContext>(options =>
         {

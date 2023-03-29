@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Catalog.API.DependencyServices;
+using System.Collections.Concurrent;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
@@ -12,10 +13,12 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             _next = next;
         }
 
-        public async Task Invoke(HttpContext ctx) {
+        public async Task Invoke(HttpContext ctx, IScopedMetadata svc) {
             if(ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
                 _testInts.Add(double.Parse(tokens));
                 _logger.LogInformation($"Registered tokens: {tokens}");
+
+                svc.ScopedMetadataTokens = double.Parse(tokens);
 
                 var removeTheseParams = new List<string> { "tokens" }.AsReadOnly();
 
