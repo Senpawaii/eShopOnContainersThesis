@@ -18,16 +18,20 @@ public class CatalogController : Controller
          * WebMVC call to Catalog.API -> get brands
          * WebMVC call to Catalog.API -> get catalog types
          * **/
-
+        var interval = (0, 0);
         var itemsPage = 9;
-
-        List<int> tokens = new List<int> { 100, 100, 100 };
 
         if (page != null) {
             Console.WriteLine("Index, Page number: " + page.ToString());
         }
-           
-        var catalog = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, tokens[0]);
+        
+        // Deconstruct declaration
+        (Catalog catalog, (int, int) new_interval) = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, interval);
+        
+        // Assign the new interval to the used interval
+        interval.Item1 = new_interval.Item1;
+        interval.Item2 = new_interval.Item2;
+
         var vm = new IndexViewModel()
         {
             CatalogItems = catalog.Data,

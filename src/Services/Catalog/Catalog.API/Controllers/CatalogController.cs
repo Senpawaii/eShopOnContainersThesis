@@ -37,6 +37,7 @@ public class CatalogController : ControllerBase
             return Ok(items);
         }
 
+        // 2 DB accesses are made
         var totalItems = await _catalogContext.CatalogItems
             .LongCountAsync();
 

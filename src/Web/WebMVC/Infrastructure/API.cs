@@ -49,7 +49,7 @@ public static class API
 
     public static class Catalog
     {
-        public static string GetAllCatalogItems(string baseUri, int page, int take, int? brand, int? type, int tokens)
+        public static string GetAllCatalogItems(string baseUri, int page, int take, int? brand, int? type, (int, int) interval)
         {
             var filterQs = "";
 
@@ -69,7 +69,7 @@ public static class API
                 filterQs = string.Empty;
             }
 
-            return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}&tokens={tokens}";
+            return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}&interval_low={interval.Item1}&interval_high={interval.Item2}";
         }
 
         public static string GetAllBrands(string baseUri)

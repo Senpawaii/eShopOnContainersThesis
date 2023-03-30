@@ -32,8 +32,11 @@ namespace Catalog.API.Infrastructure.Interceptors {
         }
 
         private void ModifyCommand(DbCommand command) {
-            Console.WriteLine($"Scoped Metadata tokens: {_scopedMetadata.ScopedMetadataTokens}");
-            //Console.WriteLine(command.CommandText);
+            Console.WriteLine($"Scoped Metadata Tokens: {_scopedMetadata.ScopedMetadataTokens}");
+            Console.WriteLine($"Scoped Metadata Interval: {_scopedMetadata.ScopedMetadataInterval.Item1}:{_scopedMetadata.ScopedMetadataInterval.Item2}");
+            _scopedMetadata.ScopedMetadataIntervalLow++;
+            _scopedMetadata.ScopedMetadataIntervalHigh +=2;
+
         }
     }
 }

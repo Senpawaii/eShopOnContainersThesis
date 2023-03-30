@@ -17,20 +17,57 @@ public class CatalogService : ICatalogService
         _remoteServiceBaseUrl = $"{_settings.Value.PurchaseUrl}/c/api/v1/catalog/";
     }
 
-    public async Task<Catalog> GetCatalogItems(int page, int take, int? brand, int? type, int tokens)
+    public async Task<(Catalog, (int, int))> GetCatalogItems(int page, int take, int? brand, int? type, (int, int) interval)
     {
         // Generate the URI string
-        var uri = API.Catalog.GetAllCatalogItems(_remoteServiceBaseUrl, page, take, brand, type, tokens);
+        var uri = API.Catalog.GetAllCatalogItems(_remoteServiceBaseUrl, page, take, brand, type, interval);
 
         // Contact the address identified by the URI using HTTP GET request
-        var responseString = await _httpClient.GetStringAsync(uri);
+        //var responseString = await _httpClient.GetStringAsync(uri);
 
+        // Obtain the header parameters (metadata)
+        HttpResponseMessage response = await _httpClient.GetAsync(uri);
+        response.EnsureSuccessStatusCode();
+
+        var responseString = await response.Content.ReadAsStringAsync();
+
+        //// Obtain the header parameters (metadata)
+        HttpHeaders headers = response.Headers;
+
+        IEnumerable<string> headerIntervalLow;
+        IEnumerable<string> headerIntervalHigh;
+        int intervalLow;
+        int intervalHigh;
+        //IEnumerable<string> values;
+
+        if (!headers.TryGetValues(("IntervalLow"), out headerIntervalLow)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if (!headers.TryGetValues(("IntervalHigh"), out headerIntervalHigh)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if(!int.TryParse(headerIntervalLow.FirstOrDefault(), out intervalLow)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if(!int.TryParse(headerIntervalHigh.FirstOrDefault(), out intervalHigh)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        
+
+        //if (!int.TryParse(headerValues[0], out interval.Item1))
+        //new_interval[0] = 1;
+
+        //if (!int.TryParse(headerValues.FirstOrDefault(), out new_interval.Item1) && int.TryParse(headerValues.FirstOrDefault(), out new_interval.Item2)) {
+        //    headerValues.
+        //}
+
+        // Decompose the responseString view in a Catalog object
         var catalog = JsonSerializer.Deserialize<Catalog>(responseString, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         });
 
-        return catalog;
+        return (catalog, (intervalLow, intervalHigh));
     }
 
     public async Task<IEnumerable<SelectListItem>> GetBrands()
