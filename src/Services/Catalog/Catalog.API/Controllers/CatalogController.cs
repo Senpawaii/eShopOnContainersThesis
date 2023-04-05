@@ -237,12 +237,57 @@ public class CatalogController : ControllerBase
     [Route("items")]
     [HttpPost]
     [ProducesResponseType((int)HttpStatusCode.Created)]
-    public async Task<ActionResult> CreateProductAsync([FromBody] CatalogItem product)
+    public async Task<ActionResult> CreateProductAsync([FromBody] CatalogItem product, [FromQuery] string brand = "", [FromQuery] string type = "")
     {
+        int brandId = 0;
+        int typeId = 0;
+
+        if(!String.IsNullOrEmpty(brand) && !String.IsNullOrEmpty(type)) {
+            // Check if Type and/or Brand need to be created as passed in the request
+            if (product.CatalogTypeId == 0) {
+                type = type.Trim('"').Trim();
+
+                if (String.IsNullOrEmpty(type)) {
+                    throw new Exception("catalog Type Name is empty");
+                }
+
+                var newType = new CatalogType {
+                    Type = type,
+                };
+
+                _catalogContext.CatalogTypes.Add(newType);
+                await _catalogContext.SaveChangesAsync();
+
+                //_catalogContext.CatalogTypes.ToDictionary(ct => ct.Type, ct => ct.Id).TryGetValue(type, out typeId);
+                typeId = newType.Id;
+            }
+
+            if (product.CatalogBrandId == 0) {
+                brand = brand.Trim('"').Trim();
+
+                if (String.IsNullOrEmpty(brand)) {
+                    throw new Exception("catalog Brand Name is empty");
+                }
+
+                var newBrand = new CatalogBrand {
+                    Brand = brand,
+                };
+
+                _catalogContext.CatalogBrands.Add(newBrand);
+                await _catalogContext.SaveChangesAsync();
+
+                //_catalogContext.CatalogBrands.ToDictionary(ct => ct.Brand, ct => ct.Id).TryGetValue(brand, out brandId);
+                brandId = newBrand.Id;
+            }
+        } else {
+            brandId = product.CatalogBrandId;
+            typeId = product.CatalogTypeId;
+        }
+        
         var item = new CatalogItem
         {
-            CatalogBrandId = product.CatalogBrandId,
-            CatalogTypeId = product.CatalogTypeId,
+            CatalogBrandId = brandId,
+            CatalogTypeId = typeId,
             Description = product.Description,
             Name = product.Name,
             PictureFileName = product.PictureFileName,
@@ -276,6 +321,23 @@ public class CatalogController : ControllerBase
 
         return NoContent();
     }
+
+    ////POST api/v1/[controller]/brands
+    //[Route("items")]
+    //[HttpPost]
+    //[ProducesResponseType((int)HttpStatusCode.Created)]
+    //public async Task<ActionResult> CreateBrandAsync([FromBody] CatalogBrand brand) {
+    //    var brandItem = new CatalogBrand {
+    //        Brand = brand.Brand
+    //    };
+
+    //    _catalogContext.CatalogBrands.Add(brandItem);
+
+    //    await _catalogContext.SaveChangesAsync();
+
+    //    return CreatedAtAction(nameof(ItemByIdAsync), new { id = brandItem.Id }, null);
+    //}
+
 
     private List<CatalogItem> ChangeUriPlaceholder(List<CatalogItem> items)
     {

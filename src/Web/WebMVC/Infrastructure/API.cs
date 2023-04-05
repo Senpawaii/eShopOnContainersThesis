@@ -1,4 +1,6 @@
-﻿namespace WebMVC.Infrastructure;
+﻿using WebMVC.ViewModels;
+
+namespace WebMVC.Infrastructure;
 
 public static class API
 {
@@ -49,7 +51,7 @@ public static class API
 
     public static class Catalog
     {
-        public static string GetAllCatalogItems(string baseUri, int page, int take, int? brand, int? type, (int, int) interval)
+        public static string GetAllCatalogItems(string baseUri, int page, int take, int? brand, int? type, TCCMetadata metadata)
         {
             var filterQs = "";
 
@@ -69,7 +71,7 @@ public static class API
                 filterQs = string.Empty;
             }
 
-            return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}&interval_low={interval.Item1}&interval_high={interval.Item2}";
+            return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}&interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
         }
 
         public static string GetAllBrands(string baseUri)

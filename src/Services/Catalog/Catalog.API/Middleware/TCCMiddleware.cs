@@ -3,38 +3,54 @@ using System.Collections.Concurrent;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
-    public class IntegerMiddleware {
-        private readonly ILogger<IntegerMiddleware> _logger;
+    public class TCCMiddleware {
+        private readonly ILogger<TCCMiddleware> _logger;
         private readonly RequestDelegate _next;
 
-        public IntegerMiddleware(ILogger<IntegerMiddleware> logger, RequestDelegate next) {
+        public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next) {
             _logger = logger;
             _next = next;
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
         public async Task Invoke(HttpContext ctx, IScopedMetadata svc) {
-            if(ctx.Request.Query.TryGetValue("Interval_low", out var interval_lowStr) && ctx.Request.Query.TryGetValue("Interval_high", out var interval_highStr)) {
-                //_testInts.Add(double.Parse(tokens));
-                _logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
 
-                int interval_low;
-                int interval_high;
-                if(!int.TryParse(interval_lowStr, out interval_low)) {
-                    _logger.LogInformation("Failed to parse Low Interval.");
-                }
-                if(!int.TryParse(interval_highStr, out interval_high)) {
-                    _logger.LogInformation("Failed to parse High Interval.");
-                }
-                svc.ScopedMetadataIntervalLow = interval_low;
-                svc.ScopedMetadataIntervalHigh = interval_high;
+            // To differentiate from a regular call, check for the functionality ID
+            if (ctx.Request.Query.TryGetValue("functionality_ID", out var functionality_ID)) {
+                svc.ScopedMetadataFunctionalityID = functionality_ID;
 
-                var removeTheseParams = new List<string> { "Interval_low", "Interval_high" }.AsReadOnly();
+
+                // Check for the other parameters and remove them as needed
+                if (ctx.Request.Query.TryGetValue("interval_low", out var interval_lowStr) &&
+                    ctx.Request.Query.TryGetValue("interval_high", out var interval_highStr)) {
+
+                    _logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
+
+                    if (int.TryParse(interval_lowStr, out var interval_low)) {
+                        svc.ScopedMetadataIntervalLow = interval_low;
+                    }
+                    else {
+                        _logger.LogInformation("Failed to parse Low Interval.");
+                    }
+                    if (int.TryParse(interval_highStr, out var interval_high)) {
+                        svc.ScopedMetadataIntervalHigh = interval_high;
+                    }
+                    else {
+                        _logger.LogInformation("Failed to parse High Interval.");
+                    }
+                }
+
+                if(ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
+                    _logger.LogInformation($"Registered timestamp: {timestamp}");
+                    svc.ScopedMetadataTimestamp = DateTimeOffset.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
+                }
+
+                var removeTheseParams = new List<string> { "interval_low", "interval_high", "functionality_ID", "timestamp" }.AsReadOnly();
 
                 var filteredQueryParams = ctx.Request.Query.ToList().Where(filterKvp => !removeTheseParams.Contains(filterKvp.Key));
                 var filteredQueryString = QueryString.Create(filteredQueryParams);
                 ctx.Request.QueryString = filteredQueryString;
-                
+
                 // Store the original body stream for restoring the response body back its original stream
                 Stream originalResponseBody = ctx.Response.Body;
 
@@ -43,12 +59,13 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 ctx.Response.Body = memStream;
 
                 ctx.Response.OnStarting(() => {
-                    ctx.Response.Headers["IntervalLow"] = svc.ScopedMetadataIntervalLow.ToString();
-                    ctx.Response.Headers["IntervalHigh"] = svc.ScopedMetadataIntervalHigh.ToString();
-
+                    ctx.Response.Headers["interval_low"] = svc.ScopedMetadataIntervalLow.ToString();
+                    ctx.Response.Headers["interval_high"] = svc.ScopedMetadataIntervalHigh.ToString();
+                    ctx.Response.Headers["functionality_ID"] = svc.ScopedMetadataFunctionalityID;
+                    ctx.Response.Headers["timestamp"] = svc.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff"); // "2023-04-03T16:20:30+00:00" for example
                     return Task.CompletedTask;
                 });
-                
+
                 // Call the next middleware
                 await _next.Invoke(ctx);
 
@@ -69,24 +86,18 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 // (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
-            } 
-            else if(ctx.Request.Query.TryGetValue("Tokens", out var tokens)) {
-                _logger.LogInformation($"Registered tokens: {tokens}");
-
-                svc.ScopedMetadataTokens = double.Parse(tokens);
 
             }
             else {
-                //_logger.LogInformation("The tokens parameter does not exist in the HTTP context.");
+                // This is not an HTTP request that requires change
                 await _next.Invoke(ctx);
             }
-            
         }
     }
 
     public static class IntegerExtension {
         public static IApplicationBuilder UseInteger(this IApplicationBuilder app) {
-            return app.UseMiddleware<IntegerMiddleware>(); 
+            return app.UseMiddleware<TCCMiddleware>(); 
         }
     }
 }

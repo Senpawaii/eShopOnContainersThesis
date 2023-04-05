@@ -1,5 +1,6 @@
 using Catalog.API.DependencyServices;
 using Catalog.API.Infrastructure.Interceptors;
+using Catalog.API.Infrastructure.Migrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -26,14 +27,8 @@ public class Startup
             .AddCustomMVC(Configuration)
             .AddHttpContextAccessor()
             .AddScoped<IScopedMetadata, ScopedMetadata>()
+            .AddSingleton<ISingletonWrapper, SingletonWrapper>()
             .AddEntityFrameworkSqlServer()
-            .AddDbContext<CatalogContext>(options => {
-                options.UseSqlServer(Configuration["ConnectionString"], sqlServerOptionsAction: sqlOptions => {
-                    sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
-                    //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-                    sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-                });
-            })
             .AddCustomDbContext(Configuration)
             .AddCustomOptions(Configuration)
             .AddIntegrationServices(Configuration)
@@ -41,6 +36,7 @@ public class Startup
             .AddSwagger(Configuration)
             .AddCustomHealthCheck(Configuration);
 
+        updateTableColumns(Configuration);
 
         var container = new ContainerBuilder();
         container.Populate(services);
@@ -130,17 +126,21 @@ public class Startup
         eventBus.Subscribe<OrderStatusChangedToPaidIntegrationEvent, OrderStatusChangedToPaidIntegrationEventHandler>();
     }
 
-    //public IRouter buildRouter(IApplicationBuilder applicationBuilder) {
-    //    var builder = new RouteBuilder(applicationBuilder);
+    private void updateTableColumns(IConfiguration configuration) {
+        // Add condition to not alter the table if the table was already altered -- This is only required if we don't clean the containers/ volumes between each iteration of the application.
+        using (DbConnection connection = new SqlConnection(configuration["ConnectionString"])) {
+            connection.Open();
+            DbCommand command = new SqlCommand("SELECT COUNT(*) FROM sys.columns WHERE Name = N'Timestamp' AND Object_ID = Object_ID(N'CatalogType')");
+            command.Connection = connection;
+            int result = (int)command.ExecuteScalar();
 
-    //    // Middleware to define the route
-    //    builder.MapMiddlewareGet("api/v1/catalog/items", appBuilder => {
-    //        appBuilder.UseMiddleware<IntegerMiddleware>();
-    //        appBuilder.Run();
-    //    });
-
-    //    return builder.Build();
-    //}
+            if (result == 0) {
+                DbCommand altercommand = new SqlCommand("ALTER TABLE [Microsoft.eShopOnContainers.Services.CatalogDb].[dbo].[CatalogType] ADD [Timestamp] DATETIME NOT NULL");
+                altercommand.Connection = connection;
+                altercommand.ExecuteNonQuery();
+            }
+        }
+    }
 }
 
 
@@ -221,17 +221,16 @@ public static class CustomExtensionMethods
 
     public static IServiceCollection AddCustomDbContext(this IServiceCollection services, IConfiguration configuration)
     {
-        //services.AddEntityFrameworkSqlServer()
-        //    .AddDbContext<CatalogContext>(options =>
-        //{
-        //    options.UseSqlServer(configuration["ConnectionString"],
-        //                            sqlServerOptionsAction: sqlOptions => {
-        //                                sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
-        //                                //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-        //                                sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-        //                            });
+        services.AddEntityFrameworkSqlServer()
+            .AddDbContext<CatalogContext>(options => {
+                options.UseSqlServer(configuration["ConnectionString"],
+                                        sqlServerOptionsAction: sqlOptions => {
+                                            sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+                                            //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+                                            sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+                                        });
 
-        //});
+            });
 
         services.AddDbContext<IntegrationEventLogContext>(options =>
         {

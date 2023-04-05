@@ -1,4 +1,6 @@
-﻿namespace Microsoft.eShopOnContainers.WebMVC.Controllers;
+﻿using WebMVC.ViewModels;
+
+namespace Microsoft.eShopOnContainers.WebMVC.Controllers;
 
 public class CatalogController : Controller
 {
@@ -18,19 +20,25 @@ public class CatalogController : Controller
          * WebMVC call to Catalog.API -> get brands
          * WebMVC call to Catalog.API -> get catalog types
          * **/
-        var interval = (0, 0);
+        var metadata = new TCCMetadata {
+            Interval = Tuple.Create(0,0),
+            FunctionalityID = Guid.NewGuid().ToString(),
+            Timestamp = DateTimeOffset.Now
+        };
+
         var itemsPage = 9;
 
-        if (page != null) {
-            Console.WriteLine("Index, Page number: " + page.ToString());
-        }
+        Console.WriteLine($"Initialized functionality: <{metadata.FunctionalityID}>");
         
         // Deconstruct declaration
-        (Catalog catalog, (int, int) new_interval) = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, interval);
+        (Catalog catalog, metadata) = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, metadata);
         
-        // Assign the new interval to the used interval
-        interval.Item1 = new_interval.Item1;
-        interval.Item2 = new_interval.Item2;
+        // Sleep for a long period (This is only necessary as an extreme case to demonstrate the consistency anomaly)
+        Thread.Sleep(10000);
+
+        // Added this line for testing, check if the number of items returned is still the same.
+        (catalog, metadata) = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, metadata);
+
 
         var vm = new IndexViewModel()
         {

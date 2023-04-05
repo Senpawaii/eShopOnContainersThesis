@@ -22,7 +22,7 @@ public class CatalogContext : DbContext
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) {
-        optionsBuilder.AddInterceptors(new DemoInterceptor(_scopedMetadata));
+        optionsBuilder.AddInterceptors(new CatalogDBInterceptor(_scopedMetadata));
     }
 }
 
