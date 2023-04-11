@@ -3,7 +3,7 @@
     public class ScopedMetadata : IScopedMetadata {
         double tokens;
         Tuple<int, int> interval = Tuple.Create(0, 0);
-        DateTimeOffset timestamp;
+        DateTimeOffset timestamp = DateTimeOffset.Now;
         string functionality_ID;
         public ScopedMetadata() { }
 

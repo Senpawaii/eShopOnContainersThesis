@@ -12,6 +12,8 @@ public class CatalogContextSeed
             var contentRootPath = env.ContentRootPath;
             var picturePath = env.WebRootPath;
 
+
+
             if (!context.CatalogBrands.Any())
             {
                 await context.CatalogBrands.AddRangeAsync(useCustomizationData

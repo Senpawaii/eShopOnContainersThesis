@@ -21,7 +21,7 @@ public class CatalogController : Controller
          * WebMVC call to Catalog.API -> get catalog types
          * **/
         var metadata = new TCCMetadata {
-            Interval = Tuple.Create(0,0),
+            Interval = Tuple.Create(0, 0),
             FunctionalityID = Guid.NewGuid().ToString(),
             Timestamp = DateTimeOffset.Now
         };
@@ -40,15 +40,15 @@ public class CatalogController : Controller
         (catalog, metadata) = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, metadata);
 
 
-        var vm = new IndexViewModel()
-        {
+        (var brands, metadata) = await _catalogSvc.GetBrands(metadata);
+        (var types, metadata) = await _catalogSvc.GetTypes(metadata);
+        var vm = new IndexViewModel() {
             CatalogItems = catalog.Data,
-            Brands = await _catalogSvc.GetBrands(),
-            Types = await _catalogSvc.GetTypes(),
+            Brands = brands,
+            Types = types,
             BrandFilterApplied = BrandFilterApplied ?? 0,
             TypesFilterApplied = TypesFilterApplied ?? 0,
-            PaginationInfo = new PaginationInfo()
-            {
+            PaginationInfo = new PaginationInfo() {
                 ActualPage = page ?? 0,
                 ItemsPerPage = catalog.Data.Count,
                 TotalItems = catalog.Count,

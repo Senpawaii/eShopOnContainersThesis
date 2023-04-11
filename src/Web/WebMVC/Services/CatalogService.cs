@@ -61,7 +61,7 @@ public class CatalogService : ICatalogService
         }
 
         metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
-        metadata.Timestamp = DateTimeOffset.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
+        metadata.Timestamp = DateTimeOffset.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
 
         // Decompose the responseString view in a Catalog object
         var catalog = JsonSerializer.Deserialize<Catalog>(responseString, new JsonSerializerOptions
@@ -72,12 +72,47 @@ public class CatalogService : ICatalogService
         return (catalog, metadata);
     }
 
-    public async Task<IEnumerable<SelectListItem>> GetBrands()
+    public async Task<(IEnumerable<SelectListItem>, TCCMetadata)> GetBrands(TCCMetadata metadata)
     {
 
-        var uri = API.Catalog.GetAllBrands(_remoteServiceBaseUrl);
+        var uri = API.Catalog.GetAllBrands(_remoteServiceBaseUrl, metadata);
 
-        var responseString = await _httpClient.GetStringAsync(uri);
+        //var responseString = await _httpClient.GetStringAsync(uri);
+        
+        // Obtain the header parameters (metadata)
+        HttpResponseMessage response = await _httpClient.GetAsync(uri);
+        response.EnsureSuccessStatusCode();
+
+        var responseString = await response.Content.ReadAsStringAsync();
+
+        //// Obtain the header parameters (metadata)
+        HttpHeaders headers = response.Headers;
+
+        IEnumerable<string> headerIntervalLow;
+        IEnumerable<string> headerIntervalHigh;
+        IEnumerable<string> headerTimestamp;
+        int intervalLow;
+        int intervalHigh;
+
+        if (!headers.TryGetValues(("interval_low"), out headerIntervalLow)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if (!headers.TryGetValues(("interval_high"), out headerIntervalHigh)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if (!headers.TryGetValues(("timestamp"), out headerTimestamp)) {
+            _logger.LogInformation("Couldn't retrieve timestamp information from response header.");
+        }
+
+        if (!int.TryParse(headerIntervalLow.FirstOrDefault(), out intervalLow)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if (!int.TryParse(headerIntervalHigh.FirstOrDefault(), out intervalHigh)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+
+        metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
+        metadata.Timestamp = DateTimeOffset.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
 
         var items = new List<SelectListItem>();
 
@@ -94,14 +129,49 @@ public class CatalogService : ICatalogService
             });
         }
 
-        return items;
+        return (items, metadata);
     }
 
-    public async Task<IEnumerable<SelectListItem>> GetTypes()
+    public async Task<(IEnumerable<SelectListItem>, TCCMetadata)> GetTypes(TCCMetadata metadata)
     {
-        var uri = API.Catalog.GetAllTypes(_remoteServiceBaseUrl);
+        var uri = API.Catalog.GetAllTypes(_remoteServiceBaseUrl, metadata);
 
-        var responseString = await _httpClient.GetStringAsync(uri);
+        //var responseString = await _httpClient.GetStringAsync(uri);
+
+        // Obtain the header parameters (metadata)
+        HttpResponseMessage response = await _httpClient.GetAsync(uri);
+        response.EnsureSuccessStatusCode();
+
+        var responseString = await response.Content.ReadAsStringAsync();
+
+        //// Obtain the header parameters (metadata)
+        HttpHeaders headers = response.Headers;
+
+        IEnumerable<string> headerIntervalLow;
+        IEnumerable<string> headerIntervalHigh;
+        IEnumerable<string> headerTimestamp;
+        int intervalLow;
+        int intervalHigh;
+
+        if (!headers.TryGetValues(("interval_low"), out headerIntervalLow)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if (!headers.TryGetValues(("interval_high"), out headerIntervalHigh)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if (!headers.TryGetValues(("timestamp"), out headerTimestamp)) {
+            _logger.LogInformation("Couldn't retrieve timestamp information from response header.");
+        }
+
+        if (!int.TryParse(headerIntervalLow.FirstOrDefault(), out intervalLow)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+        if (!int.TryParse(headerIntervalHigh.FirstOrDefault(), out intervalHigh)) {
+            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        }
+
+        metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
+        metadata.Timestamp = DateTimeOffset.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
 
         var items = new List<SelectListItem>();
         items.Add(new SelectListItem() { Value = null, Text = "All", Selected = true });
@@ -117,6 +187,6 @@ public class CatalogService : ICatalogService
             });
         }
 
-        return items;
+        return (items, metadata);
     }
 }

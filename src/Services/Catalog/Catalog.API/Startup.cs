@@ -36,8 +36,6 @@ public class Startup
             .AddSwagger(Configuration)
             .AddCustomHealthCheck(Configuration);
 
-        updateTableColumns(Configuration);
-
         var container = new ContainerBuilder();
         container.Populate(services);
 
@@ -126,21 +124,7 @@ public class Startup
         eventBus.Subscribe<OrderStatusChangedToPaidIntegrationEvent, OrderStatusChangedToPaidIntegrationEventHandler>();
     }
 
-    private void updateTableColumns(IConfiguration configuration) {
-        // Add condition to not alter the table if the table was already altered -- This is only required if we don't clean the containers/ volumes between each iteration of the application.
-        using (DbConnection connection = new SqlConnection(configuration["ConnectionString"])) {
-            connection.Open();
-            DbCommand command = new SqlCommand("SELECT COUNT(*) FROM sys.columns WHERE Name = N'Timestamp' AND Object_ID = Object_ID(N'CatalogType')");
-            command.Connection = connection;
-            int result = (int)command.ExecuteScalar();
-
-            if (result == 0) {
-                DbCommand altercommand = new SqlCommand("ALTER TABLE [Microsoft.eShopOnContainers.Services.CatalogDb].[dbo].[CatalogType] ADD [Timestamp] DATETIME NOT NULL");
-                altercommand.Connection = connection;
-                altercommand.ExecuteNonQuery();
-            }
-        }
-    }
+   
 }
 
 

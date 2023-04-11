@@ -14,6 +14,8 @@ try
         var settings = services.GetService<IOptions<CatalogSettings>>();
         var logger = services.GetService<ILogger<CatalogContextSeed>>();
 
+        updateTableColumns(configuration);
+
         new CatalogContextSeed().SeedAsync(context, env, settings, logger).Wait();
     })
     .MigrateDbContext<IntegrationEventLogContext>((_, __) => { });
@@ -97,6 +99,34 @@ IConfiguration GetConfiguration()
     }
 
     return builder.Build();
+}
+
+void updateTableColumns(IConfiguration configuration) {
+    // Add condition to not alter the table if the table was already altered -- This is only required if we don't clean the containers/ volumes between each iteration of the application.
+    using (DbConnection connection = new SqlConnection(configuration["ConnectionString"])) {
+        connection.Open();
+
+        string[] tables = new string[3];
+        tables[0] = "CatalogType";
+        tables[1] = "CatalogBrand";
+        tables[2] = "Catalog";
+
+        for (int i = 0; i < 3; i++) {
+            DbCommand command = new SqlCommand($"SELECT COUNT(*) FROM sys.columns WHERE Name = N'Timestamp' AND Object_ID = Object_ID(N'{tables[i]}')");
+            command.Connection = connection;
+            int result = (int)command.ExecuteScalar();
+            if (result == 0) {
+                AddColumnToTable(connection, tables[i]);
+                Console.WriteLine($"Adding Timestamp column to Table {tables[i]}.");
+            }
+        }
+    }
+}
+
+static void AddColumnToTable(DbConnection connection, string table) {
+    DbCommand altercommand = new SqlCommand($"ALTER TABLE [Microsoft.eShopOnContainers.Services.CatalogDb].[dbo].[{table}] ADD [Timestamp] DATETIME NOT NULL DEFAULT GETDATE()");
+    altercommand.Connection = connection;
+    altercommand.ExecuteNonQuery();
 }
 
 public partial class Program
