@@ -5,9 +5,12 @@ namespace Microsoft.eShopOnContainers.WebMVC.Controllers;
 public class CatalogController : Controller
 {
     private ICatalogService _catalogSvc;
+    private IOptions<AppSettings> _options;
 
-    public CatalogController(ICatalogService catalogSvc) =>
+    public CatalogController(ICatalogService catalogSvc, IOptions<AppSettings> options) {
         _catalogSvc = catalogSvc;
+        _options = options;
+    }
 
     public async Task<IActionResult> Index(int? BrandFilterApplied, int? TypesFilterApplied, int? page, [FromQuery] string errorMsg)
     {
@@ -20,28 +23,29 @@ public class CatalogController : Controller
          * WebMVC call to Catalog.API -> get brands
          * WebMVC call to Catalog.API -> get catalog types
          * **/
-        var metadata = new TCCMetadata {
-            Interval = Tuple.Create(0, 0),
-            FunctionalityID = Guid.NewGuid().ToString(),
-            Timestamp = DateTimeOffset.Now
-        };
-
+        TCCMetadata metadata = null;
+        // Initialize the Metadata Fields if Testing with Wrappers
+        if(_options.Value.ThesisWrapperEnabled) {
+            metadata = new TCCMetadata {
+                Interval = Tuple.Create(0, 0),
+                FunctionalityID = Guid.NewGuid().ToString(),
+                Timestamp = DateTimeOffset.Now
+            };
+            Console.WriteLine($"Initialized functionality: <{metadata.FunctionalityID}>");
+        }
+        
         var itemsPage = 9;
 
-        Console.WriteLine($"Initialized functionality: <{metadata.FunctionalityID}>");
-        
         // Deconstruct declaration
         (Catalog catalog, metadata) = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, metadata);
-        
+
         // Sleep for a long period (This is only necessary as an extreme case to demonstrate the consistency anomaly)
         Thread.Sleep(10000);
 
-        // Added this line for testing, check if the number of items returned is still the same.
-        (catalog, metadata) = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, metadata);
-
-
         (var brands, metadata) = await _catalogSvc.GetBrands(metadata);
         (var types, metadata) = await _catalogSvc.GetTypes(metadata);
+       
+
         var vm = new IndexViewModel() {
             CatalogItems = catalog.Data,
             Brands = brands,

@@ -14,7 +14,10 @@ try
         var settings = services.GetService<IOptions<CatalogSettings>>();
         var logger = services.GetService<ILogger<CatalogContextSeed>>();
 
-        updateTableColumns(configuration);
+        var thesisWrappers = settings.Value.ThesisWrapperEnabled;
+        if (thesisWrappers) {
+            updateTableColumns(configuration);
+        }
 
         new CatalogContextSeed().SeedAsync(context, env, settings, logger).Wait();
     })

@@ -20,8 +20,7 @@ public class CatalogService : ICatalogService
         _remoteServiceBaseUrl = $"{_settings.Value.PurchaseUrl}/c/api/v1/catalog/";
     }
 
-    public async Task<(Catalog, TCCMetadata)> GetCatalogItems(int page, int take, int? brand, int? type, TCCMetadata metadata)
-    {
+    public async Task<(Catalog, TCCMetadata)> GetCatalogItems(int page, int take, int? brand, int? type, TCCMetadata metadata) {
         // Generate the URI string
         var uri = API.Catalog.GetAllCatalogItems(_remoteServiceBaseUrl, page, take, brand, type, metadata);
 
@@ -34,38 +33,12 @@ public class CatalogService : ICatalogService
 
         var responseString = await response.Content.ReadAsStringAsync();
 
-        //// Obtain the header parameters (metadata)
-        HttpHeaders headers = response.Headers;
-
-        IEnumerable<string> headerIntervalLow;
-        IEnumerable<string> headerIntervalHigh;
-        IEnumerable<string> headerTimestamp;
-        int intervalLow;
-        int intervalHigh;
-
-        if (!headers.TryGetValues(("interval_low"), out headerIntervalLow)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        if(metadata != null) {
+            ExtractMetadataFromResponseHeaders(metadata, response);
         }
-        if (!headers.TryGetValues(("interval_high"), out headerIntervalHigh)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-        if (!headers.TryGetValues(("timestamp"), out headerTimestamp)) {
-            _logger.LogInformation("Couldn't retrieve timestamp information from response header.");
-        }
-
-        if (!int.TryParse(headerIntervalLow.FirstOrDefault(), out intervalLow)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-        if(!int.TryParse(headerIntervalHigh.FirstOrDefault(), out intervalHigh)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-
-        metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
-        metadata.Timestamp = DateTimeOffset.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
 
         // Decompose the responseString view in a Catalog object
-        var catalog = JsonSerializer.Deserialize<Catalog>(responseString, new JsonSerializerOptions
-        {
+        var catalog = JsonSerializer.Deserialize<Catalog>(responseString, new JsonSerializerOptions {
             PropertyNameCaseInsensitive = true
         });
 
@@ -85,35 +58,9 @@ public class CatalogService : ICatalogService
 
         var responseString = await response.Content.ReadAsStringAsync();
 
-        //// Obtain the header parameters (metadata)
-        HttpHeaders headers = response.Headers;
-
-        IEnumerable<string> headerIntervalLow;
-        IEnumerable<string> headerIntervalHigh;
-        IEnumerable<string> headerTimestamp;
-        int intervalLow;
-        int intervalHigh;
-
-        if (!headers.TryGetValues(("interval_low"), out headerIntervalLow)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
+        if (metadata != null) {
+            ExtractMetadataFromResponseHeaders(metadata, response);
         }
-        if (!headers.TryGetValues(("interval_high"), out headerIntervalHigh)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-        if (!headers.TryGetValues(("timestamp"), out headerTimestamp)) {
-            _logger.LogInformation("Couldn't retrieve timestamp information from response header.");
-        }
-
-        if (!int.TryParse(headerIntervalLow.FirstOrDefault(), out intervalLow)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-        if (!int.TryParse(headerIntervalHigh.FirstOrDefault(), out intervalHigh)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-
-        metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
-        metadata.Timestamp = DateTimeOffset.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
-
         var items = new List<SelectListItem>();
 
         items.Add(new SelectListItem() { Value = null, Text = "All", Selected = true });
@@ -144,7 +91,28 @@ public class CatalogService : ICatalogService
 
         var responseString = await response.Content.ReadAsStringAsync();
 
-        //// Obtain the header parameters (metadata)
+        if (metadata != null) {
+            ExtractMetadataFromResponseHeaders(metadata, response);
+        }
+        var items = new List<SelectListItem>();
+        items.Add(new SelectListItem() { Value = null, Text = "All", Selected = true });
+            
+        using var catalogTypes = JsonDocument.Parse(responseString);
+
+        foreach (JsonElement catalogType in catalogTypes.RootElement.EnumerateArray())
+        {
+            items.Add(new SelectListItem()
+            {
+                Value = catalogType.GetProperty("id").ToString(),
+                Text = catalogType.GetProperty("type").ToString()
+            });
+        }
+
+        return (items, metadata);
+    }
+
+    private void ExtractMetadataFromResponseHeaders(TCCMetadata metadata, HttpResponseMessage response) {
+        //// Obtain the header parameters (metadata) from the response
         HttpHeaders headers = response.Headers;
 
         IEnumerable<string> headerIntervalLow;
@@ -172,21 +140,5 @@ public class CatalogService : ICatalogService
 
         metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
         metadata.Timestamp = DateTimeOffset.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
-
-        var items = new List<SelectListItem>();
-        items.Add(new SelectListItem() { Value = null, Text = "All", Selected = true });
-            
-        using var catalogTypes = JsonDocument.Parse(responseString);
-
-        foreach (JsonElement catalogType in catalogTypes.RootElement.EnumerateArray())
-        {
-            items.Add(new SelectListItem()
-            {
-                Value = catalogType.GetProperty("id").ToString(),
-                Text = catalogType.GetProperty("type").ToString()
-            });
-        }
-
-        return (items, metadata);
     }
 }

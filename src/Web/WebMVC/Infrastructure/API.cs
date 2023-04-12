@@ -70,17 +70,25 @@ public static class API
             {
                 filterQs = string.Empty;
             }
-
+            if(metadata == null) {
+                return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}";
+            }
             return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}&interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
         }
 
         public static string GetAllBrands(string baseUri, TCCMetadata metadata)
         {
+            if(metadata == null) {
+                return $"{baseUri}catalogBrands";
+            }
             return $"{baseUri}catalogBrands?interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
         }
 
         public static string GetAllTypes(string baseUri, TCCMetadata metadata)
         {
+            if(metadata == null) {
+                return $"{baseUri}catalogTypes";
+            }
             return $"{baseUri}catalogTypes?interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
         }
     }

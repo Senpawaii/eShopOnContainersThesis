@@ -95,8 +95,8 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
         }
     }
 
-    public static class IntegerExtension {
-        public static IApplicationBuilder UseInteger(this IApplicationBuilder app) {
+    public static class TCCMiddlewareExtension {
+        public static IApplicationBuilder UseTCCMiddleware(this IApplicationBuilder app) {
             return app.UseMiddleware<TCCMiddleware>(); 
         }
     }

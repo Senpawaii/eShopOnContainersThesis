@@ -9,4 +9,5 @@ public class CatalogSettings
     public bool UseCustomizationData { get; set; }
 
     public bool AzureStorageEnabled { get; set; }
+    public bool ThesisWrapperEnabled { get; set; }
 }

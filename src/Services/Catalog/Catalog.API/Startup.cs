@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Middleware;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API;
@@ -26,8 +27,6 @@ public class Startup
             .AddGrpc().Services
             .AddCustomMVC(Configuration)
             .AddHttpContextAccessor()
-            .AddScoped<IScopedMetadata, ScopedMetadata>()
-            .AddSingleton<ISingletonWrapper, SingletonWrapper>()
             .AddEntityFrameworkSqlServer()
             .AddCustomDbContext(Configuration)
             .AddCustomOptions(Configuration)
@@ -35,6 +34,12 @@ public class Startup
             .AddEventBus(Configuration)
             .AddSwagger(Configuration)
             .AddCustomHealthCheck(Configuration);
+
+        if (Configuration["ThesisWrapperEnabled"] == "True") {
+            services
+                .AddScoped<IScopedMetadata, ScopedMetadata>()
+                .AddSingleton<ISingletonWrapper, SingletonWrapper>();
+        }
 
         var container = new ContainerBuilder();
         container.Populate(services);
@@ -66,16 +71,11 @@ public class Startup
         app.UseRouting();
         app.UseCors("CorsPolicy");
 
-        //app.Use(async (httpContext, next) => {
-        //    CallContext.LogicalSetData("CurrentContextKey", httpContext);
-
-        //})
-
-        //app.MapWhen(context => context.Request.Path.StartsWithSegments("/api/v1/catalog/items"), 
-        //    appBuilder => appBuilder.UseInteger());
-        
         // TODO The middleware should only be called for the /api/v1/catalog/items (and 2 more routes), instead of all Catalog routes. How can we do this? 
-        app.UseInteger();
+        bool wrapperEnabled = Convert.ToBoolean(Configuration["ThesisWrapperEnabled"]);
+        if (wrapperEnabled) {
+            app.UseTCCMiddleware();
+        }
 
         app.UseEndpoints(endpoints =>
         {
@@ -205,6 +205,8 @@ public static class CustomExtensionMethods
 
     public static IServiceCollection AddCustomDbContext(this IServiceCollection services, IConfiguration configuration)
     {
+        bool thesis = Convert.ToBoolean(configuration["ThesisWrappers"]);
+
         services.AddEntityFrameworkSqlServer()
             .AddDbContext<CatalogContext>(options => {
                 options.UseSqlServer(configuration["ConnectionString"],

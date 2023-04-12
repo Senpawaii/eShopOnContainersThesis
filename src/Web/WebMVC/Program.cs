@@ -32,11 +32,11 @@ if (!string.IsNullOrEmpty(pathBase))
 }
 
 // This is an example of a data structure that is used to store integers across multiple received requests.
-List<double> testInts = new List<double>();
+//List<double> testInts = new List<double>();
 
 // Added a simple Middleware example.
 // This MiddleWare will run before the Static Files middleware layer
-app.UseInteger();
+//app.UseInteger();
 
 app.UseStaticFiles();
 app.UseSession();
