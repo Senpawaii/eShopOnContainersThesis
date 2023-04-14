@@ -44,6 +44,15 @@ services:
       - sqldata
       - rabbitmq
 
+  discount-api:
+    image: ${REGISTRY:-eshop}/discount.api:${PLATFORM:-linux}-${TAG:-latest}
+    build:
+      context: .
+      dockerfile: Services/Discount/Discount.API/Dockerfile
+    depends_on:
+      - sqldata
+      - rabbitmq
+
   ordering-api:
     image: ${REGISTRY:-eshop}/ordering.api:${PLATFORM:-linux}-${TAG:-latest}
     build:
@@ -93,6 +102,7 @@ services:
       - rabbitmq
       - ordering-api
       - catalog-api
+      - discount-api 
       - basket-api
 
   webshoppingagg:
@@ -107,6 +117,7 @@ services:
       - rabbitmq
       - ordering-api
       - catalog-api
+      - discount-api 
       - basket-api
 
   ordering-signalrhub:
@@ -122,6 +133,7 @@ services:
       - ordering-api
       - catalog-api
       - basket-api
+      - discount-api 
 
   webstatus:
     image: ${REGISTRY:-eshop}/webstatus:${PLATFORM:-linux}-${TAG:-latest}

@@ -7,6 +7,7 @@
         "basket-api": "StartDebugging",
         "basketdata": "StartWithoutDebugging",
         "catalog-api": "StartDebugging",
+        "discount-api": "StartDebugging",
         "identity-api": "StartDebugging",
         "mobileshoppingagg": "StartDebugging",
         "mobileshoppingapigw": "StartWithoutDebugging",

@@ -100,6 +100,28 @@ services:
     ports:
       - "5101:80"
       - "9101:81"
+  
+  discount-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionString=${ESHOP_AZURE_DISCOUNT_DB:-Server=sqldata;Database=Microsoft.eShopOnContainers.Services.DiscountDb;User Id=sa;Password=Pass@word;Encrypt=False;TrustServerCertificate=true}
+      - PicBaseUrl=${ESHOP_STORAGE_DISCOUNT_URL}
+      - EventBusConnection=${ESHOP_AZURE_SERVICE_BUS:-rabbitmq}
+      - EventBusUserName=${ESHOP_SERVICE_BUS_USERNAME}
+      - EventBusPassword=${ESHOP_SERVICE_BUS_PASSWORD}
+      - AzureStorageAccountName=${ESHOP_AZURE_STORAGE_DISCOUNT_NAME}
+      - AzureStorageAccountKey=${ESHOP_AZURE_STORAGE_DISCOUNT_KEY}
+      - UseCustomizationData=True
+      - AzureServiceBusEnabled=False
+      - AzureStorageEnabled=False
+      - ApplicationInsights__InstrumentationKey=${INSTRUMENTATION_KEY}
+      - OrchestratorType=${ORCHESTRATOR_TYPE}
+      - GRPC_PORT=81
+      - PORT=80
+      - PATH_BASE=/discount-api
+    ports:
+      - "5140:80"
+      - "9120:81"
 
   ordering-api:
     environment:
@@ -192,12 +214,15 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - urls__basket=http://basket-api
       - urls__catalog=http://catalog-api
+      - urls__discount=http://discount-api
       - urls__orders=http://ordering-api
       - urls__identity=http://identity-api
       - urls__grpcBasket=http://basket-api:81
       - urls__grpcCatalog=http://catalog-api:81
+      - urls__grpcDiscount=http://discount-api:81
       - urls__grpcOrdering=http://ordering-api:81
       - CatalogUrlHC=http://catalog-api/hc
+      - DiscountUrlHC=http://discount-api/hc
       - OrderingUrlHC=http://ordering-api/hc
       - IdentityUrlHC=http://identity-api/hc
       - BasketUrlHC=http://basket-api/hc
@@ -211,12 +236,15 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - urls__basket=http://basket-api
       - urls__catalog=http://catalog-api
+      - urls__discount=http://discount-api
       - urls__orders=http://ordering-api
       - urls__identity=http://identity-api
       - urls__grpcBasket=http://basket-api:81
       - urls__grpcCatalog=http://catalog-api:81
+      - urls__grpcDiscount=http://discount-api:81
       - urls__grpcOrdering=http://ordering-api:81
       - CatalogUrlHC=http://catalog-api/hc
+      - DiscountUrlHC=http://discount-api/hc
       - OrderingUrlHC=http://ordering-api/hc
       - IdentityUrlHC=http://identity-api/hc
       - BasketUrlHC=http://basket-api/hc
@@ -257,14 +285,16 @@ services:
       - HealthChecksUI__HealthChecks__5__Uri=http://basket-api/hc
       - HealthChecksUI__HealthChecks__6__Name=Catalog HTTP Check
       - HealthChecksUI__HealthChecks__6__Uri=http://catalog-api/hc
-      - HealthChecksUI__HealthChecks__7__Name=Identity HTTP Check
-      - HealthChecksUI__HealthChecks__7__Uri=http://identity-api/hc
-      - HealthChecksUI__HealthChecks__8__Name=Payments HTTP Check
-      - HealthChecksUI__HealthChecks__8__Uri=http://payment-api/hc
-      - HealthChecksUI__HealthChecks__9__Name=Ordering SignalRHub HTTP Check
-      - HealthChecksUI__HealthChecks__9__Uri=http://ordering-signalrhub/hc
-      - HealthChecksUI__HealthChecks__10__Name=Ordering HTTP Background Check
-      - HealthChecksUI__HealthChecks__10__Uri=http://ordering-backgroundtasks/hc
+      - HealthChecksUI__HealthChecks__7__Name=Discount HTTP Check
+      - HealthChecksUI__HealthChecks__7__Uri=http://discount-api/hc
+      - HealthChecksUI__HealthChecks__8__Name=Identity HTTP Check
+      - HealthChecksUI__HealthChecks__8__Uri=http://identity-api/hc
+      - HealthChecksUI__HealthChecks__9__Name=Payments HTTP Check
+      - HealthChecksUI__HealthChecks__9__Uri=http://payment-api/hc
+      - HealthChecksUI__HealthChecks__10__Name=Ordering SignalRHub HTTP Check
+      - HealthChecksUI__HealthChecks__10__Uri=http://ordering-signalrhub/hc
+      - HealthChecksUI__HealthChecks__11__Name=Ordering HTTP Background Check
+      - HealthChecksUI__HealthChecks__11__Uri=http://ordering-backgroundtasks/hc
       - ApplicationInsights__InstrumentationKey=${INSTRUMENTATION_KEY}
       - OrchestratorType=${ORCHESTRATOR_TYPE}
     ports:

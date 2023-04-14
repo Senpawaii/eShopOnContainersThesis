@@ -40,6 +40,20 @@ services:
     ports:
       - "5101:80"
 
+  discount-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - ConnectionString=${ESHOP_AZURE_DISCOUNT_DB:-Server=sqldata;Database=Microsoft.eShopOnContainers.Services.DiscountDb;User Id=sa;Password=Pass@word}
+      - EventBusConnection=${ESHOP_AZURE_SERVICE_BUS:-rabbitmq}
+      - AzureStorageAccountName=${ESHOP_AZURE_STORAGE_DISCOUNT_NAME}
+      - AzureStorageAccountKey=${ESHOP_AZURE_STORAGE_DISCOUNT_KEY}
+      - UseCustomizationData=True
+      - AzureServiceBusEnabled=False
+      - AzureStorageEnabled=False
+    ports:
+      - "5120:80"
+
   identity-api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -83,10 +97,12 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0
       - CatalogUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5101
+      - DiscountUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5101
       - OrderingUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5102
       - IdentityUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5105              #Local: You need to open your host's firewall at range 5100-5110. 
       - BasketUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5103
       - CatalogUrlHC=http://catalog-api/hc
+      - DiscountUrlHC=http://discount-api/hc
       - OrderingUrlHC=http://ordering-api/hc
       - IdentityUrlHC=http://identity-api/hc     #Local: Use ${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}, if using external IP or DNS name from browser.          
       - BasketUrlHC=http://basket-api/hc
@@ -99,6 +115,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0:80
       - CatalogUrl=http://catalog-api
+      - DiscountUrl=http://discount-api
       - OrderingUrl=http://ordering-api
       - IdentityUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5105     #Local: Use ${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}, if using external IP or DNS name from browser.          
       - BasketUrl=http://basket-api
@@ -122,6 +139,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0:80
       - CatalogUrl=http://catalog-api/hc
+      - DiscountUrl=http://discount-api/hc
       - OrderingUrl=http://ordering-api/hc
       - BasketUrl=http://basket-api/hc
       - IdentityUrl=http://identity-api/hc

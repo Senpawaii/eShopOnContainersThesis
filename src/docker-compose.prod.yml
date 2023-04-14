@@ -52,6 +52,24 @@ services:
     ports:
       - "80"   # The API Gateway redirects and access through the internal port (80).
 
+  discount-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - ConnectionString=${ESHOP_AZURE_DISCOUNT_DB:-Server=sqldata;Database=Microsoft.eShopOnContainers.Services.DiscountDb;User Id=sa;Password=Pass@word}
+      - EventBusConnection=${ESHOP_AZURE_SERVICE_BUS:-rabbitmq}
+      - EventBusUserName=${ESHOP_SERVICE_BUS_USERNAME}
+      - EventBusPassword=${ESHOP_SERVICE_BUS_PASSWORD}
+      - AzureStorageAccountName=${ESHOP_AZURE_STORAGE_DISCOUNT_NAME}
+      - AzureStorageAccountKey=${ESHOP_AZURE_STORAGE_DISCOUNT_KEY}
+      - UseCustomizationData=True
+      - AzureServiceBusEnabled=False
+      - AzureStorageEnabled=False
+      - ApplicationInsights__InstrumentationKey=${INSTRUMENTATION_KEY}
+      - OrchestratorType=${ORCHESTRATOR_TYPE}
+    ports:
+      - "80"   # The API Gateway redirects and access through the internal port (80).
+
   identity-api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development

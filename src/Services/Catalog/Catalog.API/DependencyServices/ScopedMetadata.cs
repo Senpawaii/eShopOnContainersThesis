@@ -3,7 +3,8 @@
     public class ScopedMetadata : IScopedMetadata {
         double tokens;
         Tuple<int, int> interval = Tuple.Create(0, 0);
-        DateTimeOffset timestamp = DateTimeOffset.Now;
+        // The default timestamp should not be used by any functionality. This is used mainly for ContextSeed population.
+        DateTimeOffset timestamp = DateTimeOffset.Now.AddMinutes(5);
         string functionality_ID;
         public ScopedMetadata() { }
 

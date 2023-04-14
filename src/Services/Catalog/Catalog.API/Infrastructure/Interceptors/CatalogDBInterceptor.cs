@@ -89,7 +89,7 @@ namespace Catalog.API.Infrastructure.Interceptors {
 
             // Get the current timestamp
             var timestamp = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss");
-
+            Console.WriteLine($"Writing item with Timestamp:{timestamp}");
             // Replace Command Text to account for new parameter
             string commandWithTimestamp;
             commandWithTimestamp = UpdateInsertCommandWithTimestamp(command, operation);
@@ -99,7 +99,7 @@ namespace Catalog.API.Infrastructure.Interceptors {
             // Add timestamp Parameter to the Command Parameters
             newCommandText = UpdateCommandParameters(command, generatedParameters, timestamp, newCommandText, operation);
 
-            // Clear the eexisting parameters and add the new parameters to the command
+            // Clear the existing parameters and add the new parameters to the command
             command.Parameters.Clear();
             command.Parameters.AddRange(generatedParameters.ToArray());
             command.CommandText = newCommandText;

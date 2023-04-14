@@ -37,6 +37,8 @@ data:
   internalurls__basket__hc: http://{{ .Values.app.svc.basket }}/hc
   name__catalog__hc: Catalog HTTP Check
   internalurls__catalog__hc: http://{{ .Values.app.svc.catalog }}/hc
+  name__discount__hc: Discount HTTP Check
+  internalurls__discount__hc: http://{{ .Values.app.svc.discount }}/hc
   name__identity__hc: Identity HTTP Check
   internalurls__identity__hc: http://{{ .Values.app.svc.identity }}/hc
   name__payment__hc: Payment HTTP Check

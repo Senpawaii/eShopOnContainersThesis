@@ -37,12 +37,16 @@ env:
       key: internalurls__basket
     - name: urls__catalog
       key: internalurls__catalog
+    - name: urls__discount
+      key: internalurls__discount
     - name: urls__orders
       key: internalurls__ordering
     - name: urls__identity
       key: internalurls__identity
     - name: CatalogUrlHC
       key: internalurls__catalog__hc
+    - name: DiscountUrlHC
+      key: internalurls__discount__hc
     - name: BasketUrlHC
       key: internalurls__basket__hc
     - name: IdentityUrlHC
@@ -55,6 +59,8 @@ env:
       key: internalurls__grpcBasket
     - name: urls__grpcCatalog
       key: internalurls__grpcCatalog
+    - name: urls__grpcDiscount
+      key: internalurls__grpcDiscount
     - name: urls__grpcOrdering
       key: internalurls__grpcOrdering
     - name: IdentityUrlExternal

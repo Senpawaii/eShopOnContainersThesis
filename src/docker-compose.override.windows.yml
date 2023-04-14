@@ -31,6 +31,11 @@ services:
     environment:
       - EventBusUserName=admin
       - EventBusPassword=password
+  
+  discount-api:
+    environment:
+      - EventBusUserName=admin
+      - EventBusPassword=password
 
   ordering-api:
     environment:

@@ -7,6 +7,7 @@ app:                                                    # app global settings
     entries:
       basket: basket-api                                # ingress entry for basket api
       catalog: catalog-api                              # ingress entry for catalog api
+      discount: discount-api                            # ingress entry for discount api
       ordering: ordering-api                            # ingress entry for ordering api
       identity: identity                                # ingress entry for identity api
       mvc: webmvc                                       # ingress entry for web mvc
@@ -22,6 +23,7 @@ app:                                                    # app global settings
   svc:
       basket: basket-api                                # service name for basket api
       catalog: catalog-api                              # service name for catalog api
+      discount: discount-api                            # service name for discount api
       ordering: ordering-api                            # service name for ordering api
       orderingbackgroundtasks: ordering-backgroundtasks # service name for orderingbackgroundtasks
       orderingsignalrhub: ordering-signalrhub           # service name for orderingsignalrhub

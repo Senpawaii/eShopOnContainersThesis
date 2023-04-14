@@ -1,0 +1,14 @@
+﻿syntax = "proto3";
+
+/* >>
+import "google/api/annotations.proto";
+<< */
+
+
+package DiscountApi;
+
+
+
+service Discount {
+  
+}

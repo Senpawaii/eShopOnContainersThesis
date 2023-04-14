@@ -3,7 +3,6 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageVersion Include="AspNetCore.HealthChecks.AzureServiceBus" Version="6.1.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.AzureStorage" Version="6.1.2" />
@@ -56,7 +55,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="7.0.3" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.4.0" />
     <PackageVersion Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="7.0.3" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="7.0.4" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="7.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="7.0.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Proxies" Version="7.0.3" />
@@ -75,7 +74,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.AzureAppServices" Version="7.0.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.5.0" />
     <PackageVersion Include="Microsoft.NETCore.Platforms" Version="7.0.0" />
-    <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.0" />
+    <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.2" />
     <PackageVersion Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="7.0.4" />
     <PackageVersion Include="Microsoft.Web.LibraryManager.Build" Version="2.1.175" />
     <PackageVersion Include="Moq" Version="4.18.4" />

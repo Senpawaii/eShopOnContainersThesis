@@ -36,6 +36,19 @@ static_resources:
                 route:
                   auto_host_rewrite: true
                   cluster: catalog
+              - name: "d-short"
+                match:
+                  prefix: "/d/"
+                route:
+                  auto_host_rewrite: true
+                  prefix_rewrite: "/discount-api/"
+                  cluster: discount
+              - name: "d-long"
+                match:
+                  prefix: "/discount-api/"
+                route:
+                  auto_host_rewrite: true
+                  cluster: discount
               - name: "o-short"
                 match:
                   prefix: "/o/"
@@ -115,6 +128,14 @@ static_resources:
     hosts:
     - socket_address:
         address: catalog-api
+        port_value: 80
+  - name: discount
+    connect_timeout: 0.25s
+    type: strict_dns
+    lb_policy: round_robin
+    hosts:
+    - socket_address:
+        address: discount-api
         port_value: 80
   - name: basket
     connect_timeout: 0.25s

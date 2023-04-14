@@ -16,6 +16,8 @@ inf:
       TrustServerCertificate: true
     catalog:                # inf.sql.catalog: settings for the catalog-api sql (user, pwd, db)
       db: CatalogDb         # Catalog API SQL db name
+    discount:                # inf.sql.discount: settings for the discount-api sql (user, pwd, db)
+      db: DiscountDb         # Discount API SQL db name
     ordering:               # inf.sql.ordering: settings for the ordering-api sql (user, pwd, db)
       db: OrderingDb        # Ordering API SQL db name
     identity:
