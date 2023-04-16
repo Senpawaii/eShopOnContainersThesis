@@ -23,7 +23,7 @@ try {
             // Execute any thesis specific action related to the database tables here
         }
 
-        //new DiscountContextSeed().SeedAsync(context, env, settings, logger).Wait();
+        new DiscountContextSeed().SeedAsync(context, env, settings, logger).Wait();
     })
         .MigrateDbContext<IntegrationEventLogContext>((_, __) => { });
 

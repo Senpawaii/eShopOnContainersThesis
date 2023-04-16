@@ -14,9 +14,14 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.Entit
             builder.Property(dd => dd.Discount)
                 .IsRequired();
 
-            builder.Property(ci => ci.CatalogItemId)
+            builder.Property(di => di.CatalogItemId)
                 .IsRequired();
 
+            builder.Property(dbi => dbi.CatalogBrandId)
+                .IsRequired();
+            
+            builder.Property(dti => dti.CatalogTypeId)
+                .IsRequired();
         }
     }
 }
