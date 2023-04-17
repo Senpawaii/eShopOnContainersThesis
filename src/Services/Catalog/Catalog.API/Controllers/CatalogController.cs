@@ -1,4 +1,7 @@
-﻿namespace Microsoft.eShopOnContainers.Services.Catalog.API.Controllers;
+﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
+
+namespace Microsoft.eShopOnContainers.Services.Catalog.API.Controllers;
 
 [Route("api/v1/[controller]")]
 [ApiController]
@@ -322,22 +325,24 @@ public class CatalogController : ControllerBase
         return NoContent();
     }
 
-    ////POST api/v1/[controller]/brands
-    //[Route("items")]
-    //[HttpPost]
-    //[ProducesResponseType((int)HttpStatusCode.Created)]
-    //public async Task<ActionResult> CreateBrandAsync([FromBody] CatalogBrand brand) {
-    //    var brandItem = new CatalogBrand {
-    //        Brand = brand.Brand
-    //    };
+    // GET api/v1/[controller]/items/name/brand/type
+    [HttpGet]
+    [Route("items/{name}/{catalogBrandId:int}/{catalogTypeId:int}")]
+    [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.NotFound)]
+    public async Task<ActionResult<int>> ItemIdByNameAndTypeIdAndBrandIdAsync(string name, [Required] int catalogBrandId, [Required] int catalogTypeId) {
+        var root = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
-    //    _catalogContext.CatalogBrands.Add(brandItem);
+        root = root.Where(ci => ci.Name == name && ci.CatalogBrandId == catalogBrandId && ci.CatalogTypeId == catalogTypeId);
+        
+        var totalItems = await root
+            .CountAsync();
 
-    //    await _catalogContext.SaveChangesAsync();
+        if(totalItems == 0) { return NotFound(); }
+        var item = root.Single();
 
-    //    return CreatedAtAction(nameof(ItemByIdAsync), new { id = brandItem.Id }, null);
-    //}
-
+        return item.Id;
+    }
 
     private List<CatalogItem> ChangeUriPlaceholder(List<CatalogItem> items)
     {

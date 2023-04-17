@@ -16,7 +16,7 @@ try {
     host.MigrateDbContext<DiscountContext>((context, services) => {
         var env = services.GetService<IWebHostEnvironment>();
         var settings = services.GetService<IOptions<DiscountSettings>>();
-        var logger = services.GetService<ILogger<DiscountContext>>();
+        var logger = services.GetService<ILogger<DiscountContextSeed>>();
 
         var thesisWrappers = settings.Value.ThesisWrapperEnabled;
         if (thesisWrappers) {

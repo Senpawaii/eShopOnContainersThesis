@@ -85,5 +85,9 @@
 		<ProjectReference Include="..\..\..\BuildingBlocks\EventBus\EventBus\EventBus.csproj" />
 		<ProjectReference Include="..\..\..\BuildingBlocks\EventBus\IntegrationEventLogEF\IntegrationEventLogEF.csproj" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Setup\" />
+	</ItemGroup>
 	
 </Project>

@@ -4,9 +4,7 @@
         
         public int CatalogItemId { get; set; }
 
-        public int CatalogBrandId { get; set; }
-
-        public int CatalogTypeId { get; set; } 
+        public string CatalogItemName { get; set; }
 
         // An integer percentage between 0 and 100.
         public int Discount { get; set; }
