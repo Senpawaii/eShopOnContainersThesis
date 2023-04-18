@@ -13,17 +13,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Proto\discount.proto" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="Proto\discount.proto">
-      <GrpcServices>Server</GrpcServices>
-      <Generator>MSBuild:Compile</Generator>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
 	  <Content Update="appsettings.json">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	  </Content>
