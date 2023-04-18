@@ -25,7 +25,7 @@ namespace Discount.API.Infrastructure.Migrations
 
                     b.Property<int>("CatalogItemId");
 
-                    b.Property<int>("Discount");
+                    b.Property<int>("DiscountValue");
 
                     b.Property<string>("CatalogItemName")
                         .IsRequired()

@@ -7,7 +7,7 @@
         public string CatalogItemName { get; set; }
 
         // An integer percentage between 0 and 100.
-        public int Discount { get; set; }
+        public int DiscountValue { get; set; }
 
         public DiscountItem() { }
 

@@ -10,12 +10,14 @@ public class CatalogController : ControllerBase
     private readonly CatalogContext _catalogContext;
     private readonly CatalogSettings _settings;
     private readonly ICatalogIntegrationEventService _catalogIntegrationEventService;
+    private readonly ILogger<CatalogController> _logger;
 
-    public CatalogController(CatalogContext context, IOptionsSnapshot<CatalogSettings> settings, ICatalogIntegrationEventService catalogIntegrationEventService)
+    public CatalogController(CatalogContext context, IOptionsSnapshot<CatalogSettings> settings, ICatalogIntegrationEventService catalogIntegrationEventService, ILogger<CatalogController>logger)
     {
         _catalogContext = context ?? throw new ArgumentNullException(nameof(context));
         _catalogIntegrationEventService = catalogIntegrationEventService ?? throw new ArgumentNullException(nameof(catalogIntegrationEventService));
         _settings = settings.Value;
+        _logger = logger;
 
         context.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
     }
@@ -327,21 +329,38 @@ public class CatalogController : ControllerBase
 
     // GET api/v1/[controller]/items/name/brand/type
     [HttpGet]
-    [Route("items/{name}/{catalogBrandId:int}/{catalogTypeId:int}")]
+    [Route("items/name/{name}/brand/{catalogBrand}/type/{catalogType}")]
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
-    public async Task<ActionResult<int>> ItemIdByNameAndTypeIdAndBrandIdAsync(string name, [Required] int catalogBrandId, [Required] int catalogTypeId) {
-        var root = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
+    public async Task<ActionResult<int>> ItemIdByNameAndTypeIdAndBrandIdAsync(string name, string catalogBrand, string catalogType) {
+        _logger.LogInformation("Executing ItemIdByNameAndTypeIdAndBrandId request...");
+        var items = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
+        var brands = (IQueryable<CatalogBrand>)_catalogContext.CatalogBrands;
+        var types = (IQueryable<CatalogType>)_catalogContext.CatalogTypes;
 
-        root = root.Where(ci => ci.Name == name && ci.CatalogBrandId == catalogBrandId && ci.CatalogTypeId == catalogTypeId);
+        brands = brands.Where(bn => bn.Brand == catalogBrand);
+        if (await brands.CountAsync() == 0) {
+            return NotFound();
+        }
+        var brandId = brands.Select(a => a.Id).First();
+
+        types = types.Where(tn => tn.Type == catalogType);
+        if (await types.CountAsync() == 0) {
+            return NotFound();
+        }
+        var typeId = types.Select(a => a.Id).First();
         
-        var totalItems = await root
+        items = items.Where(ci => ci.Name == name && ci.CatalogBrandId == brandId && ci.CatalogTypeId == typeId);
+        
+        var totalItems = await items
             .CountAsync();
 
         if(totalItems == 0) { return NotFound(); }
-        var item = root.Single();
+        var itemId = items.Select(a => a.Id).First();
+       
+        _logger.LogInformation("Finished ItemIdByNameAndTypeIdAndBrandId request!");
 
-        return item.Id;
+        return itemId;
     }
 
     private List<CatalogItem> ChangeUriPlaceholder(List<CatalogItem> items)

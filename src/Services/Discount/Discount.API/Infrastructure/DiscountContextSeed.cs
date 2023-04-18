@@ -8,6 +8,7 @@ using Polly;
 using Polly.Retry;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 
@@ -24,8 +25,8 @@ public class DiscountContextSeed
             var catalogURL = settings.Value.CatalogUrl;
             var contentRootPath = env.ContentRootPath;
 
-            if (!context.DiscountItems.Any()) {
-                await context.DiscountItems.AddRangeAsync(useCustomizationData
+            if (!context.Discount.Any()) {
+                await context.Discount.AddRangeAsync(useCustomizationData
                     ? await GetDiscountItemsFromFile(contentRootPath, logger, catalogURL)
                     : GetPreconfiguredDiscountItems());
 
@@ -50,14 +51,14 @@ public class DiscountContextSeed
             return GetPreconfiguredDiscountItems();
         }
 
-        IEnumerable<DiscountItem> discountItems = null;
+        List<DiscountItem> discountItems = new List<DiscountItem>();
         IEnumerable<string[]> rows = File.ReadAllLines(csvFileDiscountItems)
             .Skip(1) // Skip header row
             .Select(row => Regex.Split(row, ",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)"));
 
         foreach(string[] row in rows) {
             var discountItem = await CreateDiscountItem(row, csvheaders, catalogURL);
-            discountItems.Append(discountItem);
+            discountItems.Add(discountItem);
         }
         return discountItems;
     }
@@ -79,7 +80,7 @@ public class DiscountContextSeed
 
     private IEnumerable<DiscountItem> GetPreconfiguredDiscountItems() {
         return new List<DiscountItem>() {
-            new() { Discount = 10, CatalogItemId = 1, CatalogItemName = ".NET Bot Black Hoodie" },
+            new() { DiscountValue = 10, CatalogItemId = 1, CatalogItemName = ".NET Bot Black Hoodie" },
         };
     }
 
@@ -99,7 +100,7 @@ public class DiscountContextSeed
         int catalogItemID = await getCatalogIDGivenNameBrandType(catalogItemName, catalogItemBrand, catalogItemType, catalogURL);
 
         var discountItem = new DiscountItem() {
-            Discount = discount,
+            DiscountValue = discount,
             CatalogItemId = catalogItemID,
             CatalogItemName = catalogItemName,
         };
@@ -108,10 +109,11 @@ public class DiscountContextSeed
     }
 
     private async Task<int> getCatalogIDGivenNameBrandType(string catalogItemName, string catalogItemBrand, string catalogItemType, string catalogURL) {
-        var uri = $"{catalogURL}items/{catalogItemName}/{catalogItemBrand}/{catalogItemType}";
-        
+        var uri = $"{catalogURL}items/name/{catalogItemName}/brand/{catalogItemBrand}/type/{catalogItemType}";
         HttpClient client = new HttpClient();
-        
+
+        // Wait until Catalog Service is operational
+        Thread.Sleep(10000);
         HttpResponseMessage response = await client.GetAsync(uri);
         response.EnsureSuccessStatusCode();
 
@@ -120,7 +122,6 @@ public class DiscountContextSeed
         if(!int.TryParse(responseString, out int itemId)) {
             _logger.LogError($"ERROR: Received an invalid Catalog Item ID.");
         } 
-        
         return itemId;
     }
 
