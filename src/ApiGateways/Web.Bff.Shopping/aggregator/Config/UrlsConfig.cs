@@ -14,6 +14,10 @@ public class UrlsConfig
         public static string GetItemsById(IEnumerable<int> ids) => $":5000/api/v1/catalog/items?ids={string.Join(',', ids)}";
     }
 
+    public class DiscountOperations {
+        public static string GetDiscountsById(IEnumerable<int> ids) => $"/api/v1/discount/discounts?ids={string.Join(',', ids)}";
+    }
+
     public class BasketOperations
     {
         public static string GetItemById(string id) => $"/api/v1/basket/{id}";
@@ -31,6 +35,8 @@ public class UrlsConfig
     public string Catalog { get; set; }
 
     public string Orders { get; set; }
+
+    public string Discount { get; set; }
 
     public string GrpcBasket { get; set; }
 

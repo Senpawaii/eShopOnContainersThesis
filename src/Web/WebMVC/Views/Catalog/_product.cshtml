@@ -1,16 +1,23 @@
-﻿@model CatalogItem
+﻿@model CatalogItemWithDiscount
 
 
 <form asp-controller="Cart" asp-action="AddToCart">
 
-    <img class="esh-catalog-thumbnail" src="@Model.PictureUri" />
+    <img class="esh-catalog-thumbnail" src="@Model.CatalogItem.PictureUri" />
     <input class="esh-catalog-button @((!User.Identity.IsAuthenticated) ? "is-disabled" : "")" type="submit" value="[ ADD TO CART ]" />
 
     <div class="esh-catalog-name">
-        <span>@Model.Name</span>
+        <span>@Model.CatalogItem.Name</span>
     </div>
     <div class="esh-catalog-price">
-        <span>@Model.Price.ToString("N2")</span>
+        <span>@Model.CatalogItem.Price.ToString("N2")</span>
     </div>
-    <input type="hidden" asp-for="@Model.Id" name="id" />
+    
+    @if (Model.Discount != null && Model.Discount.DiscountValue > 0) {
+        <div class="esh-item-discount">
+            <span>Discount: @Model.Discount.DiscountValue %</span>
+        </div>
+    }
+    
+    <input type="hidden" asp-for="@Model.CatalogItem.Id" name="id" />
 </form>

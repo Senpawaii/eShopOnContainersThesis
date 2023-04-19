@@ -24,9 +24,6 @@ public class CatalogService : ICatalogService
         // Generate the URI string
         var uri = API.Catalog.GetAllCatalogItems(_remoteServiceBaseUrl, page, take, brand, type, metadata);
 
-        // Contact the address identified by the URI using HTTP GET request
-        //var responseString = await _httpClient.GetStringAsync(uri);
-
         // Obtain the header parameters (metadata)
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();

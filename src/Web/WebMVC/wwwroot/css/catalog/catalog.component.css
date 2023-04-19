@@ -148,3 +148,12 @@
   content: '$';
 }
 
+.esh-item-discount {
+    font-size: 28px;
+    font-weight: 900;
+    text-align: center;
+}
+
+.esh-item-discount::after {
+    content: '%';
+}

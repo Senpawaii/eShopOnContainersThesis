@@ -39,12 +39,12 @@
     <partial name="_pagination" for="PaginationInfo" />
 
     <div class="esh-catalog-items row">
-        @foreach (var catalogItem in Model.CatalogItems)
-            {
-        <div class="esh-catalog-item col-md-4">
-            <partial name="_product" model="catalogItem" />
-        </div>
-            }
+        @foreach (var catalogItem in Model.CatalogItems) {
+                var discount = Model.Discounts.FirstOrDefault(o => o.CatalogItemId == catalogItem.Id);
+            <div class="esh-catalog-item col-md-4">
+                <partial name="_product" model="@new CatalogItemWithDiscount{ CatalogItem = catalogItem, Discount = discount }" />
+            </div>
+        }
     </div>
 
     <partial name="_pagination" for="PaginationInfo" />

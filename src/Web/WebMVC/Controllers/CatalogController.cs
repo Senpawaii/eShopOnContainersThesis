@@ -5,10 +5,12 @@ namespace Microsoft.eShopOnContainers.WebMVC.Controllers;
 public class CatalogController : Controller
 {
     private ICatalogService _catalogSvc;
+    private IDiscountService _discountSvc;
     private IOptions<AppSettings> _options;
 
-    public CatalogController(ICatalogService catalogSvc, IOptions<AppSettings> options) {
+    public CatalogController(ICatalogService catalogSvc, IOptions<AppSettings> options, IDiscountService discountSvc) {
         _catalogSvc = catalogSvc;
+        _discountSvc = discountSvc;
         _options = options;
     }
 
@@ -22,6 +24,7 @@ public class CatalogController : Controller
          * WebMVC call to Catalog.API -> get items
          * WebMVC call to Catalog.API -> get brands
          * WebMVC call to Catalog.API -> get catalog types
+         * WebMVC call to Discount.API -> get discounts for items retrieved
          * **/
         TCCMetadata metadata = null;
         // Initialize the Metadata Fields if Testing with Wrappers
@@ -39,8 +42,13 @@ public class CatalogController : Controller
         // Deconstruct declaration
         (Catalog catalog, metadata) = await _catalogSvc.GetCatalogItems(page ?? 0, itemsPage, BrandFilterApplied, TypesFilterApplied, metadata);
 
+        // Get list of Catalog Items Ids
+        List<int> catalogIds = catalog.Data.Select(item => item.Id).ToList();
+
+        (var discounts, metadata) = await _discountSvc.GetDiscountsById(catalogIds, metadata);
+
         // Sleep for a long period (This is only necessary as an extreme case to demonstrate the consistency anomaly)
-        Thread.Sleep(10000);
+        //Thread.Sleep(10000);
 
         (var brands, metadata) = await _catalogSvc.GetBrands(metadata);
         (var types, metadata) = await _catalogSvc.GetTypes(metadata);
@@ -50,6 +58,7 @@ public class CatalogController : Controller
             CatalogItems = catalog.Data,
             Brands = brands,
             Types = types,
+            Discounts = discounts,
             BrandFilterApplied = BrandFilterApplied ?? 0,
             TypesFilterApplied = TypesFilterApplied ?? 0,
             PaginationInfo = new PaginationInfo() {

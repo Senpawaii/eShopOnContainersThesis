@@ -136,6 +136,8 @@ static void AddHttpClientServices(WebApplicationBuilder builder)
 
     builder.Services.AddHttpClient<ICatalogService, CatalogService>();
 
+    builder.Services.AddHttpClient<IDiscountService, DiscountService>();
+
     builder.Services.AddHttpClient<IOrderingService, OrderingService>()
             .AddHttpMessageHandler<HttpClientAuthorizationDelegatingHandler>()
             .AddHttpMessageHandler<HttpClientRequestIdDelegatingHandler>();

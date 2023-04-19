@@ -92,4 +92,14 @@ public static class API
             return $"{baseUri}catalogTypes?interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
         }
     }
+
+    public static class Discount {
+        public static string GetDiscountsById(string baseUri, List<int> ids, TCCMetadata metadata) {
+            if(metadata == null) {
+                return $"{baseUri}discounts";
+            }
+            var idsString = string.Join("&", ids.Select(n => $"ids={n}"));
+            return $"{baseUri}discounts?{idsString}&interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
+        }
+    }
 }
