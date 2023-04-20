@@ -1,4 +1,8 @@
-﻿namespace Microsoft.eShopOnContainers.Services.Catalog.API.Extensions;
+﻿using Autofac.Core;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+namespace Microsoft.eShopOnContainers.Services.Catalog.API.Extensions;
 
 public static class WebHostExtensions
 {
@@ -62,7 +66,26 @@ public static class WebHostExtensions
     private static void InvokeSeeder<TContext>(Action<TContext, IServiceProvider> seeder, TContext context, IServiceProvider services)
         where TContext : DbContext
     {
-        context.Database.Migrate();
+        if(typeof(TContext) == typeof(CatalogContext)) {
+            context.Database.GetService<IMigrator>().Migrate("20161103152832_Initial");
+            context.Database.GetService<IMigrator>().Migrate("20161103153420_UpdateTableNames");
+            context.Database.GetService<IMigrator>().Migrate("20170314083211_AddEventTable");
+            context.Database.GetService<IMigrator>().Migrate("20170316012921_RefactoringToIntegrationEventLog");
+            context.Database.GetService<IMigrator>().Migrate("20170316120022_RefactoringEventBusNamespaces");
+            context.Database.GetService<IMigrator>().Migrate("20170322124244_RemoveIntegrationEventLogs");
+            context.Database.GetService<IMigrator>().Migrate("20170509130025_AddStockProductItem");
+            context.Database.GetService<IMigrator>().Migrate("20170530133114_AddPictureFile");
+
+            var settings = services.GetService<IOptions<CatalogSettings>>();
+            var thesisWrappers = settings.Value.ThesisWrapperEnabled;
+            if (thesisWrappers) {
+                context.Database.GetService<IMigrator>().Migrate("20230420112400_AddTimestampColumn");
+            }
+        } 
+        else {
+            context.Database.Migrate();
+        }
+
         seeder(context, services);
     }
 }
