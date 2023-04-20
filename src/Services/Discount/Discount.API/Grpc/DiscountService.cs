@@ -3,7 +3,6 @@ using static DiscountApi.Discount;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.Grpc;
 
-using Microsoft.eShopOnContainers.Services.Catalog.API;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.Extensions.Logging;
 

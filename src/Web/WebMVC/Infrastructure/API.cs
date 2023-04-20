@@ -73,7 +73,7 @@ public static class API
             if(metadata == null) {
                 return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}";
             }
-            return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}&interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
+            return $"{baseUri}items{filterQs}?pageIndex={page}&pageSize={take}&interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}";
         }
 
         public static string GetAllBrands(string baseUri, TCCMetadata metadata)
@@ -81,7 +81,7 @@ public static class API
             if(metadata == null) {
                 return $"{baseUri}catalogBrands";
             }
-            return $"{baseUri}catalogBrands?interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
+            return $"{baseUri}catalogBrands?interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}";
         }
 
         public static string GetAllTypes(string baseUri, TCCMetadata metadata)
@@ -89,7 +89,7 @@ public static class API
             if(metadata == null) {
                 return $"{baseUri}catalogTypes";
             }
-            return $"{baseUri}catalogTypes?interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
+            return $"{baseUri}catalogTypes?interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}";
         }
     }
 
@@ -99,7 +99,7 @@ public static class API
                 return $"{baseUri}discounts";
             }
             var idsString = string.Join("&", ids.Select(n => $"ids={n}"));
-            return $"{baseUri}discounts?{idsString}&interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff")}";
+            return $"{baseUri}discounts?{idsString}&interval_low={metadata.Interval.Item1}&interval_high={metadata.Interval.Item2}&functionality_ID={metadata.FunctionalityID}&timestamp={metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}";
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace Microsoft.eShopOnContainers.Services.Catalog.API;
+﻿namespace Microsoft.eShopOnContainers.Services.Discount.API;
 
 public class DiscountSettings {
 

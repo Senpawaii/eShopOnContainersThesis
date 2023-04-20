@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.eShopOnContainers.Services.Catalog.API;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Microsoft.IdentityModel.Tokens;
@@ -22,6 +21,11 @@ public class DiscountController : ControllerBase {
         discountContext.ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
     }
 
+    /// <summary>
+    /// Given a list of Catalog Item Ids, return all discounts associated with these items.
+    /// </summary>
+    /// <param name="ids"></param>
+    /// <returns></returns>
     [HttpGet]
     [Route("discounts")]
     [ProducesResponseType(typeof(IEnumerable<DiscountItem>), (int)HttpStatusCode.OK)]

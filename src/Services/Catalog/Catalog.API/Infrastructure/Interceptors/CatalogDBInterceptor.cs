@@ -67,14 +67,14 @@ namespace Catalog.API.Infrastructure.Interceptors {
 
         /* ========== UPDATE READ QUERIES ==========*/
         /// <summary>
-        /// Updates the Read queries for Item Count, Brands and Types command, adding a filter for the functionality Timestamp (DateTimeOffset). 
+        /// Updates the Read queries for Item Count, Brands and Types command, adding a filter for the functionality Timestamp (DateTime). 
         /// Applicable to queries that contain either:
         /// "SELECT COUNT_BIG(*) ..."; "SELECT ... FROM [CatalogBrand] ..."; "SELECT ... FROM [CatalogType] ..."
         /// </summary>
         /// <param name="command"></param>
         private void UpdateReadQueriesCommand(DbCommand command) {
             // Get the current functionality-set timeestamp
-            DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp.DateTime;
+            DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
 
             // Replace Command Text to account for new filter
             string commandTextWithFilter = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp}'");
@@ -88,7 +88,7 @@ namespace Catalog.API.Infrastructure.Interceptors {
             List<DbParameter> generatedParameters = new List<DbParameter>();
 
             // Get the current timestamp
-            var timestamp = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss");
+            var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
             Console.WriteLine($"Writing item with Timestamp:{timestamp}");
             // Replace Command Text to account for new parameter
             string commandWithTimestamp;

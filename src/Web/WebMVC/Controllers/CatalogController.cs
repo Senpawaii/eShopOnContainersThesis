@@ -32,7 +32,7 @@ public class CatalogController : Controller
             metadata = new TCCMetadata {
                 Interval = Tuple.Create(0, 0),
                 FunctionalityID = Guid.NewGuid().ToString(),
-                Timestamp = DateTimeOffset.Now
+                Timestamp = DateTime.Now
             };
             Console.WriteLine($"Initialized functionality: <{metadata.FunctionalityID}>");
         }

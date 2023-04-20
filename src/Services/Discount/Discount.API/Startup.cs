@@ -5,7 +5,8 @@ using Microsoft.eShopOnContainers.BuildingBlocks.EventBusRabbitMQ;
 using Microsoft.eShopOnContainers.BuildingBlocks.EventBusServiceBus;
 using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF;
 using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Services;
-using Microsoft.eShopOnContainers.Services.Catalog.API;
+using Microsoft.eShopOnContainers.Services.Discount.API;
+using Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Discount.API.Grpc;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.Filters;
@@ -36,9 +37,9 @@ public class Startup {
             .AddCustomHealthCheck(Configuration);
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
-            //services
-            //    .AddScoped<IScopedMetadata, ScopedMetadata>()
-            //    .AddSingleton<ISingletonWrapper, SingletonWrapper>();
+            services
+                .AddScoped<IScopedMetadata, ScopedMetadata>()
+                .AddSingleton<ISingletonWrapper, SingletonWrapper>();
         }
 
         var container = new ContainerBuilder();

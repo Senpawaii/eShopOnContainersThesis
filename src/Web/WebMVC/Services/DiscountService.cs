@@ -66,6 +66,6 @@ public class DiscountService : IDiscountService {
         }
 
         metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
-        metadata.Timestamp = DateTimeOffset.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
+        metadata.Timestamp = DateTime.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
     }
 }

@@ -4,7 +4,7 @@
         double tokens;
         Tuple<int, int> interval = Tuple.Create(0, 0);
         // The default timestamp should not be used by any functionality. This is used mainly for ContextSeed population.
-        DateTimeOffset timestamp = DateTimeOffset.Now.AddMinutes(5);
+        DateTime timestamp = DateTime.UtcNow.AddMinutes(5);
         string functionality_ID;
         public ScopedMetadata() { }
 
@@ -25,7 +25,7 @@
             set { interval = Tuple.Create(interval.Item1, value); }
         }
 
-        public DateTimeOffset ScopedMetadataTimestamp {
+        public DateTime ScopedMetadataTimestamp {
             get { return timestamp; }
             set { timestamp = value; }
         }

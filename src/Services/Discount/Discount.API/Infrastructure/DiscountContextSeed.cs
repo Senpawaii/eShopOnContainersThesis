@@ -1,7 +1,6 @@
 ﻿using Grpc.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Microsoft.eShopOnContainers.Services.Catalog.API;
 using Microsoft.eShopOnContainers.Services.Discount.API.Extensions;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Polly;

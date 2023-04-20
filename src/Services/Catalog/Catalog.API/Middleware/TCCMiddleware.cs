@@ -42,7 +42,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                 if(ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     _logger.LogInformation($"Registered timestamp: {timestamp}");
-                    svc.ScopedMetadataTimestamp = DateTimeOffset.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss-ff:ff", CultureInfo.InvariantCulture);
+                    svc.ScopedMetadataTimestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
                 }
 
                 var removeTheseParams = new List<string> { "interval_low", "interval_high", "functionality_ID", "timestamp" }.AsReadOnly();
@@ -62,7 +62,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     ctx.Response.Headers["interval_low"] = svc.ScopedMetadataIntervalLow.ToString();
                     ctx.Response.Headers["interval_high"] = svc.ScopedMetadataIntervalHigh.ToString();
                     ctx.Response.Headers["functionality_ID"] = svc.ScopedMetadataFunctionalityID;
-                    ctx.Response.Headers["timestamp"] = svc.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss-ff:ff"); // "2023-04-03T16:20:30+00:00" for example
+                    ctx.Response.Headers["timestamp"] = svc.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
                     return Task.CompletedTask;
                 });
 

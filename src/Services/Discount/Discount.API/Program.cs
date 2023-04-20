@@ -1,6 +1,6 @@
 using Discount.API;
 using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF;
-using Microsoft.eShopOnContainers.Services.Catalog.API;
+using Microsoft.eShopOnContainers.Services.Discount.API;
 using Microsoft.eShopOnContainers.Services.Discount.API.Extensions;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 
