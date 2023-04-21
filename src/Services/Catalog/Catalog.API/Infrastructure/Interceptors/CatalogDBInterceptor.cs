@@ -20,7 +20,7 @@ namespace Catalog.API.Infrastructure.Interceptors {
         public override InterceptionResult<DbDataReader> ReaderExecuting(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
-            ModifyCommand(command);
+            ModifyAndWrapReadAndInsertCommand(command);
 
             return result;
         }
@@ -31,7 +31,7 @@ namespace Catalog.API.Infrastructure.Interceptors {
             InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default) {
 
-            ModifyCommand(command);
+            ModifyAndWrapReadAndInsertCommand(command);
 
             return new ValueTask<InterceptionResult<DbDataReader>>(result);
         }
@@ -40,10 +40,12 @@ namespace Catalog.API.Infrastructure.Interceptors {
         /// Method where the different types of queries are sorted and attributed an operation identifier based on the type of query to be performed.
         /// </summary>
         /// <param name="command"></param>
-        private void ModifyCommand(DbCommand command) {
+        private void ModifyAndWrapReadAndInsertCommand(DbCommand command) {
             switch(command.CommandText) {
                 case string s when s.Contains("INSERT INTO [CatalogType]"):
-                    // Update commands that insert Data for the Catalog DB
+                    // Check if the Transaction has been committed
+                    //if()
+
                     UpdateInsertCommand(command, INSERT_TYPE_OP);
                     break;
                 case string s when s.Contains("INSERT INTO [CatalogBrand]"):
