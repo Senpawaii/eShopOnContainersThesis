@@ -1,5 +1,8 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Polly;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.Extensions;
@@ -66,6 +69,20 @@ public static class WebHostExtensions
     private static void InvokeSeeder<TContext>(Action<TContext, IServiceProvider> seeder, TContext context, IServiceProvider services)
         where TContext : DbContext
     {
+        if(typeof(TContext) == typeof(DiscountContext)) {
+            var appliedMigrations = context.Database.GetAppliedMigrations();
+
+            if (!appliedMigrations.Contains("20161103152832_Initial")) {
+                context.Database.GetService<IMigrator>().Migrate("20161103152832_Initial");
+                context.Database.GetService<IMigrator>().Migrate("20161103153420_UpdateTableNames");
+                
+                var settings = services.GetService<IOptions<DiscountSettings>>();
+                var thesisWrappers = settings.Value.ThesisWrapperEnabled;
+                if (thesisWrappers) {
+                    context.Database.GetService<IMigrator>().Migrate("20230420112400_AddTimestampColumn");
+                }
+            }
+        }
         context.Database.Migrate();
         seeder(context, services);
     }
