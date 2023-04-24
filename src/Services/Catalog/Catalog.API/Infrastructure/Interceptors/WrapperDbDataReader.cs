@@ -69,16 +69,26 @@ public class WrapperDbDataReader : DbDataReader {
         if (ordinal < 0 || ordinal >= FieldCount) {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
-        
-        if(_tableRead == "CatalogBrand" || _tableRead == "CatalogType") {
-            switch(ordinal) {
-                case 0:
-                    return "int";
-                case 1:
-                    return "nvarchar";
-            }
+
+        //if(_tableRead == "CatalogBrand" || _tableRead == "CatalogType") {
+        //    switch(ordinal) {
+        //        case 0:
+        //            return "int";
+        //        case 1:
+        //            return "nvarchar";
+        //    }
+        //}
+
+        var fieldType = GetFieldType(ordinal);
+
+        switch(fieldType.Name) {
+            case "Int32":
+                return "int";
+            case "String":
+                return "nvarchar";
+            default:
+                return fieldType.Name;
         }
-        throw new NotImplementedException();
     }
 
     public override DateTime GetDateTime(int ordinal) {
@@ -102,17 +112,6 @@ public class WrapperDbDataReader : DbDataReader {
         if (ordinal < 0 || ordinal >= FieldCount) {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
-
-        //if (_tableRead == "CatalogBrand") {
-        //    switch (ordinal) {
-        //        case 0:
-        //            return typeof(int);
-        //        case 1:
-        //            return typeof(string);
-        //        default:
-        //            throw new InvalidOperationException($"Invalid ordinal {ordinal}");
-        //    }
-        //}
 
         var schemaTable = _dataReader.GetSchemaTable();
         var row = schemaTable.Rows[ordinal];
@@ -162,18 +161,10 @@ public class WrapperDbDataReader : DbDataReader {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
-        if (_tableRead == "CatalogBrand") {
-            switch (ordinal) {
-                case 0:
-                    return "Id";
-                case 1:
-                    return "Brand";
-                default:
-                    throw new InvalidOperationException($"Invalid ordinal {ordinal}");
-            }
-        }
-
-        throw new NotImplementedException();
+        var schemaTable = _dataReader.GetSchemaTable();
+        var row = schemaTable.Rows[ordinal];
+        var columnName = (string)row["ColumnName"];
+        return columnName;
     }
 
     public override int GetOrdinal(string name) {
