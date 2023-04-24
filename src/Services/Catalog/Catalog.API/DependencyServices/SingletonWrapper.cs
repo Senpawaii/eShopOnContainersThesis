@@ -4,9 +4,9 @@ using System.Collections.Generic;
 
 namespace Catalog.API.DependencyServices {
     public class SingletonWrapper : ISingletonWrapper {
-        ConcurrentDictionary<string, ConcurrentBag<CatalogItem>> wrapped_catalog_items = new ConcurrentDictionary<string, ConcurrentBag<CatalogItem>>();
-        ConcurrentDictionary<string, ConcurrentBag<CatalogType>> wrapped_catalog_types = new ConcurrentDictionary<string, ConcurrentBag<CatalogType>>();
-        ConcurrentDictionary<string, ConcurrentBag<CatalogBrand>> wrapped_catalog_brands = new ConcurrentDictionary<string, ConcurrentBag<CatalogBrand>>();
+        ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_items = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
+        ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_types = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
+        ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_brands = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
         
         // Dictionary that hold the state of a transaction: PREPARE or COMMITTED
         ConcurrentDictionary<string, bool> transaction_state = new ConcurrentDictionary<string, bool>();
@@ -14,13 +14,13 @@ namespace Catalog.API.DependencyServices {
         public SingletonWrapper() {
         }
 
-        public ConcurrentDictionary<string, ConcurrentBag<CatalogItem>> SingletonWrappedCatalogItems {
+        public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogItems {
             get { return wrapped_catalog_items; }
         }
-        public ConcurrentDictionary<string, ConcurrentBag<CatalogType>> SingletonWrappedCatalogTypes {
+        public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogTypes {
             get { return wrapped_catalog_types; }
         }
-        public ConcurrentDictionary<string, ConcurrentBag<CatalogBrand>> SingletonWrappedCatalogBrands {
+        public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogBrands {
             get { return wrapped_catalog_brands; }
         }
 
@@ -28,13 +28,13 @@ namespace Catalog.API.DependencyServices {
             get { return transaction_state; }
         }
 
-        public ConcurrentBag<CatalogItem> SingletonGetCatalogITems(string key) {
+        public ConcurrentBag<object[]> SingletonGetCatalogITems(string key) {
             return wrapped_catalog_items.GetValueOrDefault(key);
         }
-        public ConcurrentBag<CatalogType> SingletonGetCatalogTypes(string key) {
+        public ConcurrentBag<object[]> SingletonGetCatalogTypes(string key) {
             return wrapped_catalog_types.GetValueOrDefault(key);
         }
-        public ConcurrentBag<CatalogBrand> SingletonGetCatalogBrands(string key) {
+        public ConcurrentBag<object[]> SingletonGetCatalogBrands(string key) {
             return wrapped_catalog_brands.GetValueOrDefault(key);
         }
 
@@ -42,20 +42,20 @@ namespace Catalog.API.DependencyServices {
             return transaction_state.GetValueOrDefault(funcId);
         }
 
-        public void SingletonAddCatalogItem(string funcID, CatalogItem item) {
-            wrapped_catalog_items.AddOrUpdate(funcID, new ConcurrentBag<CatalogItem> { item }, (key, bag) => {
+        public void SingletonAddCatalogItem(string funcID, object[] item) {
+            wrapped_catalog_items.AddOrUpdate(funcID, new ConcurrentBag<object[]> { item }, (key, bag) => {
                 bag.Add(item);
                 return bag;
             }); 
         }
-        public void SingletonAddCatalogType(string funcID, CatalogType type) {
-            wrapped_catalog_types.AddOrUpdate(funcID, new ConcurrentBag<CatalogType> { type }, (key, bag) => {
+        public void SingletonAddCatalogType(string funcID, object[] type) {
+            wrapped_catalog_types.AddOrUpdate(funcID, new ConcurrentBag<object[]> { type }, (key, bag) => {
                 bag.Add(type);
                 return bag;
             });
         }
-        public void SingletonAddCatalogBrand(string funcID, CatalogBrand brand) {
-            wrapped_catalog_brands.AddOrUpdate(funcID, new ConcurrentBag<CatalogBrand> { brand }, (key, bag) => {
+        public void SingletonAddCatalogBrand(string funcID, object[] brand) {
+            wrapped_catalog_brands.AddOrUpdate(funcID, new ConcurrentBag<object[]> { brand }, (key, bag) => {
                 bag.Add(brand);
                 return bag;
             });

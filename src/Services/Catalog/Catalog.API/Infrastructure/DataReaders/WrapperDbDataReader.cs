@@ -2,8 +2,9 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
 
-namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
-public class WrapperDbDataReader : DbDataReader {
+namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.DataReaders;
+public class WrapperDbDataReader : DbDataReader
+{
     private readonly List<object[]> _data;
     private readonly int _fieldCount;
     private readonly string _tableRead;
@@ -12,15 +13,17 @@ public class WrapperDbDataReader : DbDataReader {
     private readonly int _recordsAffected = 0;
     private readonly DbDataReader _dataReader;
 
-    public WrapperDbDataReader(List<object[]> data, DbDataReader dataReader, string tableRead, int recordsAffected) {
+    public WrapperDbDataReader(List<object[]> data, DbDataReader dataReader, string tableRead, int recordsAffected)
+    {
         _data = data;
-        _fieldCount = (_data != null && _data.Count > 0) ? _data[0].Length : 0;
+        _fieldCount = _data != null && _data.Count > 0 ? _data[0].Length : 0;
         _tableRead = tableRead;
         _recordsAffected = recordsAffected;
         _dataReader = dataReader;
     }
 
-    public override bool Read() {
+    public override bool Read()
+    {
         _rowIndex++;
         return _rowIndex < _data.Count;
     }
@@ -40,13 +43,16 @@ public class WrapperDbDataReader : DbDataReader {
 
     public override object this[int ordinal] => throw new NotImplementedException();
 
-    public override object GetValue(int ordinal) {
+    public override object GetValue(int ordinal)
+    {
         // Changed this
         return _data[_rowIndex];
     }
 
-    public override bool GetBoolean(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override bool GetBoolean(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
@@ -54,24 +60,30 @@ public class WrapperDbDataReader : DbDataReader {
         return Convert.ToBoolean(value);
     }
 
-    public override byte GetByte(int ordinal) {
+    public override byte GetByte(int ordinal)
+    {
         throw new NotImplementedException();
     }
 
-    public override long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length) {
+    public override long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length)
+    {
         throw new NotImplementedException();
     }
 
-    public override char GetChar(int ordinal) {
+    public override char GetChar(int ordinal)
+    {
         throw new NotImplementedException();
     }
 
-    public override long GetChars(int ordinal, long dataOffset, char[] buffer, int bufferOffset, int length) {
+    public override long GetChars(int ordinal, long dataOffset, char[] buffer, int bufferOffset, int length)
+    {
         throw new NotImplementedException();
     }
 
-    public override string GetDataTypeName(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override string GetDataTypeName(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
@@ -86,7 +98,7 @@ public class WrapperDbDataReader : DbDataReader {
 
         var fieldType = GetFieldType(ordinal);
 
-        switch(fieldType.Name) {
+        switch (fieldType.Name) {
             case "Int32":
                 return "int";
             case "String":
@@ -96,29 +108,36 @@ public class WrapperDbDataReader : DbDataReader {
         }
     }
 
-    public override DateTime GetDateTime(int ordinal) {
+    public override DateTime GetDateTime(int ordinal)
+    {
         throw new NotImplementedException();
     }
 
-    public override decimal GetDecimal(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override decimal GetDecimal(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
         var value = _data[_rowIndex][ordinal];
         return Convert.ToDecimal(value);
     }
 
-    public override double GetDouble(int ordinal) {
+    public override double GetDouble(int ordinal)
+    {
         throw new NotImplementedException();
     }
 
-    public override IEnumerator<int> GetEnumerator() {
+    public override IEnumerator<int> GetEnumerator()
+    {
         throw new NotImplementedException();
     }
 
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)]
-    public override Type GetFieldType(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override Type GetFieldType(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
@@ -130,16 +149,20 @@ public class WrapperDbDataReader : DbDataReader {
         throw new InvalidOperationException($"Invalid ordinal {ordinal}");
     }
 
-    public override float GetFloat(int ordinal) {
+    public override float GetFloat(int ordinal)
+    {
         throw new NotImplementedException();
     }
 
-    public override Guid GetGuid(int ordinal) {
+    public override Guid GetGuid(int ordinal)
+    {
         throw new NotImplementedException();
     }
 
-    public override short GetInt16(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override short GetInt16(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
@@ -147,8 +170,10 @@ public class WrapperDbDataReader : DbDataReader {
         return Convert.ToInt16(value);
     }
 
-    public override int GetInt32(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override int GetInt32(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
@@ -156,8 +181,10 @@ public class WrapperDbDataReader : DbDataReader {
         return Convert.ToInt32(value);
     }
 
-    public override long GetInt64(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override long GetInt64(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
@@ -165,8 +192,10 @@ public class WrapperDbDataReader : DbDataReader {
         return Convert.ToInt64(value);
     }
 
-    public override string GetName(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override string GetName(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
@@ -176,12 +205,15 @@ public class WrapperDbDataReader : DbDataReader {
         return columnName;
     }
 
-    public override int GetOrdinal(string name) {
+    public override int GetOrdinal(string name)
+    {
         throw new NotImplementedException();
     }
 
-    public override string GetString(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override string GetString(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
@@ -189,24 +221,29 @@ public class WrapperDbDataReader : DbDataReader {
         return Convert.ToString(value);
     }
 
-    public override int GetValues(object[] values) {
+    public override int GetValues(object[] values)
+    {
         throw new NotImplementedException();
     }
 
-    public override bool IsDBNull(int ordinal) {
-        if (ordinal < 0 || ordinal >= FieldCount) {
+    public override bool IsDBNull(int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= FieldCount)
+        {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
         return _data[_rowIndex][ordinal] == DBNull.Value;
     }
 
-    public override bool NextResult() {
+    public override bool NextResult()
+    {
         _hasNextResult = false; // Assume no next result
 
         // Check if there's another result set
         // (in this example, we assume there's only one result set)
-        if (_rowIndex >= _data.Count - 1) {
+        if (_rowIndex >= _data.Count - 1)
+        {
             return false;
         }
 

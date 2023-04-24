@@ -1,5 +1,5 @@
 using Catalog.API.DependencyServices;
-using Catalog.API.Infrastructure.Interceptors;
+using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 using Catalog.API.Infrastructure.Migrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
