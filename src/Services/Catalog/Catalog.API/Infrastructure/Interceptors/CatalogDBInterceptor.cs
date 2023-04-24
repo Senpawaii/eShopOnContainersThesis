@@ -335,49 +335,40 @@ namespace Catalog.API.Infrastructure.Interceptors {
 
             // Check if the target Table is not part of the exception list of Tables
             var targetTable = match.Groups[1].Value;
+            var newData = new List<object[]>();
 
-            if(targetTable == "CatalogBrand") {
-                // Create a new data reader that includes the original result plus a new object
-                var newData = new List<object[]>();
-                while(await result.ReadAsync(cancellationToken)) {
-                    var brandId = result.GetInt32(0);
-                    var brandName = result.GetString(1);
-                    newData.Add(new object[] { brandId, brandName} );
+            while(await result.ReadAsync(cancellationToken)) {
+                var rowValues = new List<object>();
+                for (int i = 0; i < result.FieldCount; i++) {
+                    var fieldType = result.GetFieldType(i);
+                    switch(fieldType.Name) {
+                        case "Int32":
+                            rowValues.Add(result.GetInt32(i));
+                            break;
+                        case "Int64":
+                            rowValues.Add(result.GetInt64(i));
+                            break;
+                        case "String":
+                            rowValues.Add(result.GetString(i));
+                            break;
+                        case "Decimal":
+                            rowValues.Add(result.GetDecimal(i));
+                            break;
+                        case "Boolean":
+                            rowValues.Add(result.GetBoolean(i));
+                            break;
+                        // add additional cases for other data types as needed
+                        default:
+                            rowValues.Add(null);
+                            break;
+                    }
                 }
-                var recordsAffected = result.RecordsAffected;
-
-                // This is just a test to understand if we can inject data in the result (eventually replaced with wrapper readings)
-                newData.Add(new object[] { Convert.ToInt32("404"), "TestBrand#1" });
-                newData.Add(new object[] { Convert.ToInt32("405"), "TestBrand#2" });
-                newData.Add(new object[] { Convert.ToInt32("406"), "TestBrand#3" });
-
-                var newReader = new WrapperDbDataReader(newData, result, "CatalogBrand", recordsAffected);
-                return newReader;
-            } 
-            else if(targetTable == "CatalogType") {
-                // Create a new data reader that includes the original result plus a new object
-                var newData = new List<object[]>();
-                while (await result.ReadAsync(cancellationToken)) {
-                    var typeId = result.GetInt32(0);
-                    var brandName = result.GetString(1);
-                    newData.Add(new object[] { typeId, brandName });
-                }
-                var recordsAffected = result.RecordsAffected;
-
-                var newReader = new WrapperDbDataReader(newData, result, "CatalogType", recordsAffected);
-                return newReader;
+                newData.Add(rowValues.ToArray());
             }
 
-
-            //newData.Add(new object()); // add your new object here
-
-            //var newReader = new WrapperDbDataReader(newData);
-
-            // Return the new reader
-
-            //return base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
-            return null;
+            var recordsAffected = result.RecordsAffected;
+            var newReader = new WrapperDbDataReader(newData, result, targetTable, recordsAffected);
+            return newReader;
         }
-
     }
 }

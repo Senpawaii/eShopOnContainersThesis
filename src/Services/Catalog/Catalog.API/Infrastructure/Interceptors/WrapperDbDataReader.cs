@@ -46,7 +46,12 @@ public class WrapperDbDataReader : DbDataReader {
     }
 
     public override bool GetBoolean(int ordinal) {
-        throw new NotImplementedException();
+        if (ordinal < 0 || ordinal >= FieldCount) {
+            throw new ArgumentOutOfRangeException(nameof(ordinal));
+        }
+
+        var value = _data[_rowIndex][ordinal];
+        return Convert.ToBoolean(value);
     }
 
     public override byte GetByte(int ordinal) {
@@ -96,7 +101,11 @@ public class WrapperDbDataReader : DbDataReader {
     }
 
     public override decimal GetDecimal(int ordinal) {
-        throw new NotImplementedException();
+        if (ordinal < 0 || ordinal >= FieldCount) {
+            throw new ArgumentOutOfRangeException(nameof(ordinal));
+        }
+        var value = _data[_rowIndex][ordinal];
+        return Convert.ToDecimal(value);
     }
 
     public override double GetDouble(int ordinal) {
@@ -185,7 +194,11 @@ public class WrapperDbDataReader : DbDataReader {
     }
 
     public override bool IsDBNull(int ordinal) {
-        throw new NotImplementedException();
+        if (ordinal < 0 || ordinal >= FieldCount) {
+            throw new ArgumentOutOfRangeException(nameof(ordinal));
+        }
+
+        return _data[_rowIndex][ordinal] == DBNull.Value;
     }
 
     public override bool NextResult() {
