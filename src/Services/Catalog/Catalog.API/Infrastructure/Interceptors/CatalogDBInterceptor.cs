@@ -3,25 +3,60 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
+using Microsoft.Extensions.Azure;
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection.PortableExecutable;
 using System.Threading;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace Catalog.API.Infrastructure.Interceptors {
     public class CatalogDBInterceptor : DbCommandInterceptor {
-        const int INSERT_TYPE_OP = 1;
-        const int INSERT_BRAND_OP = 2;
-        const int INSERT_ITEM_OP = 3;
+        const int INSERT_COMMAND = 1;
+        const int SELECT_COMMAND = 2;
+        const int UPDATE_COMMAND = 3;
+        const int DELETE_COMMAND = 4;
+        const int UNKNOWN_COMMAND = -1;
 
-        public CatalogDBInterceptor(IScopedMetadata svc) {
+        public CatalogDBInterceptor(IScopedMetadata svc, ISingletonWrapper wrapper) {
             _scopedMetadata = svc;
+            _wrapper = wrapper;
         }
 
         public IScopedMetadata _scopedMetadata;
+        public ISingletonWrapper _wrapper;
 
         public override InterceptionResult<DbDataReader> ReaderExecuting(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
-            ModifyAndWrapReadAndInsertCommand(command);
+            (var commandType, var targetTable) = GetCommandInfo(command);
 
+            if (commandType == UNKNOWN_COMMAND) {
+                return result;
+            }
+
+            // Check if the Transaction ID
+            var funcID = _scopedMetadata.ScopedMetadataFunctionalityID;
+
+            // Check if is this a functionality context (ID differs from null)
+            if (funcID == null) {
+                return result;
+            }
+
+            if (commandType == SELECT_COMMAND) {
+                UpdateSelectCommand(command);
+
+            }
+            else if (commandType == INSERT_COMMAND) {
+                bool funcState = _wrapper.SingletonGetTransactionState(funcID);
+
+                // If the Transaction is not in commit state, store data in wrapper
+                if (!funcState) {
+                    // TODO, the updateInsertCommand command should not be executed in this case, perhaps store the original command?
+                }
+                UpdateInsertCommand(command, targetTable);
+            }
             return result;
         }
 
@@ -31,41 +66,93 @@ namespace Catalog.API.Infrastructure.Interceptors {
             InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default) {
 
-            ModifyAndWrapReadAndInsertCommand(command);
+            (var commandType, var targetTable) = GetCommandInfo(command);
+
+            if(commandType == UNKNOWN_COMMAND) {
+                return new ValueTask<InterceptionResult<DbDataReader>>(result);
+            }
+
+            // Check if the Transaction ID
+            var funcID = _scopedMetadata.ScopedMetadataFunctionalityID;
+
+            // Check if is this a functionality context (ID differs from null)
+            if (funcID == null) {
+                return new ValueTask<InterceptionResult<DbDataReader>>(result);
+            }
+
+            if (commandType == SELECT_COMMAND) {
+                UpdateSelectCommand(command);
+
+            }
+            else if(commandType == INSERT_COMMAND) {
+                bool funcState = _wrapper.SingletonGetTransactionState(funcID);
+
+                // If the Transaction is not in commit state, store data in wrapper
+                if (!funcState) {
+                    // TODO, the updateInsertCommand command should not be executed in this case, perhaps store the original command?
+                }
+                UpdateInsertCommand(command, targetTable);
+            }
 
             return new ValueTask<InterceptionResult<DbDataReader>>(result);
         }
 
-        /// <summary>
-        /// Method where the different types of queries are sorted and attributed an operation identifier based on the type of query to be performed.
-        /// </summary>
-        /// <param name="command"></param>
-        private void ModifyAndWrapReadAndInsertCommand(DbCommand command) {
-            switch(command.CommandText) {
-                case string s when s.Contains("INSERT INTO [CatalogType]"):
-                    // Check if the Transaction has been committed
-                    //if()
+        public (int, string) GetCommandInfo(DbCommand command) {
+            var commandType = GetCommandType(command);
 
-                    UpdateInsertCommand(command, INSERT_TYPE_OP);
-                    break;
-                case string s when s.Contains("INSERT INTO [CatalogBrand]"):
-                    UpdateInsertCommand(command, INSERT_BRAND_OP);
-                    break;
-                case string s when s.Contains("INSERT INTO [Catalog]"):
-                    UpdateInsertCommand(command, INSERT_ITEM_OP);
-                    break;
-                case var s when new[] { "SELECT COUNT_BIG(*)\nFROM [Catalog] AS [c]", 
-                                        "SELECT [c].[Id], [c].[Brand]\nFROM [CatalogBrand] AS [c]", 
-                                        "SELECT [c].[Id], [c].[Type]\nFROM [CatalogType] AS [c]",
-                                        "SELECT [c].[Id], [c].[AvailableStock], [c].[CatalogBrandId], [c].[CatalogTypeId], [c].[Description], [c].[MaxStockThreshold], [c].[Name], [c].[OnReorder], [c].[PictureFileName], [c].[Price], [c].[RestockThreshold]"
-                                      }.Any(q => s.StartsWith(q)):
-                    // Update Read Queries
-                    UpdateReadQueriesCommand(command);
-                    break;
+            // Check if the command is an INSERT command.
+            if (commandType == INSERT_COMMAND) {
+
+                // Extract the name of the table being inserted into from the command text.
+                var match = Regex.Match(command.CommandText, @"INSERT INTO\s*\[(?<Target>[a-zA-Z]*)\]",
+                    RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
+                // If regex matches, return the command type and table name
+                if (match.Success) {
+                    var targetTable = match.Groups["Target"].Value;
+                    return (INSERT_COMMAND, targetTable);
+                }
             }
-            Console.WriteLine($"==Command==\n{command.CommandText}====\n");
+
+            // Check if the command is an SELECT command.
+            else if (commandType == SELECT_COMMAND) {
+                
+                // Extract the name of the table being selected from the command text.
+                var match = Regex.Match(command.CommandText, @"FROM\s+\[?([\w-]+)\]?\s*",
+                    RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
+                // Check if the target Table is not part of the exception list of Tables
+                var targetTable = match.Groups[1].Value;
+                List<string> exceptionTables = new List<string>() {
+                    "__EFMigrationsHistory"
+                };
+                if (!exceptionTables.Contains(targetTable)) {
+                    return (SELECT_COMMAND, targetTable);
+                }
+            }
+
+            return (UNKNOWN_COMMAND, null);
         }
 
+        private int GetCommandType(DbCommand command) {
+            var commandText = command.CommandText.ToUpperInvariant();
+
+            if (commandText.Contains("INSERT")) {
+                return INSERT_COMMAND;
+            }
+            else if (commandText.Contains("UPDATE")) {
+                return UPDATE_COMMAND;
+            }
+            else if (commandText.Contains("DELETE")) {
+                return DELETE_COMMAND;
+            }
+            else if (commandText.Contains("SELECT")) {
+                return SELECT_COMMAND;
+            }
+            else {
+                return UNKNOWN_COMMAND;
+            }
+        }
 
         /* ========== UPDATE READ QUERIES ==========*/
         /// <summary>
@@ -74,7 +161,7 @@ namespace Catalog.API.Infrastructure.Interceptors {
         /// "SELECT COUNT_BIG(*) ..."; "SELECT ... FROM [CatalogBrand] ..."; "SELECT ... FROM [CatalogType] ..."
         /// </summary>
         /// <param name="command"></param>
-        private void UpdateReadQueriesCommand(DbCommand command) {
+        private void UpdateSelectCommand(DbCommand command) {
             // Get the current functionality-set timeestamp
             DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
 
@@ -86,37 +173,32 @@ namespace Catalog.API.Infrastructure.Interceptors {
 
         /* ========== UPDATE WRITE QUERIES ==========*/
 
-        private void UpdateInsertCommand(DbCommand command, int operation) {
-            List<DbParameter> generatedParameters = new List<DbParameter>();
-
-            // Get the current timestamp
+        private void UpdateInsertCommand(DbCommand command, string targetTable) {
+            // Get the current timestamp - Should use the value received from the Coordinator
             var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
             Console.WriteLine($"Writing item with Timestamp:{timestamp}");
+
             // Replace Command Text to account for new parameter
             string commandWithTimestamp;
-            commandWithTimestamp = UpdateInsertCommandWithTimestamp(command, operation);
-            var stringParts = commandWithTimestamp.Split("VALUES", StringSplitOptions.RemoveEmptyEntries);
-            string newCommandText = stringParts[0] + "VALUES";
+            commandWithTimestamp = UpdateInsertCommandText(command, targetTable);
 
-            // Add timestamp Parameter to the Command Parameters
-            newCommandText = UpdateCommandParameters(command, generatedParameters, timestamp, newCommandText, operation);
-
-            // Clear the existing parameters and add the new parameters to the command
-            command.Parameters.Clear();
-            command.Parameters.AddRange(generatedParameters.ToArray());
-            command.CommandText = newCommandText;
-        }
-
-        private static string UpdateCommandParameters(DbCommand command, List<DbParameter> generatedParameters, string timestamp, string newCommandText, int operation) {
-            if (operation == INSERT_BRAND_OP || operation == INSERT_TYPE_OP) {
-                return UpdateBrandOrTypeOp(command, generatedParameters, timestamp, newCommandText);
-            }
+            // Generate new list of parameters
+            List<DbParameter> newParameters = new List<DbParameter>();
+            if(targetTable == "Catalog") {
+                UpdateItemOp(command, newParameters, timestamp);
+            } 
             else {
-                return UpdateItemOp(command, generatedParameters, timestamp, newCommandText);
+                UpdateBrandOrTypeOp(command, newParameters, timestamp);
             }
+
+            // Assign new Parameters and Command text to database command
+            command.Parameters.Clear();
+            command.Parameters.AddRange(newParameters.ToArray());
+            command.CommandText = commandWithTimestamp;
+
         }
 
-        private static string UpdateItemOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp, string newCommandText) {
+        private static void UpdateItemOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
             int numObjectsToInsert = command.Parameters.Count / 11;
 
             for (int i = 0; i < numObjectsToInsert; i++) {
@@ -129,7 +211,7 @@ namespace Catalog.API.Infrastructure.Interceptors {
                 var foreignBrandParam = command.CreateParameter();
                 foreignBrandParam.ParameterName = $"@p{i * 12 + 1}";
                 foreignBrandParam.Value = command.Parameters[i * 11 + 1].Value;
-                
+
                 var foreignTypeParam = command.CreateParameter();
                 foreignTypeParam.ParameterName = $"@p{i * 12 + 2}";
                 foreignTypeParam.Value = command.Parameters[i * 11 + 2].Value;
@@ -192,18 +274,10 @@ namespace Catalog.API.Infrastructure.Interceptors {
                 generatedParameters.Add(restockThresholdParam);
                 generatedParameters.Add(timeStampParam);
 
-                newCommandText += $"(@p{i * 12}, @p{i * 12 + 1}, @p{i * 12 + 2}, @p{i * 12 + 3}, @p{i * 12 + 4}, @p{i * 12 + 5}, @p{i * 12 + 6}, @p{i * 12 + 7}, @p{i * 12 + 8}, @p{i * 12 + 9}, @p{i * 12 + 10}, @p{i * 12 + 11})";
-                if (i < numObjectsToInsert - 1) {
-                    newCommandText += ", ";
-                }
-                else {
-                    newCommandText += ";";
-                }
             }
-            return newCommandText;
         }
 
-        private static string UpdateBrandOrTypeOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp, string newCommandText) {
+        private static void UpdateBrandOrTypeOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
             int numObjectsToInsert = command.Parameters.Count / 2;
 
             for (int i = 0; i < numObjectsToInsert; i++) {
@@ -226,28 +300,84 @@ namespace Catalog.API.Infrastructure.Interceptors {
                 generatedParameters.Add(variableOpParam);
                 generatedParameters.Add(timeStampParam);
 
-                newCommandText += $"(@p{i * 3}, @p{i * 3 + 1}, @p{i * 3 + 2})";
-                if (i < numObjectsToInsert - 1) {
-                    newCommandText += ", ";
-                }
-                else {
-                    newCommandText += ";";
-                }
             }
-            return newCommandText;
         }
 
-        private static string UpdateInsertCommandWithTimestamp(DbCommand command, int operation) {
-            if (operation == INSERT_TYPE_OP) {
-                return command.CommandText.Replace("INSERT INTO [CatalogType] ([Id], [Type])", "INSERT INTO [CatalogType] ([Id], [Type], [Timestamp])");
+        private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
+            string updatedCommandText;
+
+            if (targetTable == "CatalogType") {
+                updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogType\]\s+\(\s*\[Id\],\s*\[Type\]\s*", "$0, [Timestamp]");
+                updatedCommandText = Regex.Replace(updatedCommandText, @"VALUES\s\(@p0, @p1", "$0, @p2");
             }
-            else if(operation == INSERT_BRAND_OP) {
-                return command.CommandText.Replace("INSERT INTO [CatalogBrand] ([Id], [Brand])", "INSERT INTO [CatalogBrand] ([Id], [Brand], [Timestamp])");
-            } 
+            else if(targetTable == "CatalogBrand") {
+                updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogBrand\]\s+\(\s*\[Id\],\s*\[Brand\]\s*", "$0, [Timestamp]");
+                updatedCommandText = Regex.Replace(updatedCommandText, @"VALUES\s\(@p0, @p1", "$0, @p2");
+            }
             else {
-                return command.CommandText.Replace("INSERT INTO [Catalog] ([Id], [AvailableStock], [CatalogBrandId], [CatalogTypeId], [Description], [MaxStockThreshold], [Name], [OnReorder], [PictureFileName], [Price], [RestockThreshold])",
-                    "INSERT INTO [Catalog] ([Id], [AvailableStock], [CatalogBrandId], [CatalogTypeId], [Description], [MaxStockThreshold], [Name], [OnReorder], [PictureFileName], [Price], [RestockThreshold], [Timestamp])");
+                updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Catalog\]\s+\(\s*\[Id\],\s*\[AvailableStock\],\s*\[CatalogBrandId\],\s*\[CatalogTypeId\],\s*\[Description\],\s*\[MaxStockThreshold\],\s*\[Name\],\s*\[OnReorder\],\s*\[PictureFileName\],\s*\[Price\],\s*\[RestockThreshold\]\s*", "$0, [Timestamp]");
+                updatedCommandText = Regex.Replace(updatedCommandText, @"VALUES\s\(@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10", "$0, @p11");
             }
+            return updatedCommandText;
         }
+
+        public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
+            Console.WriteLine("Hello there.");
+            
+            // After reading data from the Database, union the data with the wrapper existing data for the current functionality.
+            return base.ReaderExecuted(command, eventData, result);
+        }
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
+            // Get the target table
+            var match = Regex.Match(command.CommandText, @"FROM\s+\[?([\w-]+)\]?\s*",
+                    RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
+            // Check if the target Table is not part of the exception list of Tables
+            var targetTable = match.Groups[1].Value;
+
+            if(targetTable == "CatalogBrand") {
+                // Create a new data reader that includes the original result plus a new object
+                var newData = new List<object[]>();
+                while(await result.ReadAsync(cancellationToken)) {
+                    var brandId = result.GetInt32(0);
+                    var brandName = result.GetString(1);
+                    newData.Add(new object[] { brandId, brandName} );
+                }
+                var recordsAffected = result.RecordsAffected;
+
+                // This is just a test to understand if we can inject data in the result (eventually replaced with wrapper readings)
+                newData.Add(new object[] { Convert.ToInt32("404"), "TestBrand#1" });
+                newData.Add(new object[] { Convert.ToInt32("405"), "TestBrand#2" });
+                newData.Add(new object[] { Convert.ToInt32("406"), "TestBrand#3" });
+
+                var newReader = new WrapperDbDataReader(newData, result, "CatalogBrand", recordsAffected);
+                return newReader;
+            } 
+            else if(targetTable == "CatalogType") {
+                // Create a new data reader that includes the original result plus a new object
+                var newData = new List<object[]>();
+                while (await result.ReadAsync(cancellationToken)) {
+                    var typeId = result.GetInt32(0);
+                    var brandName = result.GetString(1);
+                    newData.Add(new object[] { typeId, brandName });
+                }
+                var recordsAffected = result.RecordsAffected;
+
+                var newReader = new WrapperDbDataReader(newData, result, "CatalogType", recordsAffected);
+                return newReader;
+            }
+
+
+            //newData.Add(new object()); // add your new object here
+
+            //var newReader = new WrapperDbDataReader(newData);
+
+            // Return the new reader
+
+            //return base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+            return null;
+        }
+
     }
 }

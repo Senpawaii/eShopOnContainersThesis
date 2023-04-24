@@ -5,16 +5,19 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
 
 public class CatalogContext : DbContext
 {
-    public CatalogContext(DbContextOptions<CatalogContext> options, IScopedMetadata scopedMetadata, IOptions<CatalogSettings> settings) : base(options)
+    public CatalogContext(DbContextOptions<CatalogContext> options, IScopedMetadata scopedMetadata, ISingletonWrapper wrapper, IOptions<CatalogSettings> settings) : base(options)
     {
         _wrapperThesis = settings.Value.ThesisWrapperEnabled;
         _scopedMetadata = scopedMetadata;
+        _wrapper = wrapper;
+
     }
 
     public CatalogContext(DbContextOptions<CatalogContext> options, IOptions<CatalogSettings> settings) : base(options) {
         _wrapperThesis = settings.Value.ThesisWrapperEnabled;
     }
     public readonly IScopedMetadata _scopedMetadata;
+    public readonly ISingletonWrapper _wrapper;
     public readonly bool _wrapperThesis;
     public DbSet<CatalogItem> CatalogItems { get; set; }
     public DbSet<CatalogBrand> CatalogBrands { get; set; }
@@ -29,7 +32,7 @@ public class CatalogContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) {
         if(_wrapperThesis) {
-            optionsBuilder.AddInterceptors(new CatalogDBInterceptor(_scopedMetadata));
+            optionsBuilder.AddInterceptors(new CatalogDBInterceptor(_scopedMetadata, _wrapper));
         }
     }
 }
