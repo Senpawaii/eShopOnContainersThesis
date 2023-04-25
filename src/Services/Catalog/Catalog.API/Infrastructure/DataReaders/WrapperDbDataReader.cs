@@ -1,6 +1,7 @@
 ﻿using Microsoft.IdentityModel.Tokens;
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.DataReaders;
 public class WrapperDbDataReader : DbDataReader
@@ -87,15 +88,6 @@ public class WrapperDbDataReader : DbDataReader
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
-        //if(_tableRead == "CatalogBrand" || _tableRead == "CatalogType") {
-        //    switch(ordinal) {
-        //        case 0:
-        //            return "int";
-        //        case 1:
-        //            return "nvarchar";
-        //    }
-        //}
-
         var fieldType = GetFieldType(ordinal);
 
         switch (fieldType.Name) {
@@ -103,6 +95,10 @@ public class WrapperDbDataReader : DbDataReader
                 return "int";
             case "String":
                 return "nvarchar";
+            case "Int64":
+                return "bigint";
+            case "Boolean":
+                return "bit";
             default:
                 return fieldType.Name;
         }

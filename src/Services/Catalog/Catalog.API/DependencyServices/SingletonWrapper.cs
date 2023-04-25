@@ -1,6 +1,7 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using YamlDotNet.Serialization;
 
 namespace Catalog.API.DependencyServices {
     public class SingletonWrapper : ISingletonWrapper {
@@ -42,23 +43,29 @@ namespace Catalog.API.DependencyServices {
             return transaction_state.GetValueOrDefault(funcId);
         }
 
-        public void SingletonAddCatalogItem(string funcID, object[] item) {
-            wrapped_catalog_items.AddOrUpdate(funcID, new ConcurrentBag<object[]> { item }, (key, bag) => {
-                bag.Add(item);
-                return bag;
-            }); 
+        public void SingletonAddCatalogItem(string funcID, IEnumerable<object[]> values) {
+            foreach (object[] item in values) {
+                wrapped_catalog_items.AddOrUpdate(funcID, new ConcurrentBag<object[]> { item }, (key, bag) => {
+                    bag.Add(item);
+                    return bag;
+                });
+            }
         }
-        public void SingletonAddCatalogType(string funcID, object[] type) {
-            wrapped_catalog_types.AddOrUpdate(funcID, new ConcurrentBag<object[]> { type }, (key, bag) => {
-                bag.Add(type);
-                return bag;
-            });
+        public void SingletonAddCatalogType(string funcID, IEnumerable<object[]> values) {
+            foreach (object[] type in values) {
+                wrapped_catalog_types.AddOrUpdate(funcID, new ConcurrentBag<object[]> { type }, (key, bag) => {
+                    bag.Add(type);
+                    return bag;
+                });
+            }
         }
-        public void SingletonAddCatalogBrand(string funcID, object[] brand) {
-            wrapped_catalog_brands.AddOrUpdate(funcID, new ConcurrentBag<object[]> { brand }, (key, bag) => {
-                bag.Add(brand);
-                return bag;
-            });
+        public void SingletonAddCatalogBrand(string funcID, IEnumerable<object[]> values) {
+            foreach (object[] brand in values) {
+                wrapped_catalog_brands.AddOrUpdate(funcID, new ConcurrentBag<object[]> { brand }, (key, bag) => {
+                    bag.Add(brand);
+                    return bag;
+                });
+            }
         }
 
         public bool SingletonSetTransactionState(string funcId, bool state) {

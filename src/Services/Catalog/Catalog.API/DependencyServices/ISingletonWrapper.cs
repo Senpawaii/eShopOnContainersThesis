@@ -12,9 +12,9 @@ namespace Catalog.API.DependencyServices {
         public ConcurrentBag<object[]> SingletonGetCatalogBrands(string key);
         public bool SingletonGetTransactionState(string funcId);
 
-        public void SingletonAddCatalogItem(string funcID, object[] item);
-        public void SingletonAddCatalogType(string funcID, object[] type);
-        public void SingletonAddCatalogBrand(string funcID, object[] brand);
+        public void SingletonAddCatalogItem(string funcID, IEnumerable<object[]> values);
+        public void SingletonAddCatalogType(string funcID, IEnumerable<object[]> values);
+        public void SingletonAddCatalogBrand(string funcID, IEnumerable<object[]> values);
         public bool SingletonSetTransactionState(string funcId, bool state);
 
         }

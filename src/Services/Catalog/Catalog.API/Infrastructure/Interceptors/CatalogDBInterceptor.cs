@@ -4,10 +4,14 @@ using Microsoft.Azure.Amqp.Framing;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.DataReaders;
 using Microsoft.Extensions.Azure;
+using Microsoft.IdentityModel.Tokens;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Threading;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
@@ -104,7 +108,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private MockDbDataReader StoreDataInWrapper(DbCommand command) {
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
-        var targetTable = GetTargetTable(command.CommandText);
+        var targetTable = GetInsertTargetTable(command.CommandText);
 
         // Get the number of columns in each row to be inserted
         var regex = new Regex(@"\((.*?)\)");
@@ -125,7 +129,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             rowsAffected++;
         }
 
-        var mockReader = new MockDbDataReader(rows.ToList(), rowsAffected, targetTable);
+        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
         switch (targetTable) {
             case "CatalogBrand":
@@ -141,9 +145,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
-    private string GetTargetTable(string commandText) {
-        // Extract the name of the table being inserted into from the command text.
+    private string GetInsertTargetTable(string commandText) {
+        // Extract the name of the table being inserted into, from the command text.
         var match = Regex.Match(commandText, @"INSERT INTO\s*\[(?<Target>[a-zA-Z]*)\]",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline);
+        return match.Success ? match.Groups["Target"].Value : null;
+    }
+    private string GetSelectTargetTable(string commandText) {
+        // Extract the name of the table being selected from, from the command text.
+        var match = Regex.Match(commandText, @"FROM\s*\[(?<Target>[a-zA-Z]*)\]",
             RegexOptions.IgnoreCase | RegexOptions.Multiline);
         return match.Success ? match.Groups["Target"].Value : null;
     }
@@ -153,11 +163,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Check if the command is an INSERT command.
         if (commandType == INSERT_COMMAND) {
-            string targetTable = GetTargetTable(command.CommandText);
+            string targetTable = GetInsertTargetTable(command.CommandText);
             return (INSERT_COMMAND, targetTable);
         }
         else if (commandType == SELECT_COMMAND) {
-            string targetTable = GetTargetTable(command.CommandText);
+            string targetTable = GetSelectTargetTable(command.CommandText);
             List<string> exceptionTables = new List<string>() {
                 "__EFMigrationsHistory"
             };
@@ -201,9 +211,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // Get the current functionality-set timeestamp
         DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
 
+        string commandTextWithFilter = string.Empty;
         // Replace Command Text to account for new filter
-        string commandTextWithFilter = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp}'");
-        command.CommandText = commandTextWithFilter;
+        if (command.CommandText.Contains("WHERE")) {
+            // Command already has at least 1 filter
+            command.CommandText += $" AND [c].[Timestamp] <= '{functionalityTimestamp}'"; 
+        }
+        else {
+            // Command has no filters yet
+            command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp}'");
+        }
     }
 
 
@@ -212,7 +229,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
         // Get the current timestamp - Should use the value received from the Coordinator
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
-        Console.WriteLine($"Writing item with Timestamp:{timestamp}");
 
         // Replace Command Text to account for new parameter
         string commandWithTimestamp;
@@ -358,10 +374,103 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
-        Console.WriteLine("Hello there.");
-            
-        // After reading data from the Database, union the data with the wrapper existing data for the current functionality.
-        return base.ReaderExecuted(command, eventData, result);
+        var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
+
+        // Check if the command is an INSERT command and has yet to be committed
+        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
+            return result;
+        }
+
+        // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
+
+        string targetTable = string.Empty;
+        if (command.CommandText.Contains("INSERT")) {
+            targetTable = GetInsertTargetTable(command.CommandText);
+        }
+        else {
+            targetTable = GetSelectTargetTable(command.CommandText);
+            if(targetTable.IsNullOrEmpty()) {
+                // Unsupported Table (Migration for example)
+                return result;
+            }
+        }
+        var newData = new List<object[]>();
+
+        while (result.Read()) {
+            var rowValues = new List<object>();
+            for (int i = 0; i < result.FieldCount; i++) {
+                var fieldType = result.GetFieldType(i);
+                switch (fieldType.Name) {
+                    case "Int32":
+                        rowValues.Add(result.GetInt32(i));
+                        break;
+                    case "Int64":
+                        rowValues.Add(result.GetInt64(i));
+                        break;
+                    case "String":
+                        rowValues.Add(result.GetString(i));
+                        break;
+                    case "Decimal":
+                        rowValues.Add(result.GetDecimal(i));
+                        break;
+                    case "Boolean":
+                        rowValues.Add(result.GetBoolean(i));
+                        break;
+                    // add additional cases for other data types as needed
+                    default:
+                        rowValues.Add(null);
+                        break;
+                }
+            }
+            newData.Add(rowValues.ToArray());
+        }
+
+        // Read the data from the Wrapper structures if inside a functionality
+        if (funcId != null && command.CommandText.Contains("SELECT")) {
+            targetTable = GetSelectTargetTable(command.CommandText);
+            ConcurrentBag<object[]> wrapperData = null;
+
+            switch (targetTable) {
+                case "CatalogBrand":
+                    wrapperData = _wrapper.SingletonGetCatalogBrands(funcId);
+                    break;
+                case "CatalogType":
+                    wrapperData = _wrapper.SingletonGetCatalogTypes(funcId);
+                    break;
+                case "Catalog":
+                    wrapperData = _wrapper.SingletonGetCatalogITems(funcId);
+                    break;
+            }
+            if (wrapperData != null) {
+                if (IsCountSelect(command.CommandText)) {
+                    var countObj = newData[0][0];
+                    Console.WriteLine(newData[0][0]);
+
+                    // Check if the Command query has a Filter applied
+                    if (HasFilterCondition(command.CommandText)) {
+                        var filteredData = FilterData(wrapperData, command);
+                        newData[0][0] = Convert.ToInt64(countObj) + filteredData.Count;
+                    }
+                }
+                else {
+                    if (HasFilterCondition(command.CommandText)) {
+                        var filteredData = FilterData(wrapperData, command);
+                        foreach (object[] row in filteredData) {
+                            newData.Add(row);
+                        }
+                    }
+                    else {
+                        foreach (object[] row in wrapperData) {
+                            newData.Add(row);
+                        }
+                    }
+                }
+            }
+        }
+
+        var recordsAffected = result.RecordsAffected;
+        var newReader = new WrapperDbDataReader(newData, result, targetTable, recordsAffected);
+        return newReader;
     }
 
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
@@ -371,10 +480,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         if(command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
             return result;
         }
-        
+
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
 
-        string targetTable = GetTargetTable(command.CommandText);
+        string targetTable = string.Empty;
         var newData = new List<object[]>();
 
         while(await result.ReadAsync(cancellationToken)) {
@@ -404,11 +513,164 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 }
             }
             newData.Add(rowValues.ToArray());
-            // Add the rest of the data from the Wrapper structure
         }
 
+        // Read the data from the Wrapper structures
+        if (command.CommandText.Contains("SELECT")) {
+            targetTable = GetSelectTargetTable(command.CommandText);
+            ConcurrentBag<object[]> wrapperData = null;
+
+            switch (targetTable) {
+                case "CatalogBrand":
+                    wrapperData = _wrapper.SingletonGetCatalogBrands(funcId);
+                    break;
+                case "CatalogType":
+                    wrapperData = _wrapper.SingletonGetCatalogTypes(funcId);
+                    break;
+                case "Catalog":
+                    wrapperData = _wrapper.SingletonGetCatalogITems(funcId);
+                    break;
+            }
+            if(wrapperData != null) {
+                if(IsCountSelect(command.CommandText)) {
+                    var countObj = newData[0][0];
+                    Console.WriteLine(newData[0][0]);
+
+                    // Check if the Command query has a Filter applied
+                    if(HasFilterCondition(command.CommandText)) {
+                        var filteredData = FilterData(wrapperData, command);
+                        newData[0][0] = Convert.ToInt64(countObj) + filteredData.Count;
+                    }
+                } 
+                else {
+                    foreach (object[] row in wrapperData) {
+                        newData.Add(row);
+                    }
+                }
+            }
+        } else {
+            targetTable = GetInsertTargetTable(command.CommandText);
+        }
+            
         var recordsAffected = result.RecordsAffected;
         var newReader = new WrapperDbDataReader(newData, result, targetTable, recordsAffected);
         return newReader;
+    }
+
+    private List<object[]> FilterData(ConcurrentBag<object[]> wrapperData, DbCommand command) {
+        string commandText = command.CommandText;
+
+        // Get the filter Condition - skip the 5 letters after W (including space)
+        var filterCondition = command.CommandText.Substring(command.CommandText.IndexOf("WHERE") +  5);
+        var filteredData = new List<object[]>();
+
+        switch (GetSelectTargetTable(command.CommandText)) {
+            case "CatalogBrand":
+                if (command.CommandText.Contains("[Brand] =")) {
+                    // Get the object we are comparing with
+                    var brandParam = command.Parameters[0].Value;
+                    filteredData = wrapperData
+                        .Where(row => row[1] != null && row[1].ToString() == brandParam.ToString())
+                        .ToList();
+                }
+                break;
+            case "Catalog":
+                if (command.CommandText.Contains("[CatalogBrandId] =")) {
+                    // Get the object we are comparing with
+
+                }
+                if (command.CommandText.Contains("[CatalogTypeId] =")) {
+                    // Get the object we are comparing with
+
+                }
+                break;
+        }
+
+        // Regex pattern to match the SELECT clause of the SQL command
+        string pattern = @"SELECT\s+(.*?)\s+FROM";
+        Match match = Regex.Match(commandText, pattern, RegexOptions.IgnoreCase);
+        if (match.Success) {
+            bool hasTOPclause = false;
+            int topClauseItems = 0;
+
+            List<string> columns = new List<string>();
+            
+            // Extract the list of columns (with table alias) from the SELECT clause
+            string fields = match.Groups[1].Value;
+            
+            // Split the list by the commas
+            string[] fieldList = fields.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+            // Regex pattern to match only the column name
+            string columnNamePattern = @"\[[a-zA-Z]+\].\[(?<columnName>.+?)\]$";
+            foreach (string field in fieldList) {
+                if (field.Contains("COUNT")) {
+                    // Ignore the COUNT clause
+                    continue;
+                }
+
+                if (field.Contains("TOP")) {
+                    // There is a TOP clause present
+                    hasTOPclause = true;
+
+                    // Extract the number of elements to display
+                    string numberElementsPattern = @"TOP\((?<items>.\d*?)\).*$";
+                    Match numberElementsMatch = Regex.Match(field, numberElementsPattern);
+                    if (numberElementsMatch.Success) {
+
+                        string numberElements = numberElementsMatch.Groups["items"].Value.Trim();
+                        topClauseItems = Convert.ToInt32(numberElements);
+                    }
+                }
+
+                // Match each column Name in the SELECT clause (without tables alias)
+                Match columnMatch = Regex.Match(field, columnNamePattern);
+                if (columnMatch.Success) {
+
+                    string columnName = columnMatch.Groups["columnName"].Value;
+                    columns.Add(columnName.Trim());
+                }
+            }
+
+            if(columns.Count <= 0) {
+                return filteredData;
+            }
+
+            switch (GetSelectTargetTable(command.CommandText)) {
+                case "CatalogBrand":
+                    Dictionary<string, int> fieldNamesToReturn = new Dictionary<string, int>();
+                    foreach (string column in columns) { 
+                        switch(column) {
+                            case "Id":
+                                fieldNamesToReturn.Add(column, 0);
+                                break;
+                            case "Brand":
+                                fieldNamesToReturn.Add(column, 1);
+                                break;
+                        }
+                    }
+                    filteredData = filteredData
+                        .Select(row => fieldNamesToReturn.Select(fieldName => row[fieldName.Value]).ToArray())
+                        .ToList();
+                    break;
+            }
+
+            if(hasTOPclause) {
+                // Reduce the number of items in the filteredData list according to TOP clause
+                filteredData = filteredData.Take(topClauseItems).ToList();
+            }
+            
+        }
+
+        // Add list of conditions here hardcoded should't be but for the sake of time.
+        return filteredData;
+    }
+
+    private Boolean HasFilterCondition(string commandText) {
+        return commandText.IndexOf("WHERE") != -1;
+    }
+
+    private Boolean IsCountSelect(string commandText) {
+        return commandText.Contains("COUNT");
     }
 }
