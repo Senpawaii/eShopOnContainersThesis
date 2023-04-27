@@ -5,11 +5,13 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.DataReaders;
 using Microsoft.Extensions.Azure;
 using Microsoft.IdentityModel.Tokens;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.PortableExecutable;
@@ -484,6 +486,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
 
         string targetTable = string.Empty;
+        if (command.CommandText.Contains("INSERT")) {
+            targetTable = GetInsertTargetTable(command.CommandText);
+        }
+        else {
+            targetTable = GetSelectTargetTable(command.CommandText);
+            if (targetTable.IsNullOrEmpty()) {
+                // Unsupported Table (Migration for example)
+                return result;
+            }
+        }
         var newData = new List<object[]>();
 
         while(await result.ReadAsync(cancellationToken)) {
@@ -531,20 +543,28 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     wrapperData = _wrapper.SingletonGetCatalogITems(funcId);
                     break;
             }
-            if(wrapperData != null) {
-                if(IsCountSelect(command.CommandText)) {
+            if (wrapperData != null) {
+                if (IsCountSelect(command.CommandText)) {
                     var countObj = newData[0][0];
                     Console.WriteLine(newData[0][0]);
 
                     // Check if the Command query has a Filter applied
-                    if(HasFilterCondition(command.CommandText)) {
+                    if (HasFilterCondition(command.CommandText)) {
                         var filteredData = FilterData(wrapperData, command);
                         newData[0][0] = Convert.ToInt64(countObj) + filteredData.Count;
                     }
-                } 
+                }
                 else {
-                    foreach (object[] row in wrapperData) {
-                        newData.Add(row);
+                    if (HasFilterCondition(command.CommandText)) {
+                        var filteredData = FilterData(wrapperData, command);
+                        foreach (object[] row in filteredData) {
+                            newData.Add(row);
+                        }
+                    }
+                    else {
+                        foreach (object[] row in wrapperData) {
+                            newData.Add(row);
+                        }
                     }
                 }
             }
@@ -559,115 +579,240 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private List<object[]> FilterData(ConcurrentBag<object[]> wrapperData, DbCommand command) {
         string commandText = command.CommandText;
+        var targetTable = GetSelectTargetTable(commandText);
 
-        // Get the filter Condition - skip the 5 letters after W (including space)
-        var filterCondition = command.CommandText.Substring(command.CommandText.IndexOf("WHERE") +  5);
-        var filteredData = new List<object[]>();
+        // Store the column name that are selected
+        List<string> columnSelect = new List<string>();
 
-        switch (GetSelectTargetTable(command.CommandText)) {
+        var filteredData = ApplyWhereFilterIfExist(wrapperData, command).ToList();
+
+        // Extract SELECT clause parameters
+        string subCommandText = commandText.Replace(commandText.Substring(commandText.IndexOf("FROM")), "");
+        Regex regex = new Regex(@"\[(?<targetTable>[a-zA-Z]+)\]\.*\[(?<columnName>[a-zA-Z]+)\]");
+        MatchCollection matches = regex.Matches(subCommandText);
+
+        if (matches.Count == 0) {
+            // No Where filters exist
+            return filteredData;
+        }
+
+        var columnIndexes = new Dictionary<string, int>();
+        // Apply the filters according to the Target Table
+        switch (targetTable) {
             case "CatalogBrand":
-                if (command.CommandText.Contains("[Brand] =")) {
-                    // Get the object we are comparing with
-                    var brandParam = command.Parameters[0].Value;
-                    filteredData = wrapperData
-                        .Where(row => row[1] != null && row[1].ToString() == brandParam.ToString())
-                        .ToList();
-                }
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("Brand", 1);
                 break;
             case "Catalog":
-                if (command.CommandText.Contains("[CatalogBrandId] =")) {
-                    // Get the object we are comparing with
-
-                }
-                if (command.CommandText.Contains("[CatalogTypeId] =")) {
-                    // Get the object we are comparing with
-
-                }
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("CatalogBrandId", 1);
+                columnIndexes.Add("CatalogTypeId", 2);
+                columnIndexes.Add("Description", 3);
+                columnIndexes.Add("Name", 4);
+                columnIndexes.Add("PictureFileName", 5);
+                columnIndexes.Add("Price", 6);
+                columnIndexes.Add("AvailableStock", 7);
+                columnIndexes.Add("MaxStockThreshold", 8);
+                columnIndexes.Add("OnReorder", 9);
+                columnIndexes.Add("RestockThreshold", 10);
+                break;
+            case "CatalogType":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("Type", 1);
                 break;
         }
 
-        // Regex pattern to match the SELECT clause of the SQL command
-        string pattern = @"SELECT\s+(.*?)\s+FROM";
-        Match match = Regex.Match(commandText, pattern, RegexOptions.IgnoreCase);
-        if (match.Success) {
-            bool hasTOPclause = false;
-            int topClauseItems = 0;
-
-            List<string> columns = new List<string>();
-            
-            // Extract the list of columns (with table alias) from the SELECT clause
-            string fields = match.Groups[1].Value;
-            
-            // Split the list by the commas
-            string[] fieldList = fields.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-
-            // Regex pattern to match only the column name
-            string columnNamePattern = @"\[[a-zA-Z]+\].\[(?<columnName>.+?)\]$";
-            foreach (string field in fieldList) {
-                if (field.Contains("COUNT")) {
-                    // Ignore the COUNT clause
-                    continue;
-                }
-
-                if (field.Contains("TOP")) {
-                    // There is a TOP clause present
-                    hasTOPclause = true;
-
-                    // Extract the number of elements to display
-                    string numberElementsPattern = @"TOP\((?<items>.\d*?)\).*$";
-                    Match numberElementsMatch = Regex.Match(field, numberElementsPattern);
-                    if (numberElementsMatch.Success) {
-
-                        string numberElements = numberElementsMatch.Groups["items"].Value.Trim();
-                        topClauseItems = Convert.ToInt32(numberElements);
-                    }
-                }
-
-                // Match each column Name in the SELECT clause (without tables alias)
-                Match columnMatch = Regex.Match(field, columnNamePattern);
-                if (columnMatch.Success) {
-
-                    string columnName = columnMatch.Groups["columnName"].Value;
-                    columns.Add(columnName.Trim());
-                }
-            }
-
-            if(columns.Count <= 0) {
-                return filteredData;
-            }
-
-            switch (GetSelectTargetTable(command.CommandText)) {
-                case "CatalogBrand":
-                    Dictionary<string, int> fieldNamesToReturn = new Dictionary<string, int>();
-                    foreach (string column in columns) { 
-                        switch(column) {
-                            case "Id":
-                                fieldNamesToReturn.Add(column, 0);
-                                break;
-                            case "Brand":
-                                fieldNamesToReturn.Add(column, 1);
-                                break;
-                        }
-                    }
-                    filteredData = filteredData
-                        .Select(row => fieldNamesToReturn.Select(fieldName => row[fieldName.Value]).ToArray())
-                        .ToList();
-                    break;
-            }
-
-            if(hasTOPclause) {
-                // Reduce the number of items in the filteredData list according to TOP clause
-                filteredData = filteredData.Take(topClauseItems).ToList();
-            }
-            
+        // Extract parameter names from the matches
+        for (int i = 0; i < matches.Count; i++) {
+            columnSelect.Add(matches[i].Groups[2].Value);
         }
 
-        // Add list of conditions here hardcoded should't be but for the sake of time.
+        filteredData = filteredData.Select(row => {
+            var filteredRow = new object[columnSelect.Count];
+            for (int i = 0; i < columnSelect.Count; i++) {
+                filteredRow[i] = row[columnIndexes[columnSelect[i]]];
+            }
+            return filteredRow;
+        }).ToList();
+
+        // Check if command includes TOP(n) clause
+        (bool hasTopClause, int nElem) = HasTopClause(commandText);
+        if( hasTopClause ) {
+            // Reduce the number of items in the filteredData list according to TOP clause
+            filteredData = filteredData.Take(nElem).ToList();
+        }
+
+
+        // -----------------
+
+
+        //// Regex pattern to match the SELECT clause of the SQL command
+        //string pattern = @"SELECT\s+(.*?)\s+FROM";
+        //Match match = Regex.Match(commandText, pattern, RegexOptions.IgnoreCase);
+        //if (match.Success) {
+        //    bool hasTOPclause = false;
+        //    int topClauseItems = 0;
+
+        //    List<string> columns = new List<string>();
+
+        //    // Extract the list of columns (with table alias) from the SELECT clause
+        //    string fields = match.Groups[1].Value;
+
+        //    // Split the list by the commas
+        //    string[] fieldList = fields.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+        //    // Regex pattern to match only the column name
+        //    string columnNamePattern = @"\[[a-zA-Z]+\].\[(?<columnName>.+?)\]$";
+        //    foreach (string field in fieldList) {
+        //        if (field.Contains("COUNT")) {
+        //            // Ignore the COUNT clause
+        //            continue;
+        //        }
+
+        //        if (field.Contains("TOP")) {
+        //            // There is a TOP clause present
+        //            hasTOPclause = true;
+
+        //            // Extract the number of elements to display
+        //            string numberElementsPattern = @"TOP\((?<items>.\d*?)\).*$";
+        //            Match numberElementsMatch = Regex.Match(field, numberElementsPattern);
+        //            if (numberElementsMatch.Success) {
+
+        //                string numberElements = numberElementsMatch.Groups["items"].Value.Trim();
+        //                topClauseItems = Convert.ToInt32(numberElements);
+        //            }
+        //        }
+
+        //        // Match each column Name in the SELECT clause (without tables alias)
+        //        Match columnMatch = Regex.Match(field, columnNamePattern);
+        //        if (columnMatch.Success) {
+
+        //            string columnName = columnMatch.Groups["columnName"].Value;
+        //            columns.Add(columnName.Trim());
+        //        }
+        //    }
+
+        //    if (columns.Count <= 0) {
+        //        return filteredData;
+        //    }
+
+        //    Dictionary<string, int> fieldNamesToReturn = new Dictionary<string, int>();
+        //    switch (GetSelectTargetTable(command.CommandText)) {
+        //        case "CatalogBrand":
+        //            foreach (string column in columns) {
+        //                switch (column) {
+        //                    case "Id":
+        //                        fieldNamesToReturn.Add(column, 0);
+        //                        break;
+        //                    case "Brand":
+        //                        fieldNamesToReturn.Add(column, 1);
+        //                        break;
+        //                }
+        //            }
+        //            filteredData = filteredData
+        //                .Select(row => fieldNamesToReturn.Select(fieldName => row[fieldName.Value]).ToArray())
+        //                .ToList();
+        //            break;
+        //        case "CatalogType":
+        //            foreach (string column in columns) {
+        //                switch (column) {
+        //                    case "Id":
+        //                        fieldNamesToReturn.Add(column, 0);
+        //                        break;
+        //                    case "Type":
+        //                        fieldNamesToReturn.Add(column, 1);
+        //                        break;
+        //                }
+        //            }
+        //            filteredData = filteredData
+        //                .Select(row => fieldNamesToReturn.Select(fieldName => row[fieldName.Value]).ToArray())
+        //                .ToList();
+        //            break;
+        //    }
+
+        //    if (hasTOPclause) {
+        //        // Reduce the number of items in the filteredData list according to TOP clause
+        //        filteredData = filteredData.Take(topClauseItems).ToList();
+        //    }
+
+        //}
+
+        return filteredData;
+    }
+
+    private IEnumerable<object[]> ApplyWhereFilterIfExist(ConcurrentBag<object[]> wrapperData, DbCommand command) {
+        List<object[]> filteredData = new List<object[]>();
+
+        // Store the column name associated with the respective value for comparison
+        Dictionary<string, object> parametersFilter = new Dictionary<string, object>();
+        Regex regex = new Regex(@"\.*\[[a-zA-Z]\].\[(?<columnName>\S*)\]\s*=\s*(?<paramValue>\S*)");
+        MatchCollection matches = regex.Matches(command.CommandText);
+
+        if(matches.Count == 0) {
+            // No Where filters exist
+            return wrapperData;
+        }
+
+        // Extract parameter names from the matches
+        for (int i = 0; i < matches.Count; i++) {
+            string columnName = matches[i].Groups[1].Value;
+            string parameterParametrization = matches[i].Groups[2].Value;
+            DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
+            parametersFilter[columnName] = parameter.Value;
+        }
+
+        var columnIndexes = new Dictionary<string, int>();
+        // Apply the filters according to the Target Table
+        switch (GetSelectTargetTable(command.CommandText)) {
+            case "CatalogBrand":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("Brand", 1);
+                break;
+            case "Catalog":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("CatalogBrandId", 1);
+                columnIndexes.Add("CatalogTypeId", 2);
+                columnIndexes.Add("Description", 3);
+                columnIndexes.Add("Name", 4);
+                columnIndexes.Add("PictureFileName", 5);
+                columnIndexes.Add("Price", 6);
+                columnIndexes.Add("AvailableStock", 7);
+                columnIndexes.Add("MaxStockThreshold", 8);
+                columnIndexes.Add("OnReorder", 9);
+                columnIndexes.Add("RestockThreshold", 10);
+                break;
+            case "CatalogType":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("Type", 1);
+                break;
+        }
+
+        foreach (KeyValuePair<string, object> parameter in parametersFilter) {
+            if (columnIndexes.TryGetValue(parameter.Key, out int columnIndex)) {
+                filteredData = wrapperData
+                        .Where(row => row[columnIndex] != null && row[columnIndex].ToString() == parameter.Value.ToString())
+                        .ToList();
+            }
+        }
+
         return filteredData;
     }
 
     private Boolean HasFilterCondition(string commandText) {
         return commandText.IndexOf("WHERE") != -1;
+    }
+
+    private (Boolean, int) HasTopClause(string commandText) {
+        Regex regex = new Regex(@"\.*TOP\((?<nElem>\d*)\)");
+        MatchCollection matches = regex.Matches(commandText);
+        if(matches.Count > 0) { 
+            return (true, Convert.ToInt32(matches[0].Groups[1].Value));
+        }
+        return (false, 0);
+    }
+
+    private Boolean IsSelectQuery(string commandText) {
+        return commandText.Contains("SELECT");
     }
 
     private Boolean IsCountSelect(string commandText) {
