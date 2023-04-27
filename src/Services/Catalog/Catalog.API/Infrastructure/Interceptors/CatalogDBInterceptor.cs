@@ -110,7 +110,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private MockDbDataReader StoreDataInWrapper(DbCommand command) {
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
-        var targetTable = GetInsertTargetTable(command.CommandText);
+        var targetTable = GetTargetTable(command.CommandText);
 
         // Get the number of columns in each row to be inserted
         var regex = new Regex(@"\((.*?)\)");
@@ -147,29 +147,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
-    private string GetInsertTargetTable(string commandText) {
-        // Extract the name of the table being inserted into, from the command text.
-        var match = Regex.Match(commandText, @"INSERT INTO\s*\[(?<Target>[a-zA-Z]*)\]",
-            RegexOptions.IgnoreCase | RegexOptions.Multiline);
-        return match.Success ? match.Groups["Target"].Value : null;
-    }
-    private string GetSelectTargetTable(string commandText) {
-        // Extract the name of the table being selected from, from the command text.
-        var match = Regex.Match(commandText, @"FROM\s*\[(?<Target>[a-zA-Z]*)\]",
-            RegexOptions.IgnoreCase | RegexOptions.Multiline);
-        return match.Success ? match.Groups["Target"].Value : null;
-    }
-
     public (int, string) GetCommandInfo(DbCommand command) {
         var commandType = GetCommandType(command);
 
         // Check if the command is an INSERT command.
         if (commandType == INSERT_COMMAND) {
-            string targetTable = GetInsertTargetTable(command.CommandText);
+            string targetTable = GetTargetTable(command.CommandText);
             return (INSERT_COMMAND, targetTable);
         }
         else if (commandType == SELECT_COMMAND) {
-            string targetTable = GetSelectTargetTable(command.CommandText);
+            string targetTable = GetTargetTable(command.CommandText);
             List<string> exceptionTables = new List<string>() {
                 "__EFMigrationsHistory"
             };
@@ -387,10 +374,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         string targetTable = string.Empty;
         if (command.CommandText.Contains("INSERT")) {
-            targetTable = GetInsertTargetTable(command.CommandText);
+            targetTable = GetTargetTable(command.CommandText);
         }
         else {
-            targetTable = GetSelectTargetTable(command.CommandText);
+            targetTable = GetTargetTable(command.CommandText);
             if(targetTable.IsNullOrEmpty()) {
                 // Unsupported Table (Migration for example)
                 return result;
@@ -429,7 +416,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Read the data from the Wrapper structures if inside a functionality
         if (funcId != null && command.CommandText.Contains("SELECT")) {
-            targetTable = GetSelectTargetTable(command.CommandText);
+            targetTable = GetTargetTable(command.CommandText);
             ConcurrentBag<object[]> wrapperData = null;
 
             switch (targetTable) {
@@ -487,10 +474,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         string targetTable = string.Empty;
         if (command.CommandText.Contains("INSERT")) {
-            targetTable = GetInsertTargetTable(command.CommandText);
+            targetTable = GetTargetTable(command.CommandText);
         }
         else {
-            targetTable = GetSelectTargetTable(command.CommandText);
+            targetTable = GetTargetTable(command.CommandText);
             if (targetTable.IsNullOrEmpty()) {
                 // Unsupported Table (Migration for example)
                 return result;
@@ -529,7 +516,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
-            targetTable = GetSelectTargetTable(command.CommandText);
+            targetTable = GetTargetTable(command.CommandText);
             ConcurrentBag<object[]> wrapperData = null;
 
             switch (targetTable) {
@@ -545,6 +532,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
             if (wrapperData != null) {
                 if (IsCountSelect(command.CommandText)) {
+                    // This is a COUNT or a variation SELECT query
                     var countObj = newData[0][0];
                     Console.WriteLine(newData[0][0]);
 
@@ -555,21 +543,42 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     }
                 }
                 else {
+                    // This a regular SELECT query
                     if (HasFilterCondition(command.CommandText)) {
+                        // The query contains a WHERE clause
                         var filteredData = FilterData(wrapperData, command);
                         foreach (object[] row in filteredData) {
                             newData.Add(row);
                         }
                     }
                     else {
+                        // The query does not contain a WHERE clause
                         foreach (object[] row in wrapperData) {
                             newData.Add(row);
                         }
                     }
+
+                    (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
+                    if(hasOrderBy) {
+                        // The select query has an ORDER BY clause
+                        newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
+                    }
+
+                    (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
+                    if(hasOffset) {
+                        // the select query has an offset
+                        newData = OffsetData(command, newData, offsetParam);
+                    }
+
+                    (bool hasFetchNext, string fetchRowsParam) = HasFetchNextCondition(command.CommandText);
+                    if(hasFetchNext) {
+                        // The select query has a fetch next limit
+                        newData = FetchNext(command, newData, fetchRowsParam);
+                    }
                 }
             }
         } else {
-            targetTable = GetInsertTargetTable(command.CommandText);
+            targetTable = GetTargetTable(command.CommandText);
         }
             
         var recordsAffected = result.RecordsAffected;
@@ -577,9 +586,34 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newReader;
     }
 
+    private List<object[]> OrderBy(List<object[]> newData, string orderByColumn, string typeOrder, string targetTable) {
+        Dictionary <string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
+        int sortByIndex = columnIndexes[orderByColumn];
+
+        // Determine the type of the objects to compare
+        Type sortColumnType = newData.First()[sortByIndex].GetType();
+
+        newData = newData.OrderBy(arr => Convert.ChangeType(arr[sortByIndex], sortColumnType)).ToList();
+        return newData;
+    }
+
+    private List<object[]> OffsetData(DbCommand command, List<object[]> newData, string offsetParam) {
+        DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == offsetParam);
+        int offsetValue = Convert.ToInt32(parameter.Value);
+        newData = newData.Skip(offsetValue).ToList();
+        return newData;
+    }
+
+    private List<object[]> FetchNext(DbCommand command, List<object[]> newData, string fetchRowsParam) {
+        DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == fetchRowsParam);
+        int fetchRows = Convert.ToInt32(parameter.Value);
+        newData = newData.Take(fetchRows).ToList();
+        return newData;
+    }
+
     private List<object[]> FilterData(ConcurrentBag<object[]> wrapperData, DbCommand command) {
         string commandText = command.CommandText;
-        var targetTable = GetSelectTargetTable(commandText);
+        var targetTable = GetTargetTable(commandText);
 
         // Store the column name that are selected
         List<string> columnSelect = new List<string>();
@@ -596,7 +630,69 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             return filteredData;
         }
 
-        var columnIndexes = new Dictionary<string, int>();
+        // Get the default indexes for the columns of the Catalog Database
+        Dictionary<string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
+
+        // Extract parameter names from the matches
+        for (int i = 0; i < matches.Count; i++) {
+            columnSelect.Add(matches[i].Groups[2].Value);
+        }
+
+        filteredData = filteredData.Select(row => {
+            var filteredRow = new object[columnSelect.Count];
+            for (int i = 0; i < columnSelect.Count; i++) {
+                filteredRow[i] = row[columnIndexes[columnSelect[i]]];
+            }
+            return filteredRow;
+        }).ToList();
+
+        // Check if command includes TOP(n) clause
+        (bool hasTopClause, int nElem) = HasTopClause(commandText);
+        if (hasTopClause) {
+            // Reduce the number of items in the filteredData list according to TOP clause
+            filteredData = filteredData.Take(nElem).ToList();
+        }
+        return filteredData;
+    }
+
+    private IEnumerable<object[]> ApplyWhereFilterIfExist(ConcurrentBag<object[]> wrapperData, DbCommand command) {
+        List<object[]> filteredData = new List<object[]>();
+        string commandText = GetTargetTable(command.CommandText);
+
+        // Store the column name associated with the respective value for comparison
+        Dictionary<string, object> parametersFilter = new Dictionary<string, object>();
+        Regex regex = new Regex(@"\.*\[[a-zA-Z]\].\[(?<columnName>\S*)\]\s*=\s*(?<paramValue>\S*)");
+        MatchCollection matches = regex.Matches(command.CommandText);
+
+        if(matches.Count == 0) {
+            // No Where filters exist
+            return wrapperData;
+        }
+
+        // Extract parameter names from the matches
+        for (int i = 0; i < matches.Count; i++) {
+            string columnName = matches[i].Groups[1].Value;
+            string parameterParametrization = matches[i].Groups[2].Value;
+            DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
+            parametersFilter[columnName] = parameter.Value;
+        }
+
+        // Get the default indexes for the columns of the Catalog Database
+        var columnIndexes = GetDefaultColumIndexes(commandText);
+
+        foreach (KeyValuePair<string, object> parameter in parametersFilter) {
+            if (columnIndexes.TryGetValue(parameter.Key, out int columnIndex)) {
+                filteredData = wrapperData
+                        .Where(row => row[columnIndex] != null && row[columnIndex].ToString() == parameter.Value.ToString())
+                        .ToList();
+            }
+        }
+        return filteredData;
+    }
+
+    private static Dictionary<string, int> GetDefaultColumIndexes(string targetTable) {
+        Dictionary<string, int> columnIndexes = new Dictionary<string, int>();
+
         // Apply the filters according to the Target Table
         switch (targetTable) {
             case "CatalogBrand":
@@ -621,181 +717,40 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 columnIndexes.Add("Type", 1);
                 break;
         }
-
-        // Extract parameter names from the matches
-        for (int i = 0; i < matches.Count; i++) {
-            columnSelect.Add(matches[i].Groups[2].Value);
-        }
-
-        filteredData = filteredData.Select(row => {
-            var filteredRow = new object[columnSelect.Count];
-            for (int i = 0; i < columnSelect.Count; i++) {
-                filteredRow[i] = row[columnIndexes[columnSelect[i]]];
-            }
-            return filteredRow;
-        }).ToList();
-
-        // Check if command includes TOP(n) clause
-        (bool hasTopClause, int nElem) = HasTopClause(commandText);
-        if( hasTopClause ) {
-            // Reduce the number of items in the filteredData list according to TOP clause
-            filteredData = filteredData.Take(nElem).ToList();
-        }
-
-
-        // -----------------
-
-
-        //// Regex pattern to match the SELECT clause of the SQL command
-        //string pattern = @"SELECT\s+(.*?)\s+FROM";
-        //Match match = Regex.Match(commandText, pattern, RegexOptions.IgnoreCase);
-        //if (match.Success) {
-        //    bool hasTOPclause = false;
-        //    int topClauseItems = 0;
-
-        //    List<string> columns = new List<string>();
-
-        //    // Extract the list of columns (with table alias) from the SELECT clause
-        //    string fields = match.Groups[1].Value;
-
-        //    // Split the list by the commas
-        //    string[] fieldList = fields.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-
-        //    // Regex pattern to match only the column name
-        //    string columnNamePattern = @"\[[a-zA-Z]+\].\[(?<columnName>.+?)\]$";
-        //    foreach (string field in fieldList) {
-        //        if (field.Contains("COUNT")) {
-        //            // Ignore the COUNT clause
-        //            continue;
-        //        }
-
-        //        if (field.Contains("TOP")) {
-        //            // There is a TOP clause present
-        //            hasTOPclause = true;
-
-        //            // Extract the number of elements to display
-        //            string numberElementsPattern = @"TOP\((?<items>.\d*?)\).*$";
-        //            Match numberElementsMatch = Regex.Match(field, numberElementsPattern);
-        //            if (numberElementsMatch.Success) {
-
-        //                string numberElements = numberElementsMatch.Groups["items"].Value.Trim();
-        //                topClauseItems = Convert.ToInt32(numberElements);
-        //            }
-        //        }
-
-        //        // Match each column Name in the SELECT clause (without tables alias)
-        //        Match columnMatch = Regex.Match(field, columnNamePattern);
-        //        if (columnMatch.Success) {
-
-        //            string columnName = columnMatch.Groups["columnName"].Value;
-        //            columns.Add(columnName.Trim());
-        //        }
-        //    }
-
-        //    if (columns.Count <= 0) {
-        //        return filteredData;
-        //    }
-
-        //    Dictionary<string, int> fieldNamesToReturn = new Dictionary<string, int>();
-        //    switch (GetSelectTargetTable(command.CommandText)) {
-        //        case "CatalogBrand":
-        //            foreach (string column in columns) {
-        //                switch (column) {
-        //                    case "Id":
-        //                        fieldNamesToReturn.Add(column, 0);
-        //                        break;
-        //                    case "Brand":
-        //                        fieldNamesToReturn.Add(column, 1);
-        //                        break;
-        //                }
-        //            }
-        //            filteredData = filteredData
-        //                .Select(row => fieldNamesToReturn.Select(fieldName => row[fieldName.Value]).ToArray())
-        //                .ToList();
-        //            break;
-        //        case "CatalogType":
-        //            foreach (string column in columns) {
-        //                switch (column) {
-        //                    case "Id":
-        //                        fieldNamesToReturn.Add(column, 0);
-        //                        break;
-        //                    case "Type":
-        //                        fieldNamesToReturn.Add(column, 1);
-        //                        break;
-        //                }
-        //            }
-        //            filteredData = filteredData
-        //                .Select(row => fieldNamesToReturn.Select(fieldName => row[fieldName.Value]).ToArray())
-        //                .ToList();
-        //            break;
-        //    }
-
-        //    if (hasTOPclause) {
-        //        // Reduce the number of items in the filteredData list according to TOP clause
-        //        filteredData = filteredData.Take(topClauseItems).ToList();
-        //    }
-
-        //}
-
-        return filteredData;
+        return columnIndexes;
     }
 
-    private IEnumerable<object[]> ApplyWhereFilterIfExist(ConcurrentBag<object[]> wrapperData, DbCommand command) {
-        List<object[]> filteredData = new List<object[]>();
+    private string GetTargetTable(string commandText) {
+        // Extract the name of the table target by the SQL query
+        var match = Regex.Match(commandText, @"(?i)(?:INSERT INTO|FROM)\s*\[(?<Target>[_a-zA-Z]*)\]",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline);
+        return match.Success ? match.Groups["Target"].Value : null;
+    }
 
-        // Store the column name associated with the respective value for comparison
-        Dictionary<string, object> parametersFilter = new Dictionary<string, object>();
-        Regex regex = new Regex(@"\.*\[[a-zA-Z]\].\[(?<columnName>\S*)\]\s*=\s*(?<paramValue>\S*)");
-        MatchCollection matches = regex.Matches(command.CommandText);
+    private (Boolean, string, string) HasOrderByCondition(string commandText) {
+        // Searches for either a ASC or DESC pattern. Will not match in the default case.
+        var match = Regex.Match(commandText, @"ORDER BY\s+\[[_a-zA-Z]+\]\.\[(?<Column>[_a-zA-Z]+)\]\s*(?<Type>ASC|DESC|)",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline);
 
-        if(matches.Count == 0) {
-            // No Where filters exist
-            return wrapperData;
+        string typeOrdering = match.Success ? match.Groups["Type"].Value : null;
+        if(typeOrdering == "") {
+            // ASC/DESC is missing. Assume default=ASC
+            typeOrdering = "ASC";
         }
+        return match.Success ? (true, match.Groups["Column"].Value, typeOrdering) : (false, null, null);
 
-        // Extract parameter names from the matches
-        for (int i = 0; i < matches.Count; i++) {
-            string columnName = matches[i].Groups[1].Value;
-            string parameterParametrization = matches[i].Groups[2].Value;
-            DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
-            parametersFilter[columnName] = parameter.Value;
-        }
+    }
 
-        var columnIndexes = new Dictionary<string, int>();
-        // Apply the filters according to the Target Table
-        switch (GetSelectTargetTable(command.CommandText)) {
-            case "CatalogBrand":
-                columnIndexes.Add("Id", 0);
-                columnIndexes.Add("Brand", 1);
-                break;
-            case "Catalog":
-                columnIndexes.Add("Id", 0);
-                columnIndexes.Add("CatalogBrandId", 1);
-                columnIndexes.Add("CatalogTypeId", 2);
-                columnIndexes.Add("Description", 3);
-                columnIndexes.Add("Name", 4);
-                columnIndexes.Add("PictureFileName", 5);
-                columnIndexes.Add("Price", 6);
-                columnIndexes.Add("AvailableStock", 7);
-                columnIndexes.Add("MaxStockThreshold", 8);
-                columnIndexes.Add("OnReorder", 9);
-                columnIndexes.Add("RestockThreshold", 10);
-                break;
-            case "CatalogType":
-                columnIndexes.Add("Id", 0);
-                columnIndexes.Add("Type", 1);
-                break;
-        }
+    private (Boolean, string) HasOffsetCondition(string commandText) {
+        var match = Regex.Match(commandText, @"OFFSET\s+(?<OffsetValue>[@_a-zA-Z\d]+)\s+ROWS",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline);
+        return match.Success ? (true, match.Groups["OffsetValue"].Value) : (false, null);
+    }
 
-        foreach (KeyValuePair<string, object> parameter in parametersFilter) {
-            if (columnIndexes.TryGetValue(parameter.Key, out int columnIndex)) {
-                filteredData = wrapperData
-                        .Where(row => row[columnIndex] != null && row[columnIndex].ToString() == parameter.Value.ToString())
-                        .ToList();
-            }
-        }
-
-        return filteredData;
+    private (Boolean, string) HasFetchNextCondition(string commandText) {
+        var match = Regex.Match(commandText, @"FETCH NEXT\s+(?<FetchRows>[@_a-zA-Z\d]+)\s+ROWS",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline);
+        return match.Success ? (true, match.Groups["FetchRows"].Value) : (false, null);
     }
 
     private Boolean HasFilterCondition(string commandText) {
