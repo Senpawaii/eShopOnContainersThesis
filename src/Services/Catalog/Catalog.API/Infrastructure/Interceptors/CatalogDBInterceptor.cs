@@ -33,9 +33,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     public IScopedMetadata _scopedMetadata;
     public ISingletonWrapper _wrapper;
+    private string _originalCommandText;
 
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
+
+        _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
 
@@ -48,6 +51,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Check if is this a functionality context (ID differs from null)
         if (funcID == null) {
+            // This is a system query
             return result;
         }
 
@@ -72,6 +76,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
+
+        _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
 
@@ -110,26 +116,53 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private MockDbDataReader StoreDataInWrapper(DbCommand command) {
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
-        var targetTable = GetTargetTable(command.CommandText);
 
         // Get the number of columns in each row to be inserted
-        var regex = new Regex(@"\((.*?)\)");
+        var regex = new Regex(@"INSERT INTO \[(?<tableName>[a-zA-Z]+)\]\s+\((?<columnNames>(\[[a-zA-Z]+\],?\s*)+)\)\s*VALUES\s+(?<params>([@a-zA-Z\d\(\)]+,?\s*)+);");
         var matches = regex.Matches(command.CommandText);
-        var values = matches[matches.Count - 1].Groups[1].Value.Split(',');
-        var numberColumnsPerRow = values.Length;
+
+        var targetTable = matches[0].Groups["tableName"].Value;
+        var columns = matches[0].Groups["columnNames"].Value.Split(", ");
+        for(int i = 0; i < columns.Length; i++) {
+            columns[i] = columns[i].Trim('[', ']');
+        }
+        //var parameters = matches[0].Groups["params"].Value;
+        //string pattern = @"\((.*?)\)";
+        //var paramMatches = Regex.Matches(parameters, pattern);
+
+        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);
+
+        // Get the number of rows being inserted
+        int numberRows = command.Parameters.Count / columns.Length;
+        var rowsAffected = 0;
 
         var rows = new List<object[]>();
-
-        var rowsAffected = 0;
-        for (int i = 0; i < command.Parameters.Count; i += numberColumnsPerRow) {
-            var row = new List<object>();
-            for (int j = 0; j < i + numberColumnsPerRow; j++) {
-                var columnValue = command.Parameters[$"@p{j}"];
-                row.Add(columnValue.Value == DBNull.Value ? null : columnValue.Value);
+        for (int i = 0; i < numberRows; i += 1) {
+            var row = new object[columns.Length];
+            for(int j = 0; j < columns.Length; j++) {
+                var columnName = columns[j];
+                var paramValue = command.Parameters[(i * columns.Length) + j].Value;
+                var correctIndexToStore = standardColumnIndexes[columnName];
+                row[correctIndexToStore] = paramValue;
             }
-            rows.Add(row.ToArray());
+            rows.Add(row);
             rowsAffected++;
         }
+        // Add a dict perhaps: columns[i] : parameters[i]
+
+        //var values = matches[matches.Count - 1].Groups[1].Value.Split(',');
+        //var numberColumnsPerRow = values.Length;
+
+
+        //for (int i = 0; i < command.Parameters.Count; i += numberColumnsPerRow) {
+        //    var row = new List<object>();
+        //    for (int j = 0; j < i + numberColumnsPerRow; j++) {
+        //        var columnValue = command.Parameters[$"@p{j}"];
+        //        row.Add(columnValue.Value == DBNull.Value ? null : columnValue.Value);
+        //    }
+        //    rows.Add(row.ToArray());
+        //    rowsAffected++;
+        //}
 
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
@@ -200,6 +233,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // Get the current functionality-set timeestamp
         DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
 
+        (bool hasPartialRowSelection, List<string> _) = HasPartialRowSelection(command.CommandText);
+        if (hasPartialRowSelection) {
+            // Remove the partial Row Selection
+            command.CommandText = RemovePartialRowSelection(command.CommandText);
+        }
+
+
         string commandTextWithFilter = string.Empty;
         // Replace Command Text to account for new filter
         if (command.CommandText.Contains("WHERE")) {
@@ -210,6 +250,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             // Command has no filters yet
             command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp}'");
         }
+    }
+
+    private string RemovePartialRowSelection(string commandText) {
+        string pattern = @"SELECT\s+(.*?)\s+FROM";
+        string replacement = "SELECT * FROM";
+        string result = Regex.Replace(commandText, pattern, replacement);
+        return result;
     }
 
 
@@ -365,6 +412,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
 
+        if(funcId == null) {
+            // This is a system transaction
+            return result;
+        }
+
         // Check if the command is an INSERT command and has yet to be committed
         if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
             return result;
@@ -372,17 +424,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
 
-        string targetTable = string.Empty;
-        if (command.CommandText.Contains("INSERT")) {
-            targetTable = GetTargetTable(command.CommandText);
+        string targetTable = GetTargetTable(command.CommandText);
+        if (targetTable.IsNullOrEmpty()) {
+            // Unsupported Table (Migration for example)
+            return result;
         }
-        else {
-            targetTable = GetTargetTable(command.CommandText);
-            if(targetTable.IsNullOrEmpty()) {
-                // Unsupported Table (Migration for example)
-                return result;
-            }
-        }
+
         var newData = new List<object[]>();
 
         while (result.Read()) {
@@ -414,52 +461,75 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             newData.Add(rowValues.ToArray());
         }
 
-        // Read the data from the Wrapper structures if inside a functionality
-        if (funcId != null && command.CommandText.Contains("SELECT")) {
+        // Read the data from the Wrapper structures
+        if (command.CommandText.Contains("SELECT")) {
             targetTable = GetTargetTable(command.CommandText);
-            ConcurrentBag<object[]> wrapperData = null;
+            List<object[]> wrapperData = null;
 
             switch (targetTable) {
                 case "CatalogBrand":
-                    wrapperData = _wrapper.SingletonGetCatalogBrands(funcId);
+                    wrapperData = _wrapper.SingletonGetCatalogBrands(funcId).ToList();
                     break;
                 case "CatalogType":
-                    wrapperData = _wrapper.SingletonGetCatalogTypes(funcId);
+                    wrapperData = _wrapper.SingletonGetCatalogTypes(funcId).ToList();
                     break;
                 case "Catalog":
-                    wrapperData = _wrapper.SingletonGetCatalogITems(funcId);
+                    wrapperData = _wrapper.SingletonGetCatalogITems(funcId).ToList();
                     break;
             }
             if (wrapperData != null) {
-                if (IsCountSelect(command.CommandText)) {
-                    var countObj = newData[0][0];
-                    Console.WriteLine(newData[0][0]);
+                if (HasFilterCondition(command.CommandText)) {
+                    // The select query contains a WHERE clause
+                    wrapperData = FilterData(wrapperData, command);
 
-                    // Check if the Command query has a Filter applied
-                    if (HasFilterCondition(command.CommandText)) {
-                        var filteredData = FilterData(wrapperData, command);
-                        newData[0][0] = Convert.ToInt64(countObj) + filteredData.Count;
-                    }
-                }
-                else {
-                    if (HasFilterCondition(command.CommandText)) {
-                        var filteredData = FilterData(wrapperData, command);
-                        foreach (object[] row in filteredData) {
-                            newData.Add(row);
-                        }
-                    }
-                    else {
-                        foreach (object[] row in wrapperData) {
-                            newData.Add(row);
+                    if (!HasCountClause(command.CommandText)) {
+                        // Only add the rows if the data from the DB is not a single count product
+                        foreach (var wrapperRow in wrapperData) {
+                            newData.Add(wrapperRow);
                         }
                     }
                 }
+
+                (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
+                if (hasOrderBy) {
+                    // The select query has an ORDER BY clause
+                    newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
+                }
+
+                if (HasCountClause(command.CommandText)) {
+                    var wrapperDataCount = wrapperData.Count;
+                    newData[0][0] = Convert.ToInt64(newData[0][0]) + wrapperDataCount;
+                    return new WrapperDbDataReader(newData, result, targetTable);
+                }
+
+                (bool hasTopClause, int nElem) = HasTopClause(command.CommandText);
+                if (hasTopClause) {
+                    // The select query has a take clause
+                    newData = newData.Take(nElem).ToList();
+                }
+
+                // Special Cases: offset and fetch next TODO: fix them, can only be executed after the result are merged
+                (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
+                if (hasOffset) {
+                    // the select query has an offset
+                    newData = OffsetData(command, newData, offsetParam);
+                }
+
+                (bool hasFetchNext, string fetchRowsParam) = HasFetchNextCondition(command.CommandText);
+                if (hasFetchNext) {
+                    // The select query has a fetch next limit
+                    newData = FetchNext(command, newData, fetchRowsParam);
+                }
+
+                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+                if (hasPartialRowSelection) {
+                    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
+                }
+
             }
         }
 
-        var recordsAffected = result.RecordsAffected;
-        var newReader = new WrapperDbDataReader(newData, result, targetTable, recordsAffected);
-        return newReader;
+        return new WrapperDbDataReader(newData, result, targetTable);
     }
 
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
@@ -472,17 +542,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
 
-        string targetTable = string.Empty;
-        if (command.CommandText.Contains("INSERT")) {
-            targetTable = GetTargetTable(command.CommandText);
+        string targetTable = GetTargetTable(command.CommandText);
+        if (targetTable.IsNullOrEmpty()) {
+            // Unsupported Table (Migration for example)
+            return result;
         }
-        else {
-            targetTable = GetTargetTable(command.CommandText);
-            if (targetTable.IsNullOrEmpty()) {
-                // Unsupported Table (Migration for example)
-                return result;
-            }
-        }
+        
         var newData = new List<object[]>();
 
         while(await result.ReadAsync(cancellationToken)) {
@@ -517,73 +582,73 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
             targetTable = GetTargetTable(command.CommandText);
-            ConcurrentBag<object[]> wrapperData = null;
+            List<object[]> wrapperData = null;
 
             switch (targetTable) {
                 case "CatalogBrand":
-                    wrapperData = _wrapper.SingletonGetCatalogBrands(funcId);
+                    wrapperData = _wrapper.SingletonGetCatalogBrands(funcId).ToList();
                     break;
                 case "CatalogType":
-                    wrapperData = _wrapper.SingletonGetCatalogTypes(funcId);
+                    wrapperData = _wrapper.SingletonGetCatalogTypes(funcId).ToList();
                     break;
                 case "Catalog":
-                    wrapperData = _wrapper.SingletonGetCatalogITems(funcId);
+                    wrapperData = _wrapper.SingletonGetCatalogITems(funcId).ToList();
                     break;
             }
-            if (wrapperData != null) {
-                if (IsCountSelect(command.CommandText)) {
-                    // This is a COUNT or a variation SELECT query
-                    var countObj = newData[0][0];
-                    Console.WriteLine(newData[0][0]);
+            if (wrapperData.Count > 0) {
+                if (HasFilterCondition(command.CommandText)) {
+                    // The select query contains a WHERE clause
+                    wrapperData = FilterData(wrapperData, command);
 
-                    // Check if the Command query has a Filter applied
-                    if (HasFilterCondition(command.CommandText)) {
-                        var filteredData = FilterData(wrapperData, command);
-                        newData[0][0] = Convert.ToInt64(countObj) + filteredData.Count;
+                    if(!HasCountClause(command.CommandText)) {
+                        // Only add the rows if the data from the DB is not a single count product
+                        foreach(var wrapperRow in wrapperData) {
+                            newData.Add(wrapperRow);
+                        }
                     }
                 }
-                else {
-                    // This a regular SELECT query
-                    if (HasFilterCondition(command.CommandText)) {
-                        // The query contains a WHERE clause
-                        var filteredData = FilterData(wrapperData, command);
-                        foreach (object[] row in filteredData) {
-                            newData.Add(row);
-                        }
-                    }
-                    else {
-                        // The query does not contain a WHERE clause
-                        foreach (object[] row in wrapperData) {
-                            newData.Add(row);
-                        }
-                    }
 
-                    (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
-                    if(hasOrderBy) {
-                        // The select query has an ORDER BY clause
-                        newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
-                    }
+                (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
+                if(hasOrderBy) {
+                    // The select query has an ORDER BY clause
+                    newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
+                }
 
-                    (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
-                    if(hasOffset) {
-                        // the select query has an offset
-                        newData = OffsetData(command, newData, offsetParam);
-                    }
+                if (HasCountClause(command.CommandText)) {
+                    var wrapperDataCount = wrapperData.Count;
+                    newData[0][0] = Convert.ToInt64(newData[0][0]) + wrapperDataCount;
+                    return new WrapperDbDataReader(newData, result, targetTable);
+                }
 
-                    (bool hasFetchNext, string fetchRowsParam) = HasFetchNextCondition(command.CommandText);
-                    if(hasFetchNext) {
-                        // The select query has a fetch next limit
-                        newData = FetchNext(command, newData, fetchRowsParam);
-                    }
+                (bool hasTopClause, int nElem) = HasTopClause(command.CommandText);
+                if (hasTopClause) {
+                    // The select query has a take clause
+                    newData = newData.Take(nElem).ToList();
+                }
+
+                // Special Cases: offset and fetch next TODO: fix them, can only be executed after the result are merged
+                (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
+                if (hasOffset) {
+                    // the select query has an offset
+                    newData = OffsetData(command, newData, offsetParam);
+                }
+
+                (bool hasFetchNext, string fetchRowsParam) = HasFetchNextCondition(command.CommandText);
+                if (hasFetchNext) {
+                    // The select query has a fetch next limit
+                    newData = FetchNext(command, newData, fetchRowsParam);
                 }
             }
-        } else {
-            targetTable = GetTargetTable(command.CommandText);
+
+            // Search for partial SELECTION on the original unaltered commandText
+            (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+            if (hasPartialRowSelection) {
+                newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
+            }
+
         }
-            
-        var recordsAffected = result.RecordsAffected;
-        var newReader = new WrapperDbDataReader(newData, result, targetTable, recordsAffected);
-        return newReader;
+
+        return new WrapperDbDataReader(newData, result, targetTable);
     }
 
     private List<object[]> OrderBy(List<object[]> newData, string orderByColumn, string typeOrder, string targetTable) {
@@ -611,51 +676,35 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    private List<object[]> FilterData(ConcurrentBag<object[]> wrapperData, DbCommand command) {
-        string commandText = command.CommandText;
-        var targetTable = GetTargetTable(commandText);
-
-        // Store the column name that are selected
-        List<string> columnSelect = new List<string>();
-
-        var filteredData = ApplyWhereFilterIfExist(wrapperData, command).ToList();
-
-        // Extract SELECT clause parameters
-        string subCommandText = commandText.Replace(commandText.Substring(commandText.IndexOf("FROM")), "");
-        Regex regex = new Regex(@"\[(?<targetTable>[a-zA-Z]+)\]\.*\[(?<columnName>[a-zA-Z]+)\]");
-        MatchCollection matches = regex.Matches(subCommandText);
-
-        if (matches.Count == 0) {
-            // No Where filters exist
-            return filteredData;
-        }
+    private List<object[]> PartialRowSelection(string commandText, List<object[]> newData, List<string> selectedColumns) {
+        string targetTable = GetTargetTable(commandText);
 
         // Get the default indexes for the columns of the Catalog Database
         Dictionary<string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
 
-        // Extract parameter names from the matches
-        for (int i = 0; i < matches.Count; i++) {
-            columnSelect.Add(matches[i].Groups[2].Value);
-        }
-
-        filteredData = filteredData.Select(row => {
-            var filteredRow = new object[columnSelect.Count];
-            for (int i = 0; i < columnSelect.Count; i++) {
-                filteredRow[i] = row[columnIndexes[columnSelect[i]]];
+        newData = newData.Select(row => {
+            var newRow = new object[selectedColumns.Count];
+            for (int i = 0; i < selectedColumns.Count; i++) {
+                string columnName = selectedColumns[i];
+                int columnIndex = columnIndexes[columnName];
+                newRow[i] = row[columnIndex];
             }
-            return filteredRow;
+            return newRow;
         }).ToList();
 
-        // Check if command includes TOP(n) clause
-        (bool hasTopClause, int nElem) = HasTopClause(commandText);
-        if (hasTopClause) {
-            // Reduce the number of items in the filteredData list according to TOP clause
-            filteredData = filteredData.Take(nElem).ToList();
-        }
+        return newData;
+    }
+
+    private List<object[]> FilterData(List<object[]> wrapperData, DbCommand command) {
+        string commandText = command.CommandText;
+        var targetTable = GetTargetTable(commandText);
+
+        var filteredData = ApplyWhereFilterIfExist(wrapperData, command).ToList();
+
         return filteredData;
     }
 
-    private IEnumerable<object[]> ApplyWhereFilterIfExist(ConcurrentBag<object[]> wrapperData, DbCommand command) {
+    private IEnumerable<object[]> ApplyWhereFilterIfExist(List<object[]> wrapperData, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
         string commandText = GetTargetTable(command.CommandText);
 
@@ -753,6 +802,28 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return match.Success ? (true, match.Groups["FetchRows"].Value) : (false, null);
     }
 
+    private (Boolean, List<string>) HasPartialRowSelection(string commandText) {
+        // Extract SELECT clause parameters
+        string subCommandText = commandText.Replace(commandText.Substring(commandText.IndexOf("FROM")), "");
+        Regex regex = new Regex(@"\[(?<targetTable>[a-zA-Z]+)\]\.*\[(?<columnName>[a-zA-Z]+)\]");
+        MatchCollection matches = regex.Matches(subCommandText);
+
+        if (matches.Count == 0) {
+            // The entire row is being selected
+            return (false, null);
+        }
+
+        // Store the column name that are selected (the order matters)
+        List<string> columnSelect = new List<string>();
+
+        // Extract parameter names from the matches
+        for (int i = 0; i < matches.Count; i++) {
+            columnSelect.Add(matches[i].Groups[2].Value);
+        }
+
+        return (true, columnSelect);
+    }
+
     private Boolean HasFilterCondition(string commandText) {
         return commandText.IndexOf("WHERE") != -1;
     }
@@ -764,6 +835,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             return (true, Convert.ToInt32(matches[0].Groups[1].Value));
         }
         return (false, 0);
+    }
+
+    private Boolean HasCountClause(string commandText) {
+        return commandText.Contains("COUNT");
     }
 
     private Boolean IsSelectQuery(string commandText) {

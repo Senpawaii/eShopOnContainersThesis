@@ -14,13 +14,13 @@ public class WrapperDbDataReader : DbDataReader
     private readonly int _recordsAffected = 0;
     private readonly DbDataReader _dataReader;
 
-    public WrapperDbDataReader(List<object[]> data, DbDataReader dataReader, string tableRead, int recordsAffected)
+    public WrapperDbDataReader(List<object[]> data, DbDataReader dataReader, string tableRead)
     {
         _data = data;
         _fieldCount = _data != null && _data.Count > 0 ? _data[0].Length : 0;
         _tableRead = tableRead;
-        _recordsAffected = recordsAffected;
         _dataReader = dataReader;
+        _recordsAffected = dataReader.RecordsAffected;
     }
 
     public override bool Read()

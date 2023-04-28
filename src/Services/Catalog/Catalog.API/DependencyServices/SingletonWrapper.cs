@@ -30,13 +30,13 @@ namespace Catalog.API.DependencyServices {
         }
 
         public ConcurrentBag<object[]> SingletonGetCatalogITems(string key) {
-            return wrapped_catalog_items.GetValueOrDefault(key);
+            return wrapped_catalog_items.GetValueOrDefault(key, new ConcurrentBag<object[]>());
         }
         public ConcurrentBag<object[]> SingletonGetCatalogTypes(string key) {
-            return wrapped_catalog_types.GetValueOrDefault(key);
+            return wrapped_catalog_types.GetValueOrDefault(key, new ConcurrentBag<object[]>());
         }
         public ConcurrentBag<object[]> SingletonGetCatalogBrands(string key) {
-            return wrapped_catalog_brands.GetValueOrDefault(key);
+            return wrapped_catalog_brands.GetValueOrDefault(key, new ConcurrentBag<object[]>());
         }
 
         public bool SingletonGetTransactionState(string funcId) {
