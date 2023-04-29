@@ -16,6 +16,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Threading;
+using System.Data.Sql;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
@@ -138,13 +139,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         var rows = new List<object[]>();
         for (int i = 0; i < numberRows; i += 1) {
-            var row = new object[columns.Length];
+            var row = new object[columns.Length + 1]; // Added Timestamp at the end
             for(int j = 0; j < columns.Length; j++) {
                 var columnName = columns[j];
                 var paramValue = command.Parameters[(i * columns.Length) + j].Value;
                 var correctIndexToStore = standardColumnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
             }
+            // Define the uncommitted timestamp as the current time
+            row[^1] = DateTime.UtcNow;
             rows.Add(row);
             rowsAffected++;
         }
@@ -239,8 +242,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             command.CommandText = RemovePartialRowSelection(command.CommandText);
         }
 
+        bool hasCount = HasCountClause(command.CommandText);
+        if(hasCount) {
+            command.CommandText = RemoveCountSelection(command.CommandText);
+        }
 
-        string commandTextWithFilter = string.Empty;
         // Replace Command Text to account for new filter
         if (command.CommandText.Contains("WHERE")) {
             // Command already has at least 1 filter
@@ -253,6 +259,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     private string RemovePartialRowSelection(string commandText) {
+        string pattern = @"SELECT\s+(.*?)\s+FROM";
+        string replacement = "SELECT * FROM";
+        string result = Regex.Replace(commandText, pattern, replacement);
+        return result;
+    }
+    
+    private string RemoveCountSelection(string commandText) {
         string pattern = @"SELECT\s+(.*?)\s+FROM";
         string replacement = "SELECT * FROM";
         string result = Regex.Replace(commandText, pattern, replacement);
@@ -452,6 +465,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     case "Boolean":
                         rowValues.Add(result.GetBoolean(i));
                         break;
+                    case "DateTime":
+                        rowValues.Add(result.GetDateTime(i));
+                        break;
                     // add additional cases for other data types as needed
                     default:
                         rowValues.Add(null);
@@ -570,6 +586,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     case "Boolean":
                         rowValues.Add(result.GetBoolean(i));
                         break;
+                    case "DateTime":
+                        rowValues.Add(result.GetDateTime(i));
+                        break;
                     // add additional cases for other data types as needed
                     default:
                         rowValues.Add(null);
@@ -595,6 +614,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     wrapperData = _wrapper.SingletonGetCatalogITems(funcId).ToList();
                     break;
             }
+
+            // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
+            newData = GroupVersionedObjects(newData, targetTable);
+            wrapperData = GroupVersionedObjects(wrapperData, targetTable);
+
             if (wrapperData.Count > 0) {
                 if (HasFilterCondition(command.CommandText)) {
                     // The select query contains a WHERE clause
@@ -612,12 +636,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 if(hasOrderBy) {
                     // The select query has an ORDER BY clause
                     newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
-                }
-
-                if (HasCountClause(command.CommandText)) {
-                    var wrapperDataCount = wrapperData.Count;
-                    newData[0][0] = Convert.ToInt64(newData[0][0]) + wrapperDataCount;
-                    return new WrapperDbDataReader(newData, result, targetTable);
                 }
 
                 (bool hasTopClause, int nElem) = HasTopClause(command.CommandText);
@@ -639,6 +657,21 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     newData = FetchNext(command, newData, fetchRowsParam);
                 }
             }
+
+            if (HasCountClause(_originalCommandText)) {
+                // OLD:
+                //var wrapperDataCount = wrapperData.Count;
+                //newData[0][0] = Convert.ToInt64(newData[0][0]) + wrapperDataCount;
+
+                // NEW:
+                List<object[]> countedData = new List<object[]>();
+                object[] data = new object[] { newData.Count + wrapperData.Count };
+                countedData.Add(data);
+
+                return new WrapperDbDataReader(countedData, result, targetTable);
+            }
+
+            // TODO: Remove the Timestamp parameter
 
             // Search for partial SELECTION on the original unaltered commandText
             (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
@@ -673,6 +706,53 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == fetchRowsParam);
         int fetchRows = Convert.ToInt32(parameter.Value);
         newData = newData.Take(fetchRows).ToList();
+        return newData;
+    }
+
+    private List<object[]> GroupVersionedObjects(List<object[]> newData, string targetTable) {
+        var dateTimeComparer = Comparer<object>.Create((x, y) => {
+            DateTime xValue = (DateTime)x;
+            DateTime yValue = (DateTime)y;
+            return xValue.CompareTo(yValue);
+        });
+
+        var groupByColumns = GetUniqueIndentifierColumns(targetTable);
+        
+        switch(targetTable) {
+            case "CatalogBrand":
+                var tempData = newData.GroupBy(row => row[1]);
+
+                newData = tempData
+                    .Select(group => group
+                        .OrderByDescending(row => row[^1], dateTimeComparer).First())
+                    .ToList();
+                break;
+            case "CatalogType":
+                newData = newData
+                    .GroupBy(row => row[1])
+                    .Select(group => group
+                        .OrderByDescending(row => row[^1], dateTimeComparer).First())
+                    .ToList();
+                break;
+            case "Catalog":
+                var tempData2 = newData.Select(row => new { CatalogBrandId = row[1], CatalogTypeId = row[2], Name = row[4] });
+                var newDataGrouped = newData
+                    .GroupBy(row => new { CatalogBrandId = row[1], CatalogTypeId = row[2], Name = row[4] });
+
+                newData = newDataGrouped
+                    .Select(group => group
+                        .OrderByDescending(row => row[^1], dateTimeComparer).First())
+                    .ToList();
+                break;
+        }
+
+        //newData = newData
+        //    .GroupBy(row => groupByColumns
+        //        .Select(kv => row[kv.Value]))
+        //    .Select(group => group
+        //        .OrderByDescending(row => (DateTime)row[^1], dateTimeComparer).First())
+        //    .ToList();
+
         return newData;
     }
 
@@ -767,6 +847,26 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 break;
         }
         return columnIndexes;
+    }
+
+    private static Dictionary<string, int> GetUniqueIndentifierColumns(string targetTable) {
+        Dictionary<string, int> columnUniqueIdentifiers = new Dictionary<string, int>();
+
+        switch(targetTable) {
+            case "Catalog":
+                columnUniqueIdentifiers.Add("CatalogBrandId", 1);
+                columnUniqueIdentifiers.Add("CatalogTypeId", 2);
+                columnUniqueIdentifiers.Add("Name", 4);
+                break;
+            case "CatalogBrand":
+                columnUniqueIdentifiers.Add("Brand", 1);
+                break;
+            case "CatalogType":
+                columnUniqueIdentifiers.Add("Type", 1);
+                break;
+        }
+
+        return columnUniqueIdentifiers;
     }
 
     private string GetTargetTable(string commandText) {

@@ -242,55 +242,58 @@ public class CatalogController : ControllerBase
     [Route("items")]
     [HttpPost]
     [ProducesResponseType((int)HttpStatusCode.Created)]
-    public async Task<ActionResult> CreateProductAsync([FromBody] CatalogItem product, [FromQuery] string brand = "", [FromQuery] string type = "")
-    {
+    public async Task<ActionResult> CreateProductAsync([FromBody] CatalogItem product, [FromQuery] string brand = "", [FromQuery] string type = "") {
         int brandId = 0;
         int typeId = 0;
+        var rootTypes = (IQueryable<CatalogType>)_catalogContext.CatalogTypes;
+        var brands = (IQueryable<CatalogBrand>)_catalogContext.CatalogBrands;
 
-        if(!String.IsNullOrEmpty(brand) && !String.IsNullOrEmpty(type)) {
-            // Check if Type and/or Brand need to be created as passed in the request
-            if (product.CatalogTypeId == 0) {
-                type = type.Trim('"').Trim();
-
-                if (String.IsNullOrEmpty(type)) {
-                    throw new Exception("catalog Type Name is empty");
-                }
-
-                var newType = new CatalogType {
-                    Type = type,
-                };
-
-                _catalogContext.CatalogTypes.Add(newType);
-                await _catalogContext.SaveChangesAsync();
-
-                //_catalogContext.CatalogTypes.ToDictionary(ct => ct.Type, ct => ct.Id).TryGetValue(type, out typeId);
-                typeId = newType.Id;
-            }
-
-            if (product.CatalogBrandId == 0) {
-                brand = brand.Trim('"').Trim();
-
-                if (String.IsNullOrEmpty(brand)) {
-                    throw new Exception("catalog Brand Name is empty");
-                }
-
-                var newBrand = new CatalogBrand {
-                    Brand = brand,
-                };
-
-                _catalogContext.CatalogBrands.Add(newBrand);
-                await _catalogContext.SaveChangesAsync();
-
-                //_catalogContext.CatalogBrands.ToDictionary(ct => ct.Brand, ct => ct.Id).TryGetValue(brand, out brandId);
-                brandId = newBrand.Id;
-            }
-        } else {
-            brandId = product.CatalogBrandId;
-            typeId = product.CatalogTypeId;
+        if (String.IsNullOrEmpty(type)) {
+            throw new Exception("catalog Type Name is empty");
         }
+
+        if (String.IsNullOrEmpty(brand)) {
+            throw new Exception("catalog Brand Name is empty");
+        }
+
+        // Check if Type and/or Brand need to be created as passed in the request
+        type = type.Trim('"').Trim();
+        brand = brand.Trim('"').Trim();
+
+        var typeObj = await rootTypes.SingleOrDefaultAsync(ci => ci.Type == type);
         
-        var item = new CatalogItem
-        {
+        brands = brands.Where(bn => bn.Brand == brand);
+        if (await brands.CountAsync() == 0) {
+            // Create new Brand
+            var newBrand = new CatalogBrand {
+                Brand = brand,
+            };
+
+            _catalogContext.CatalogBrands.Add(newBrand);
+            await _catalogContext.SaveChangesAsync();
+
+            brandId = newBrand.Id;
+        }
+        else {
+            brandId = brands.Select(a => a.Id).First();
+        }
+
+        typeId = typeObj.Id;
+
+        if (typeObj == null) {
+            // Create new Type
+            var newType = new CatalogType {
+                Type = type,
+            };
+
+            _catalogContext.CatalogTypes.Add(newType);
+            await _catalogContext.SaveChangesAsync();
+
+            typeId = newType.Id;
+        }
+
+        var item = new CatalogItem {
+            // Create new Item
             CatalogBrandId = brandId,
             CatalogTypeId = typeId,
             Description = product.Description,
