@@ -368,4 +368,32 @@ public static class CustomExtensionMethods
 
         return services;
     }
+
+    public static IServiceCollection AddGrpcServices(this IServiceCollection services) {
+        //services.AddTransient<GrpcExceptionInterceptor>();
+
+        //services.AddScoped<IBasketService, BasketService>();
+
+        //services.AddGrpcClient<Basket.BasketClient>((services, options) => {
+        //    var basketApi = services.GetRequiredService<IOptions<UrlsConfig>>().Value.GrpcBasket;
+        //    options.Address = new Uri(basketApi);
+        //}).AddInterceptor<GrpcExceptionInterceptor>();
+
+        services.AddScoped<ICatalogService, CatalogService>();
+
+        services.AddGrpcClient<Catalog.CatalogClient>((services, options) => {
+            var catalogApi = services.GetRequiredService<IOptions<UrlsConfig>>().Value.GrpcCatalog;
+            options.Address = new Uri(catalogApi);
+        });
+        //.AddInterceptor<GrpcExceptionInterceptor>();
+
+        //services.AddScoped<IOrderingService, OrderingService>();
+
+        //services.AddGrpcClient<OrderingGrpc.OrderingGrpcClient>((services, options) => {
+        //    var orderingApi = services.GetRequiredService<IOptions<UrlsConfig>>().Value.GrpcOrdering;
+        //    options.Address = new Uri(orderingApi);
+        //}).AddInterceptor<GrpcExceptionInterceptor>();
+
+        return services;
+    }
 }
