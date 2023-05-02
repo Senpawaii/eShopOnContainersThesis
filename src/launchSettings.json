@@ -6,6 +6,7 @@
       "serviceActions": {
         "basket-api": "StartDebugging",
         "basketdata": "StartWithoutDebugging",
+        "coordinator-api": "StartDebugging",
         "catalog-api": "StartDebugging",
         "discount-api": "StartDebugging",
         "identity-api": "StartDebugging",

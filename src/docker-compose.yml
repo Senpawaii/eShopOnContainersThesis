@@ -17,6 +17,12 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
 
+  coordinator-api:
+    image: ${REGISTRY:-eshop}/coordinator.api:${PLATFORM:-linux}-${TAG:-latest}
+    build:
+      context: .
+      dockerfile: Services/Coordinator/Coordinator.API/Dockerfile
+
   identity-api:
     image: ${REGISTRY:-eshop}/identity.api:${PLATFORM:-linux}-${TAG:-latest}
     build:
@@ -104,6 +110,7 @@ services:
       - catalog-api
       - discount-api 
       - basket-api
+      - coordinator-api 
 
   webshoppingagg:
     image: ${REGISTRY:-eshop}/webshoppingagg:${PLATFORM:-linux}-${TAG:-latest}
@@ -119,6 +126,7 @@ services:
       - catalog-api
       - discount-api 
       - basket-api
+      - coordinator-api 
 
   ordering-signalrhub:
     image: ${REGISTRY:-eshop}/ordering.signalrhub:${PLATFORM:-linux}-${TAG:-latest}
@@ -133,7 +141,8 @@ services:
       - ordering-api
       - catalog-api
       - basket-api
-      - discount-api 
+      - discount-api
+      - coordinator-api 
 
   webstatus:
     image: ${REGISTRY:-eshop}/webstatus:${PLATFORM:-linux}-${TAG:-latest}

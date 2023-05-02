@@ -151,6 +151,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             rows.Add(row);
             rowsAffected++;
         }
+
         // Add a dict perhaps: columns[i] : parameters[i]
 
         //var values = matches[matches.Count - 1].Groups[1].Value.Split(',');
@@ -680,7 +681,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
 
         }
-
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 

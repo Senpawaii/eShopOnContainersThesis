@@ -2,8 +2,7 @@
 
 Log.Logger = CreateSerilogLogger(configuration);
 
-try
-{
+try {
     Log.Information("Configuring web host ({ApplicationContext})...", Program.AppName);
     var host = CreateHostBuilder(configuration, args);
 

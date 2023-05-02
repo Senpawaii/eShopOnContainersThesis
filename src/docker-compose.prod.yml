@@ -14,6 +14,19 @@ version: '3.4'
 # docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
 
 services:
+  coordinator-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - AzureStorageAccountName=${ESHOP_AZURE_STORAGE_COORDINATOR_NAME}
+      - AzureStorageAccountKey=${ESHOP_AZURE_STORAGE_COORDINATOR_KEY}
+      - UseCustomizationData=True
+      - AzureServiceBusEnabled=False
+      - AzureStorageEnabled=False
+      - ApplicationInsights__InstrumentationKey=${INSTRUMENTATION_KEY}
+      - OrchestratorType=${ORCHESTRATOR_TYPE}
+    ports:
+      - "80"   # The API Gateway redirects and access through the internal port (80).
 
   basket-api:
     environment:
@@ -131,6 +144,7 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:80
       - IdentityUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5105              #Local: You need to open your local dev-machine firewall at range 5100-5105.  at range 5100-5105.
       - PurchaseUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5202
+      - CoordinatorUrlHC=http://coordinator-api/hc
       - CatalogUrlHC=http://catalog-api/hc
       - OrderingUrlHC=http://ordering-api/hc
       - IdentityUrlHC=http://identity-api/hc     #Local: Use ${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}, if using external IP or DNS name from browser.
@@ -148,6 +162,7 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:80
       - PurchaseUrl=http://webshoppingapigw
       - IdentityUrl=http://10.0.75.1:5105  # Local Mac: Use http://docker.for.mac.localhost:5105 || Local Windows:  Use 10.0.75.1 in a "Docker for Windows" environment, if using "localhost" from browser. || #Remote access: Use ${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP} if using external IP or DNS name from browser.
+      - CoordinatorUrlHC=http://coordinator-api/hc
       - CatalogUrlHC=http://catalog-api/hc
       - OrderingUrlHC=http://ordering-api/hc
       - IdentityUrlHC=http://identity-api/hc     #Local: Use ${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}, if using external IP or DNS name from browser.
@@ -164,6 +179,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
+      - CoordinatorUrl=http://coordinator-api/hc
       - CatalogUrl=http://catalog-api/hc
       - OrderingUrl=http://ordering-api/hc
       - BasketUrl=http://basket-api/hc
@@ -244,7 +260,9 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - urls__basket=http://basket-api
+      - urls__coordinator=http://coordinator-api
       - urls__catalog=http://catalog-api
+      - urls__discount=http://discount-api
       - urls__orders=http://ordering-api
       - urls__identity=http://identity-api              #Local: You need to open your local dev-machine firewall at range 5100-5110.
     ports:

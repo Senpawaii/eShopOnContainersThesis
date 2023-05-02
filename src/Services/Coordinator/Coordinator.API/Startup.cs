@@ -1,18 +1,5 @@
-﻿using Autofac.Extensions.DependencyInjection;
-using Autofac;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using RabbitMQ.Client;
-using System.Data.Common;
-using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
+﻿using Microsoft.eShopOnContainers.Services.Coordinator.API.Grpc;
+using Microsoft.eShopOnContainers.Services.Coordinator.API.Infrastructure.Filters;
 
 namespace Microsoft.eShopOnContainers.Services.Coordinator.API;
 
@@ -27,16 +14,69 @@ public class Startup {
         services
             .AddAppInsight(Configuration)
             .AddGrpc().Services
+            .AddCustomMVC(Configuration)
             .AddHttpContextAccessor()
             .AddCustomOptions(Configuration)
             //.AddSwagger(Configuration)
-            .AddCustomHealthCheck(Configuration)
-            .AddGrpcServices();
+            .AddCustomHealthCheck(Configuration);
 
         var container = new ContainerBuilder();
         container.Populate(services);
 
         return new AutofacServiceProvider(container.Build());
+    }
+
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILoggerFactory loggerFactory) {
+        //Configure logs
+
+        //loggerFactory.AddAzureWebAppDiagnostics();
+        //loggerFactory.AddApplicationInsights(app.ApplicationServices, LogLevel.Trace);
+
+        var pathBase = Configuration["PATH_BASE"];
+
+        if (!string.IsNullOrEmpty(pathBase)) {
+            loggerFactory.CreateLogger<Startup>().LogDebug("Using PATH BASE '{pathBase}'", pathBase);
+            app.UsePathBase(pathBase);
+        }
+
+        app.UseSwagger()
+            .UseSwaggerUI(c => {
+                c.SwaggerEndpoint($"{(!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty)}/swagger/v1/swagger.json", "Catalog.API V1");
+            });
+
+        app.UseRouting();
+        app.UseCors("CorsPolicy");
+
+        app.UseEndpoints(endpoints => {
+            endpoints.MapDefaultControllerRoute();
+
+            endpoints.MapControllers();
+
+            endpoints.MapGet("/_proto/", async ctx => {
+                ctx.Response.ContentType = "text/plain";
+                using var fs = new FileStream(Path.Combine(env.ContentRootPath, "Proto", "coordinator.proto"), FileMode.Open, FileAccess.Read);
+                using var sr = new StreamReader(fs);
+                while (!sr.EndOfStream) {
+                    var line = await sr.ReadLineAsync();
+                    if (line != "/* >>" || line != "<< */") {
+                        await ctx.Response.WriteAsync(line);
+                    }
+                }
+            });
+
+            endpoints.MapGrpcService<CoordinatorService>();
+
+            endpoints.MapHealthChecks("/hc", new HealthCheckOptions() {
+                Predicate = _ => true,
+                ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+            });
+
+            endpoints.MapHealthChecks("/liveness", new HealthCheckOptions {
+                Predicate = r => r.Name.Contains("self")
+            });
+        });
+
+        //app.UseRouter(buildRouter(app));
     }
 }
 
@@ -44,6 +84,24 @@ public static class CustomExtensionMethods {
     public static IServiceCollection AddAppInsight(this IServiceCollection services, IConfiguration configuration) {
         services.AddApplicationInsightsTelemetry(configuration);
         services.AddApplicationInsightsKubernetesEnricher();
+
+        return services;
+    }
+
+    public static IServiceCollection AddCustomMVC(this IServiceCollection services, IConfiguration configuration) {
+        services.AddControllers(options => {
+            options.Filters.Add(typeof(HttpGlobalExceptionFilter));
+        })
+        .AddJsonOptions(options => options.JsonSerializerOptions.WriteIndented = true);
+
+        services.AddCors(options => {
+            options.AddPolicy("CorsPolicy",
+                builder => builder
+                .SetIsOriginAllowed((host) => true)
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials());
+        });
 
         return services;
     }
@@ -119,32 +177,4 @@ public static class CustomExtensionMethods {
     //    return services;
 
     //}
-
-    public static IServiceCollection AddGrpcServices(this IServiceCollection services) {
-        //services.AddTransient<GrpcExceptionInterceptor>();
-
-        //services.AddScoped<IBasketService, BasketService>();
-
-        //services.AddGrpcClient<Basket.BasketClient>((services, options) => {
-        //    var basketApi = services.GetRequiredService<IOptions<UrlsConfig>>().Value.GrpcBasket;
-        //    options.Address = new Uri(basketApi);
-        //}).AddInterceptor<GrpcExceptionInterceptor>();
-
-        services.AddScoped<ICatalogService, CatalogService>();
-
-        services.AddGrpcClient<Catalog.CatalogClient>((services, options) => {
-            var catalogApi = services.GetRequiredService<IOptions<UrlsConfig>>().Value.GrpcCatalog;
-            options.Address = new Uri(catalogApi);
-        });
-            //.AddInterceptor<GrpcExceptionInterceptor>();
-
-        //services.AddScoped<IOrderingService, OrderingService>();
-
-        //services.AddGrpcClient<OrderingGrpc.OrderingGrpcClient>((services, options) => {
-        //    var orderingApi = services.GetRequiredService<IOptions<UrlsConfig>>().Value.GrpcOrdering;
-        //    options.Address = new Uri(orderingApi);
-        //}).AddInterceptor<GrpcExceptionInterceptor>();
-
-        return services;
-    }
 }

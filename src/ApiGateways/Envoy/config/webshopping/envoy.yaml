@@ -23,6 +23,19 @@ static_resources:
               domains:
               - "*"
               routes:
+              - name: "coord-short"
+                match:
+                  prefix: "/coord/"
+                route:
+                  auto_host_rewrite: true
+                  prefix_rewrite: "/coordinator-api/"
+                  cluster: coordinator
+              - name: "coord-long"
+                match:
+                  prefix: "/coordinator-api/"
+                route:
+                  auto_host_rewrite: true
+                  cluster: coordinator
               - name: "c-short"
                 match:
                   prefix: "/c/"
@@ -120,6 +133,14 @@ static_resources:
     hosts:
     - socket_address:
         address: webshoppingagg
+        port_value: 80
+  - name: coordinator
+    connect_timeout: 0.25s
+    type: strict_dns
+    lb_policy: round_robin
+    hosts:
+    - socket_address:
+        address: coordinator-api
         port_value: 80
   - name: catalog
     connect_timeout: 0.25s

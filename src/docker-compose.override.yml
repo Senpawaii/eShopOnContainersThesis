@@ -38,6 +38,23 @@ services:
       - "15672:15672"
       - "5672:5672"
 
+  coordinator-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - AzureStorageAccountName=${ESHOP_AZURE_STORAGE_COORDINATOR_NAME}
+      - AzureStorageAccountKey=${ESHOP_AZURE_STORAGE_COORDINATOR_KEY}
+      - UseCustomizationData=True
+      - AzureServiceBusEnabled=False
+      - AzureStorageEnabled=False
+      - ApplicationInsights__InstrumentationKey=${INSTRUMENTATION_KEY}
+      - OrchestratorType=${ORCHESTRATOR_TYPE}
+      - GRPC_PORT=81
+      - PORT=80
+      - PATH_BASE=/coordinator-api
+    ports:
+      - "5141:80"
+      - "9121:81"
+
   identity-api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -212,15 +229,18 @@ services:
   mobileshoppingagg:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - urls__coordinator=http://coordinator-api
       - urls__basket=http://basket-api
       - urls__catalog=http://catalog-api
       - urls__discount=http://discount-api
       - urls__orders=http://ordering-api
       - urls__identity=http://identity-api
+      - urls__grpcCoordinator=http://coordinator-api:81
       - urls__grpcBasket=http://basket-api:81
       - urls__grpcCatalog=http://catalog-api:81
       - urls__grpcDiscount=http://discount-api:81
       - urls__grpcOrdering=http://ordering-api:81
+      - CoordinatorUrlHC=http://coordinator-api/hc
       - CatalogUrlHC=http://catalog-api/hc
       - DiscountUrlHC=http://discount-api/hc
       - OrderingUrlHC=http://ordering-api/hc
@@ -234,15 +254,18 @@ services:
   webshoppingagg:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - urls__coordinator=http://coordinator-api
       - urls__basket=http://basket-api
       - urls__catalog=http://catalog-api
       - urls__discount=http://discount-api
       - urls__orders=http://ordering-api
       - urls__identity=http://identity-api
+      - urls__grpcCoordinator=http://coordinator-api:81
       - urls__grpcBasket=http://basket-api:81
       - urls__grpcCatalog=http://catalog-api:81
       - urls__grpcDiscount=http://discount-api:81
       - urls__grpcOrdering=http://ordering-api:81
+      - CoordinatorUrlHC=http://coordinator-api/hc
       - CatalogUrlHC=http://catalog-api/hc
       - DiscountUrlHC=http://discount-api/hc
       - OrderingUrlHC=http://ordering-api/hc
@@ -295,6 +318,9 @@ services:
       - HealthChecksUI__HealthChecks__10__Uri=http://ordering-signalrhub/hc
       - HealthChecksUI__HealthChecks__11__Name=Ordering HTTP Background Check
       - HealthChecksUI__HealthChecks__11__Uri=http://ordering-backgroundtasks/hc
+      - HealthChecksUI__HealthChecks__12__Name=Coordinator HTTP Check
+      - HealthChecksUI__HealthChecks__12__Uri=http://coordinator-api/hc
+
       - ApplicationInsights__InstrumentationKey=${INSTRUMENTATION_KEY}
       - OrchestratorType=${ORCHESTRATOR_TYPE}
     ports:

@@ -10,7 +10,6 @@ public class CatalogContext : DbContext
         _wrapperThesis = settings.Value.ThesisWrapperEnabled;
         _scopedMetadata = scopedMetadata;
         _wrapper = wrapper;
-
     }
 
     public CatalogContext(DbContextOptions<CatalogContext> options, IOptions<CatalogSettings> settings) : base(options) {
