@@ -277,8 +277,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     /* ========== UPDATE WRITE QUERIES ==========*/
 
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
-        // Get the current timestamp - Should use the value received from the Coordinator
-        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+        // Get the timestamp received from the Coordinator
+        string timestamp = _scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
         // Replace Command Text to account for new parameter
         string commandWithTimestamp;
@@ -297,7 +297,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         command.Parameters.Clear();
         command.Parameters.AddRange(newParameters.ToArray());
         command.CommandText = commandWithTimestamp;
-
     }
 
     private static void UpdateItemOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {

@@ -1,4 +1,6 @@
 ﻿using Catalog.API.DependencyServices;
+using Microsoft.ApplicationInsights.AspNetCore.Extensions;
+using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using System.Collections.Concurrent;
 using static System.Net.Mime.MediaTypeNames;
@@ -14,12 +16,21 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
-        public async Task Invoke(HttpContext ctx, IScopedMetadata svc, ICoordinatorService coordinatorSvc) {
+        public async Task Invoke(HttpContext ctx, IScopedMetadata svc, ICoordinatorService coordinatorSvc, ISingletonWrapper wrapperSvc, IScopedMetadata scpMetadata, CatalogContext catalogContext) {
 
             // To differentiate from a regular call, check for the functionality ID
             if (ctx.Request.Query.TryGetValue("functionality_ID", out var functionality_ID)) {
                 svc.ScopedMetadataFunctionalityID = functionality_ID;
 
+                string currentUri = ctx.Request.GetUri().ToString();
+                if (currentUri.Contains("commit")) {
+                    // Start flushing the Wrapper Data into the Database associated with the functionality
+                    ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
+                    long ticks = Convert.ToInt64(ticksStr);
+                    await FlushWrapper(functionality_ID, wrapperSvc, ticks, scpMetadata, catalogContext);
+                    await _next.Invoke(ctx);
+                    return;
+                }
 
                 // Check for the other parameters and remove them as needed
                 if (ctx.Request.Query.TryGetValue("interval_low", out var interval_lowStr) &&
@@ -104,6 +115,67 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 // This is not an HTTP request that requires change
                 await _next.Invoke(ctx);
             }
+        }
+
+        private Task FlushWrapper(string funcID, ISingletonWrapper wrapperSvc, long ticks, IScopedMetadata scpMetadata, CatalogContext catalogContext) {
+            return Task.Factory.StartNew(async () => {
+                // Set functionality state to the in commit
+                wrapperSvc.SingletonSetTransactionState(funcID, true);
+                
+                // Assign the received commit timestamp to the request scope
+                scpMetadata.ScopedMetadataTimestamp = new DateTime(ticks);
+
+                // Get stored objects
+                var catalogWrapperItems = wrapperSvc.SingletonGetCatalogITems(funcID);
+                var catalogWrapperBrands = wrapperSvc.SingletonGetCatalogBrands(funcID);
+                var catalogWrapperTypes = wrapperSvc.SingletonGetCatalogTypes(funcID);
+
+                if(catalogWrapperItems != null && catalogWrapperItems.Count > 0) {
+                    foreach (object[] item in catalogWrapperItems) {
+                        CatalogItem newItem = new CatalogItem {
+                            Id = Convert.ToInt32(item[0]),
+                            CatalogBrandId = Convert.ToInt32(item[1]),
+                            CatalogTypeId = Convert.ToInt32(item[2]),
+                            Description = Convert.ToString(item[3]),
+                            Name = Convert.ToString(item[4]),
+                            PictureFileName = Convert.ToString(item[5]),
+                            Price = Convert.ToDecimal(item[6]),
+                            AvailableStock = Convert.ToInt32(item[7]),
+                            MaxStockThreshold = Convert.ToInt32(item[8]),
+                            OnReorder = Convert.ToBoolean(item[9]),
+                            RestockThreshold = Convert.ToInt32(item[10]),
+                        };
+                        catalogContext.CatalogItems.Add(newItem);
+                    }
+                    try {
+                        catalogContext.SaveChanges();
+                    } catch (Exception exc) {
+                        Console.WriteLine(exc.ToString());
+                    }
+                }
+                if (catalogWrapperBrands != null && catalogWrapperBrands.Count > 0) {
+                    foreach (object[] brand in catalogWrapperBrands) {
+                        CatalogBrand newBrand = new CatalogBrand {
+                            Id = Convert.ToInt32(brand[0]),
+                            Brand = Convert.ToString(brand[1]),
+                        };
+                        catalogContext.CatalogBrands.Add(newBrand);
+                    }
+                    await catalogContext.SaveChangesAsync();
+                }
+
+                if (catalogWrapperTypes != null && catalogWrapperTypes.Count > 0) {
+                    foreach (object[] type in catalogWrapperTypes) {
+                        CatalogType newType = new CatalogType {
+
+                            Id = Convert.ToInt32(type[0]),
+                            Type = Convert.ToString(type[1]),
+                        };
+                        catalogContext.CatalogTypes.Add(newType);
+                    }
+                    await catalogContext.SaveChangesAsync();
+                }
+            });
         }
     }
 

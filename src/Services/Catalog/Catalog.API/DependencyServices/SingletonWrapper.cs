@@ -40,6 +40,10 @@ namespace Catalog.API.DependencyServices {
         }
 
         public bool SingletonGetTransactionState(string funcId) {
+            if(!transaction_state.ContainsKey(funcId)) {
+                // Initialize a new state: uncommitted
+                transaction_state[funcId] = false;
+            }
             return transaction_state.GetValueOrDefault(funcId);
         }
 

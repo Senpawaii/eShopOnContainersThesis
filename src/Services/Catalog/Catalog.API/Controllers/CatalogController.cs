@@ -359,6 +359,7 @@ public class CatalogController : ControllerBase {
     [Route("commit")]
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     public Task Commit() {
+        // Flush any data in the wrapper to the Database
         return Task.CompletedTask;
     }
 }

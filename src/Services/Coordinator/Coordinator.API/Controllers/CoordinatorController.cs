@@ -67,7 +67,7 @@ public class CoordinatorController : ControllerBase {
         foreach (string address in addresses) {
             switch(address) {
                 case "CatalogService":
-                    await _catalogService.IssueCommit(maxTS.ToString());
+                    await _catalogService.IssueCommit(maxTS.ToString(), funcID);
                     break;
                 case "DiscountService":
                     break;

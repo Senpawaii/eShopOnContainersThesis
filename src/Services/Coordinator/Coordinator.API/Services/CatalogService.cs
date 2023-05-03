@@ -20,8 +20,8 @@ public class CatalogService : ICatalogService {
         _remoteServiceBaseUrl = settings.Value.CatalogUrl;
     }
 
-    public async Task IssueCommit(string maxTS) {
-        string uri = $"{_settings.Value.CatalogUrl}commit?timestamp={maxTS}";
+    public async Task IssueCommit(string maxTS, string funcID) {
+        string uri = $"{_settings.Value.CatalogUrl}commit?timestamp={maxTS}&functionality_ID={funcID}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();
