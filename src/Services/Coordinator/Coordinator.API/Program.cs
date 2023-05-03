@@ -69,6 +69,8 @@ Serilog.ILogger CreateSerilogLogger(IConfiguration configuration) {
         .CreateLogger();
 }
 
+
+
 IConfiguration GetConfiguration() {
     var builder = new ConfigurationBuilder()
         .SetBasePath(Directory.GetCurrentDirectory())

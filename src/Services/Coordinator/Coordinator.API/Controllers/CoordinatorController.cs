@@ -18,19 +18,21 @@ public class CoordinatorController : ControllerBase {
     private readonly CoordinatorSettings _settings;
     private readonly ILogger<CoordinatorController> _logger;
     private readonly IFunctionalityService _functionalityService;
+    private readonly ICatalogService _catalogService;
 
-    public CoordinatorController(IOptions<CoordinatorSettings> settings, ILogger<CoordinatorController> logger, IFunctionalityService functionalityService) {
+    public CoordinatorController(IOptions<CoordinatorSettings> settings, ILogger<CoordinatorController> logger, IFunctionalityService functionalityService, ICatalogService catalogSvc) {
         _settings = settings.Value;
         _logger = logger;
         _functionalityService = functionalityService;
+        _catalogService = catalogSvc;
     }
 
     [HttpGet]
     [Route("propose")]
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<int>> ProposeTimestamp(string ticks, string tokens, string funcID, string serviceName) {
-        Int32.TryParse(ticks, out var numTicks);
-        Int32.TryParse(tokens, out var numTokens);
+    public async Task<ActionResult<int>> ProposeTimestamp([FromQuery] string ticks = "", [FromQuery] string tokens = "", [FromQuery] string funcID = "", [FromQuery] string serviceName = "") {
+        long.TryParse(ticks, out var numTicks);
+        double.TryParse(tokens, out var numTokens);
 
         // Call async condition checker
         await AsyncCheck(numTicks, numTokens, funcID, serviceName);
@@ -38,7 +40,7 @@ public class CoordinatorController : ControllerBase {
         return Ok(tokens);
     }
 
-    private Task AsyncCheck(int ticks, int tokens, string funcID, string service) {
+    private Task AsyncCheck(long ticks, double tokens, string funcID, string service) {
         return Task.Factory.StartNew(() => {
             // Store the Timestamp proposal
             _functionalityService.AddNewProposalGivenService(funcID, service, ticks);
@@ -55,35 +57,21 @@ public class CoordinatorController : ControllerBase {
         });
     }
 
-    private void BeginCommitProcess(string funcID, long maxTS) {
+    private async void BeginCommitProcess(string funcID, long maxTS) {
         // Get all services' addresses involved in the functionality
-        List<string> addresses = _functionalityService.Proposals[funcID].Select(t => t.Item1).ToList();
+        List<string> addresses = _functionalityService.Proposals[funcID]
+                                    .Select(t => t.Item1)
+                                    .Distinct()
+                                    .ToList();
+        
         foreach (string address in addresses) {
-            var baseUrl = _settings.CatalogUrl;
-            string uri = $"{baseUrl}/commit?timestamp={maxTS}";
-
-
+            switch(address) {
+                case "CatalogService":
+                    await _catalogService.IssueCommit(maxTS.ToString());
+                    break;
+                case "DiscountService":
+                    break;
+            }
         }
     }
 }
-
-
-//  // Generate the URI string
-//var uri = API.Catalog.GetAllCatalogItems(_remoteServiceBaseUrl, page, take, brand, type, metadata);
-
-//// Obtain the header parameters (metadata)
-//HttpResponseMessage response = await _httpClient.GetAsync(uri);
-//response.EnsureSuccessStatusCode();
-
-//        var responseString = await response.Content.ReadAsStringAsync();
-
-//        if(metadata != null) {
-//            ExtractMetadataFromResponseHeaders(metadata, response);
-//        }
-
-//        // Decompose the responseString view in a Catalog object
-//        var catalog = JsonSerializer.Deserialize<Catalog>(responseString, new JsonSerializerOptions {
-//            PropertyNameCaseInsensitive = true
-//        });
-
-//return (catalog, metadata);

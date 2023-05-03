@@ -6,7 +6,7 @@ using YamlDotNet.Serialization;
 namespace Microsoft.eShopOnContainers.Services.Coordinator.API.Services;
 public class FunctionalityService : IFunctionalityService {
     ConcurrentDictionary<string, List<(string, long)>> _proposals = new ConcurrentDictionary<string, List<(string, long)>>(); 
-    ConcurrentDictionary<string, int> _tokens = new ConcurrentDictionary<string, int>();
+    ConcurrentDictionary<string, double> _tokens = new ConcurrentDictionary<string, double>();
 
     public FunctionalityService() {
     }
@@ -14,15 +14,23 @@ public class FunctionalityService : IFunctionalityService {
     public ConcurrentDictionary<string, List<(string, long)>> Proposals {
         get { return _proposals; }
     }
-    public ConcurrentDictionary<string, int> Tokens {
+    public ConcurrentDictionary<string, double> Tokens {
         get { return Tokens; }
     }
 
     public void AddNewProposalGivenService(string funcID, string service, long proposalTicks) {
-        _proposals[funcID].Add((service, proposalTicks));
+        if(_proposals.ContainsKey(funcID)) {
+            _proposals[funcID].Add((service, proposalTicks));
+        }
+        else {
+            // First proposal in the functionality
+            _proposals[funcID] = new List<(string, long)> {
+                { (service, proposalTicks) }
+            };
+        }
     }
 
-    public void IncreaseTokens(string funcID, int tokens) {
+    public void IncreaseTokens(string funcID, double tokens) {
         if(_tokens.ContainsKey(funcID)) {
             // Add the number of tokens
             _tokens[funcID] += tokens;

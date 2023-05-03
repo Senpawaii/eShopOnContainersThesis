@@ -1,4 +1,5 @@
 ﻿using Catalog.API.DependencyServices;
+using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using System.Collections.Concurrent;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -13,7 +14,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
-        public async Task Invoke(HttpContext ctx, IScopedMetadata svc) {
+        public async Task Invoke(HttpContext ctx, IScopedMetadata svc, ICoordinatorService coordinatorSvc) {
 
             // To differentiate from a regular call, check for the functionality ID
             if (ctx.Request.Query.TryGetValue("functionality_ID", out var functionality_ID)) {
@@ -40,12 +41,18 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     }
                 }
 
-                if(ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
+                if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     _logger.LogInformation($"Registered timestamp: {timestamp}");
                     svc.ScopedMetadataTimestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
                 }
 
-                var removeTheseParams = new List<string> { "interval_low", "interval_high", "functionality_ID", "timestamp" }.AsReadOnly();
+                if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
+                    _logger.LogInformation($"Registered tokens: {tokens}");
+                    Double.TryParse(tokens, out double numTokens);
+                    svc.ScopedMetadataTokens = numTokens;
+                }
+
+                var removeTheseParams = new List<string> { "interval_low", "interval_high", "functionality_ID", "timestamp", "tokens" }.AsReadOnly();
 
                 var filteredQueryParams = ctx.Request.Query.ToList().Where(filterKvp => !removeTheseParams.Contains(filterKvp.Key));
                 var filteredQueryString = QueryString.Create(filteredQueryParams);
@@ -63,6 +70,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     ctx.Response.Headers["interval_high"] = svc.ScopedMetadataIntervalHigh.ToString();
                     ctx.Response.Headers["functionality_ID"] = svc.ScopedMetadataFunctionalityID;
                     ctx.Response.Headers["timestamp"] = svc.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
+                    ctx.Response.Headers["tokens"] = svc.ScopedMetadataTokens.ToString();
                     return Task.CompletedTask;
                 });
 
@@ -87,6 +95,10 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
+                if(svc.ScopedMetadataTokens > 0) {
+                    // Propose Timestamp with Tokens to the Coordinator
+                    await coordinatorSvc.ProposeTS();
+                }
             }
             else {
                 // This is not an HTTP request that requires change

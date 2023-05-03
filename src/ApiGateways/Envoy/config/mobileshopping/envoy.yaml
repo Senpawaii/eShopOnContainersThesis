@@ -36,6 +36,19 @@ static_resources:
                 route:
                   auto_host_rewrite: true
                   cluster: catalog
+              - name: "coord-short"
+                match:
+                  prefix: "/coord/"
+                route:
+                  auto_host_rewrite: true
+                  prefix_rewrite: "/coordinator-api/"
+                  cluster: coordinator
+              - name: "coord-long"
+                match:
+                  prefix: "/coordinator-api/"
+                route:
+                  auto_host_rewrite: true
+                  cluster: coordinator
               - name: "d-short"
                 match:
                   prefix: "/d/"
@@ -125,6 +138,14 @@ static_resources:
     hosts:
     - socket_address:
         address: catalog-api
+        port_value: 80
+  - name: coordinator
+    connect_timeout: 0.25s
+    type: strict_dns
+    lb_policy: round_robin
+    hosts:
+    - socket_address:
+        address: coordinator-api
         port_value: 80
   - name: discount
     connect_timeout: 0.25s

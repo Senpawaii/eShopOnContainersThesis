@@ -1,5 +1,6 @@
 ﻿using Microsoft.eShopOnContainers.Services.Coordinator.API.Grpc;
 using Microsoft.eShopOnContainers.Services.Coordinator.API.Infrastructure.Filters;
+using Microsoft.eShopOnContainers.Services.Coordinator.API.Services;
 
 namespace Microsoft.eShopOnContainers.Services.Coordinator.API;
 
@@ -17,8 +18,10 @@ public class Startup {
             .AddCustomMVC(Configuration)
             .AddHttpContextAccessor()
             .AddCustomOptions(Configuration)
-            //.AddSwagger(Configuration)
-            .AddCustomHealthCheck(Configuration);
+            .AddSwagger(Configuration)
+            .AddCustomHealthCheck(Configuration)
+            .AddSingleton<IFunctionalityService, FunctionalityService>()
+            .AddHttpClient<ICatalogService, CatalogService>();
 
         var container = new ContainerBuilder();
         container.Populate(services);
@@ -41,7 +44,7 @@ public class Startup {
 
         app.UseSwagger()
             .UseSwaggerUI(c => {
-                c.SwaggerEndpoint($"{(!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty)}/swagger/v1/swagger.json", "Catalog.API V1");
+                c.SwaggerEndpoint($"{(!string.IsNullOrEmpty(pathBase) ? pathBase : string.Empty)}/swagger/v1/swagger.json", "Coordinator.API V1");
             });
 
         app.UseRouting();
@@ -81,6 +84,7 @@ public class Startup {
 }
 
 public static class CustomExtensionMethods {
+
     public static IServiceCollection AddAppInsight(this IServiceCollection services, IConfiguration configuration) {
         services.AddApplicationInsightsTelemetry(configuration);
         services.AddApplicationInsightsKubernetesEnricher();
@@ -113,35 +117,7 @@ public static class CustomExtensionMethods {
         var hcBuilder = services.AddHealthChecks();
 
         hcBuilder
-            .AddCheck("self", () => HealthCheckResult.Healthy())
-            .AddSqlServer(
-                configuration["ConnectionString"],
-                name: "CatalogDB-check",
-                tags: new string[] { "catalogdb" });
-
-        if (!string.IsNullOrEmpty(accountName) && !string.IsNullOrEmpty(accountKey)) {
-            hcBuilder
-                .AddAzureBlobStorage(
-                    $"DefaultEndpointsProtocol=https;AccountName={accountName};AccountKey={accountKey};EndpointSuffix=core.windows.net",
-                    name: "catalog-storage-check",
-                    tags: new string[] { "catalogstorage" });
-        }
-
-        if (configuration.GetValue<bool>("AzureServiceBusEnabled")) {
-            hcBuilder
-                .AddAzureServiceBusTopic(
-                    configuration["EventBusConnection"],
-                    topicName: "eshop_event_bus",
-                    name: "catalog-servicebus-check",
-                    tags: new string[] { "servicebus" });
-        }
-        else {
-            hcBuilder
-                .AddRabbitMQ(
-                    $"amqp://{configuration["EventBusConnection"]}",
-                    name: "catalog-rabbitmqbus-check",
-                    tags: new string[] { "rabbitmqbus" });
-        }
+            .AddCheck("self", () => HealthCheckResult.Healthy());
 
         return services;
     }
@@ -165,16 +141,16 @@ public static class CustomExtensionMethods {
         return services;
     }
 
-    //public static IServiceCollection AddSwagger(this IServiceCollection services, IConfiguration configuration) {
-    //    services.AddSwaggerGen(options => {
-    //        options.SwaggerDoc("v1", new OpenApiInfo {
-    //            Title = "eShopOnContainers - Catalog HTTP API",
-    //            Version = "v1",
-    //            Description = "The Catalog Microservice HTTP API. This is a Data-Driven/CRUD microservice sample"
-    //        });
-    //    });
+    public static IServiceCollection AddSwagger(this IServiceCollection services, IConfiguration configuration) {
+        services.AddSwaggerGen(options => {
+            options.SwaggerDoc("v1", new OpenApiInfo {
+                Title = "eShopOnContainers - Coordinator HTTP API",
+                Version = "v1",
+                Description = "The Coordinator Microservice HTTP API."
+            });
+        });
 
-    //    return services;
+        return services;
 
-    //}
+    }
 }

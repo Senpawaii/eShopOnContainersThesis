@@ -5,15 +5,13 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Controllers;
 
 [Route("api/v1/[controller]")]
 [ApiController]
-public class CatalogController : ControllerBase
-{
+public class CatalogController : ControllerBase {
     private readonly CatalogContext _catalogContext;
     private readonly CatalogSettings _settings;
     private readonly ICatalogIntegrationEventService _catalogIntegrationEventService;
     private readonly ILogger<CatalogController> _logger;
 
-    public CatalogController(CatalogContext context, IOptionsSnapshot<CatalogSettings> settings, ICatalogIntegrationEventService catalogIntegrationEventService, ILogger<CatalogController>logger)
-    {
+    public CatalogController(CatalogContext context, IOptionsSnapshot<CatalogSettings> settings, ICatalogIntegrationEventService catalogIntegrationEventService, ILogger<CatalogController> logger) {
         _catalogContext = context ?? throw new ArgumentNullException(nameof(context));
         _catalogIntegrationEventService = catalogIntegrationEventService ?? throw new ArgumentNullException(nameof(catalogIntegrationEventService));
         _settings = settings.Value;
@@ -28,14 +26,11 @@ public class CatalogController : ControllerBase
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(IEnumerable<CatalogItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    public async Task<IActionResult> ItemsAsync([FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0, string ids = null)
-    {
-        if (!string.IsNullOrEmpty(ids))
-        {
+    public async Task<IActionResult> ItemsAsync([FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0, string ids = null) {
+        if (!string.IsNullOrEmpty(ids)) {
             var items = await GetItemsByIdsAsync(ids);
 
-            if (!items.Any())
-            {
+            if (!items.Any()) {
                 return BadRequest("ids value invalid. Must be comma-separated list of numbers");
             }
 
@@ -59,12 +54,10 @@ public class CatalogController : ControllerBase
         return Ok(model);
     }
 
-    private async Task<List<CatalogItem>> GetItemsByIdsAsync(string ids)
-    {
+    private async Task<List<CatalogItem>> GetItemsByIdsAsync(string ids) {
         var numIds = ids.Split(',').Select(id => (Ok: int.TryParse(id, out int x), Value: x));
 
-        if (!numIds.All(nid => nid.Ok))
-        {
+        if (!numIds.All(nid => nid.Ok)) {
             return new List<CatalogItem>();
         }
 
@@ -83,10 +76,8 @@ public class CatalogController : ControllerBase
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     [ProducesResponseType(typeof(CatalogItem), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<CatalogItem>> ItemByIdAsync(int id)
-    {
-        if (id <= 0)
-        {
+    public async Task<ActionResult<CatalogItem>> ItemByIdAsync(int id) {
+        if (id <= 0) {
             return BadRequest();
         }
 
@@ -97,8 +88,7 @@ public class CatalogController : ControllerBase
 
         item.FillProductUrl(baseUri, azureStorageEnabled: azureStorageEnabled);
 
-        if (item != null)
-        {
+        if (item != null) {
             return item;
         }
 
@@ -109,8 +99,7 @@ public class CatalogController : ControllerBase
     [HttpGet]
     [Route("items/withname/{name:minlength(1)}")]
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsWithNameAsync(string name, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0)
-    {
+    public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsWithNameAsync(string name, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0) {
         var totalItems = await _catalogContext.CatalogItems
             .Where(c => c.Name.StartsWith(name))
             .LongCountAsync();
@@ -130,14 +119,12 @@ public class CatalogController : ControllerBase
     [HttpGet]
     [Route("items/type/{catalogTypeId}/brand/{catalogBrandId:int?}")]
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsByTypeIdAndBrandIdAsync(int catalogTypeId, int? catalogBrandId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0)
-    {
+    public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsByTypeIdAndBrandIdAsync(int catalogTypeId, int? catalogBrandId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0) {
         var root = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
         root = root.Where(ci => ci.CatalogTypeId == catalogTypeId);
 
-        if (catalogBrandId.HasValue)
-        {
+        if (catalogBrandId.HasValue) {
             root = root.Where(ci => ci.CatalogBrandId == catalogBrandId);
         }
 
@@ -158,12 +145,10 @@ public class CatalogController : ControllerBase
     [HttpGet]
     [Route("items/type/all/brand/{catalogBrandId:int?}")]
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsByBrandIdAsync(int? catalogBrandId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0)
-    {
+    public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsByBrandIdAsync(int? catalogBrandId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0) {
         var root = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
-        if (catalogBrandId.HasValue)
-        {
+        if (catalogBrandId.HasValue) {
             root = root.Where(ci => ci.CatalogBrandId == catalogBrandId);
         }
 
@@ -184,8 +169,7 @@ public class CatalogController : ControllerBase
     [HttpGet]
     [Route("catalogtypes")]
     [ProducesResponseType(typeof(List<CatalogType>), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<List<CatalogType>>> CatalogTypesAsync()
-    {
+    public async Task<ActionResult<List<CatalogType>>> CatalogTypesAsync() {
         return await _catalogContext.CatalogTypes.ToListAsync();
     }
 
@@ -193,8 +177,7 @@ public class CatalogController : ControllerBase
     [HttpGet]
     [Route("catalogbrands")]
     [ProducesResponseType(typeof(List<CatalogBrand>), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<List<CatalogBrand>>> CatalogBrandsAsync()
-    {
+    public async Task<ActionResult<List<CatalogBrand>>> CatalogBrandsAsync() {
         return await _catalogContext.CatalogBrands.ToListAsync();
     }
 
@@ -203,12 +186,10 @@ public class CatalogController : ControllerBase
     [HttpPut]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     [ProducesResponseType((int)HttpStatusCode.Created)]
-    public async Task<ActionResult> UpdateProductAsync([FromBody] CatalogItem productToUpdate)
-    {
+    public async Task<ActionResult> UpdateProductAsync([FromBody] CatalogItem productToUpdate) {
         var catalogItem = await _catalogContext.CatalogItems.SingleOrDefaultAsync(i => i.Id == productToUpdate.Id);
 
-        if (catalogItem == null)
-        {
+        if (catalogItem == null) {
             return NotFound(new { Message = $"Item with id {productToUpdate.Id} not found." });
         }
 
@@ -245,7 +226,7 @@ public class CatalogController : ControllerBase
     public async Task<ActionResult> CreateProductAsync([FromBody] CatalogItem product, [FromQuery] string brand = "", [FromQuery] string type = "") {
         int brandId = 0;
         int typeId = 0;
-        var rootTypes = (IQueryable<CatalogType>)_catalogContext.CatalogTypes;
+        var types = (IQueryable<CatalogType>)_catalogContext.CatalogTypes;
         var brands = (IQueryable<CatalogBrand>)_catalogContext.CatalogBrands;
 
         if (String.IsNullOrEmpty(type)) {
@@ -260,8 +241,21 @@ public class CatalogController : ControllerBase
         type = type.Trim('"').Trim();
         brand = brand.Trim('"').Trim();
 
-        var typeObj = await rootTypes.SingleOrDefaultAsync(ci => ci.Type == type);
-        
+        types = types.Where(tp => tp.Type == type);
+        if (await types.CountAsync() == 0) {
+            // Create new Type
+            var newType = new CatalogType {
+                Type = type,
+            };
+            _catalogContext.CatalogTypes.Add(newType);
+            await _catalogContext.SaveChangesAsync();
+
+            typeId = newType.Id;
+        } 
+        else {
+            typeId = types.Select(a => a.Id).First();
+        }
+
         brands = brands.Where(bn => bn.Brand == brand);
         if (await brands.CountAsync() == 0) {
             // Create new Brand
@@ -276,20 +270,6 @@ public class CatalogController : ControllerBase
         }
         else {
             brandId = brands.Select(a => a.Id).First();
-        }
-
-        typeId = typeObj.Id;
-
-        if (typeObj == null) {
-            // Create new Type
-            var newType = new CatalogType {
-                Type = type,
-            };
-
-            _catalogContext.CatalogTypes.Add(newType);
-            await _catalogContext.SaveChangesAsync();
-
-            typeId = newType.Id;
         }
 
         var item = new CatalogItem {
@@ -314,12 +294,10 @@ public class CatalogController : ControllerBase
     [HttpDelete]
     [ProducesResponseType((int)HttpStatusCode.NoContent)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
-    public async Task<ActionResult> DeleteProductAsync(int id)
-    {
+    public async Task<ActionResult> DeleteProductAsync(int id) {
         var product = _catalogContext.CatalogItems.SingleOrDefault(x => x.Id == id);
 
-        if (product == null)
-        {
+        if (product == null) {
             return NotFound();
         }
 
@@ -352,30 +330,35 @@ public class CatalogController : ControllerBase
             return NotFound();
         }
         var typeId = types.Select(a => a.Id).First();
-        
+
         items = items.Where(ci => ci.Name == name && ci.CatalogBrandId == brandId && ci.CatalogTypeId == typeId);
-        
+
         var totalItems = await items
             .CountAsync();
 
-        if(totalItems == 0) { return NotFound(); }
+        if (totalItems == 0) { return NotFound(); }
         var itemId = items.Select(a => a.Id).First();
-       
+
         _logger.LogInformation("Finished ItemIdByNameAndTypeIdAndBrandId request!");
 
         return itemId;
     }
 
-    private List<CatalogItem> ChangeUriPlaceholder(List<CatalogItem> items)
-    {
+    private List<CatalogItem> ChangeUriPlaceholder(List<CatalogItem> items) {
         var baseUri = _settings.PicBaseUrl;
         var azureStorageEnabled = _settings.AzureStorageEnabled;
 
-        foreach (var item in items)
-        {
+        foreach (var item in items) {
             item.FillProductUrl(baseUri, azureStorageEnabled: azureStorageEnabled);
         }
 
         return items;
+    }
+
+    [HttpGet]
+    [Route("commit")]
+    [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
+    public Task Commit() {
+        return Task.CompletedTask;
     }
 }

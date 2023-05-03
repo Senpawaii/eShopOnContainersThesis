@@ -40,6 +40,14 @@ services:
     ports:
       - "5101:80"
 
+  coordinator-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - UseCustomizationData=True
+    ports:
+      - "5141:80"
+
   discount-api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -97,12 +105,14 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0
       - CatalogUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5101
-      - DiscountUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5101
+      - DiscountUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5140
+      - CoordinatorUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5141
       - OrderingUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5102
       - IdentityUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5105              #Local: You need to open your host's firewall at range 5100-5110. 
       - BasketUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5103
       - CatalogUrlHC=http://catalog-api/hc
       - DiscountUrlHC=http://discount-api/hc
+      - CoordinatorUrlHC=http://coordinator-api/hc
       - OrderingUrlHC=http://ordering-api/hc
       - IdentityUrlHC=http://identity-api/hc     #Local: Use ${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}, if using external IP or DNS name from browser.          
       - BasketUrlHC=http://basket-api/hc
@@ -116,6 +126,7 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:80
       - CatalogUrl=http://catalog-api
       - DiscountUrl=http://discount-api
+      - CoordinatorUrl=http://coordinator-api
       - OrderingUrl=http://ordering-api
       - IdentityUrl=http://${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}:5105     #Local: Use ${ESHOP_PROD_EXTERNAL_DNS_NAME_OR_IP}, if using external IP or DNS name from browser.          
       - BasketUrl=http://basket-api
@@ -140,6 +151,7 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:80
       - CatalogUrl=http://catalog-api/hc
       - DiscountUrl=http://discount-api/hc
+      - CoordinatorUrl=http://coordinator-api/hc
       - OrderingUrl=http://ordering-api/hc
       - BasketUrl=http://basket-api/hc
       - IdentityUrl=http://identity-api/hc

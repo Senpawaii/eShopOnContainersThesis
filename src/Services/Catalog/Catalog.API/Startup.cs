@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using CoordinatorAPI;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Config;
+using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API;
 
@@ -35,7 +36,9 @@ public class Startup
             .AddIntegrationServices(Configuration)
             .AddEventBus(Configuration)
             .AddSwagger(Configuration)
-            .AddCustomHealthCheck(Configuration);
+            .AddCustomHealthCheck(Configuration)
+            .AddHttpClient<ICoordinatorService, CoordinatorService>();
+
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services
