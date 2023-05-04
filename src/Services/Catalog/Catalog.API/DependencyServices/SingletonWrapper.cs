@@ -75,5 +75,18 @@ namespace Catalog.API.DependencyServices {
         public bool SingletonSetTransactionState(string funcId, bool state) {
             return transaction_state[funcId] = state;
         }
+
+        // Remove the objects associated with the funcId
+        public void SingletonRemoveFunctionalityObjects(string funcId) {
+            if(wrapped_catalog_brands.ContainsKey(funcId))
+                wrapped_catalog_brands.TryRemove(funcId, out ConcurrentBag<object[]> _);
+            if(wrapped_catalog_types.ContainsKey(funcId))
+                wrapped_catalog_types.TryRemove(funcId, out ConcurrentBag<object[]> _);
+            if(wrapped_catalog_items.ContainsKey(funcId))
+                wrapped_catalog_items.TryRemove(funcId, out ConcurrentBag<object[]> _);
+            if(transaction_state.ContainsKey(funcId))
+                transaction_state.TryRemove(funcId, out bool _);
+        }
+
     }
 }

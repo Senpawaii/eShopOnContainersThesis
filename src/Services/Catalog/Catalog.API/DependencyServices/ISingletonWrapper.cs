@@ -17,5 +17,6 @@ namespace Catalog.API.DependencyServices {
         public void SingletonAddCatalogBrand(string funcID, IEnumerable<object[]> values);
         public bool SingletonSetTransactionState(string funcId, bool state);
 
-        }
+        public void SingletonRemoveFunctionalityObjects(string funcID);
     }
+}

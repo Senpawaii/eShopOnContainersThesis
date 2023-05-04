@@ -406,21 +406,45 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
         string updatedCommandText;
+        int numberColumns = 0;
 
         if (targetTable == "CatalogType") {
+            numberColumns = 3;
             updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogType\]\s+\(\s*\[Id\],\s*\[Type\]\s*", "$0, [Timestamp]");
-            updatedCommandText = Regex.Replace(updatedCommandText, @"VALUES\s\(@p0, @p1", "$0, @p2");
         }
         else if(targetTable == "CatalogBrand") {
+            numberColumns = 3;
             updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogBrand\]\s+\(\s*\[Id\],\s*\[Brand\]\s*", "$0, [Timestamp]");
-            updatedCommandText = Regex.Replace(updatedCommandText, @"VALUES\s\(@p0, @p1", "$0, @p2");
         }
         else {
+            numberColumns = 12;
+            // Update the CommandText to include the Timestamp column and parameter for each entry
             updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Catalog\]\s+\(\s*\[Id\],\s*\[AvailableStock\],\s*\[CatalogBrandId\],\s*\[CatalogTypeId\],\s*\[Description\],\s*\[MaxStockThreshold\],\s*\[Name\],\s*\[OnReorder\],\s*\[PictureFileName\],\s*\[Price\],\s*\[RestockThreshold\]\s*", "$0, [Timestamp]");
-            updatedCommandText = Regex.Replace(updatedCommandText, @"VALUES\s\(@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10", "$0, @p11");
+        }
+
+        var regex = new Regex(@"\(@p\d+[,\s@p\d]*@p(?<LastIndexOfRow>\d+)\)");
+        var matches = regex.Matches(command.CommandText);
+        int numRows = matches.Count;
+        updatedCommandText = updatedCommandText.Replace(updatedCommandText.Substring(updatedCommandText.IndexOf("VALUES ")), "VALUES ");
+
+        for(int i = 0; i < numRows; i++) {
+            switch(numberColumns) {
+                case 3:
+                    updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2})";
+                    break;
+                case 12:
+                    updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2}, @p{numberColumns * i + 3}, @p{numberColumns * i + 4}, @p{numberColumns * i + 5}, @p{numberColumns * i + 6}, @p{numberColumns * i + 7}, @p{numberColumns * i + 8}, @p{numberColumns * i + 9}, @p{numberColumns * i + 10}, @p{numberColumns * i + 11})";
+                    break;
+            }
+            if (i != numRows - 1) {
+                updatedCommandText += ", ";
+            } else {
+                updatedCommandText += ";";
+            }
         }
         return updatedCommandText;
     }
+
 
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
@@ -659,19 +683,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
 
             if (HasCountClause(_originalCommandText)) {
-                // OLD:
-                //var wrapperDataCount = wrapperData.Count;
-                //newData[0][0] = Convert.ToInt64(newData[0][0]) + wrapperDataCount;
-
-                // NEW:
                 List<object[]> countedData = new List<object[]>();
                 object[] data = new object[] { newData.Count + wrapperData.Count };
                 countedData.Add(data);
 
                 return new WrapperDbDataReader(countedData, result, targetTable);
             }
-
-            // TODO: Remove the Timestamp parameter
 
             // Search for partial SELECTION on the original unaltered commandText
             (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
@@ -744,13 +761,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     .ToList();
                 break;
         }
-
-        //newData = newData
-        //    .GroupBy(row => groupByColumns
-        //        .Select(kv => row[kv.Value]))
-        //    .Select(group => group
-        //        .OrderByDescending(row => (DateTime)row[^1], dateTimeComparer).First())
-        //    .ToList();
 
         return newData;
     }

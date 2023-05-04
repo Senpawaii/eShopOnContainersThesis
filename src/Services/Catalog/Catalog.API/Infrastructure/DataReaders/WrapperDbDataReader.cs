@@ -8,6 +8,7 @@ public class WrapperDbDataReader : DbDataReader
 {
     private readonly List<object[]> _data;
     private readonly int _fieldCount;
+    private readonly bool _hasRows;
     private readonly string _tableRead;
     private int _rowIndex = -1;
     private bool _hasNextResult = false;
@@ -18,6 +19,7 @@ public class WrapperDbDataReader : DbDataReader
     {
         _data = data;
         _fieldCount = _data != null && _data.Count > 0 ? _data[0].Length : 0;
+        _hasRows = _data != null && _data.Count > 0;
         _tableRead = tableRead;
         _dataReader = dataReader;
         _recordsAffected = dataReader.RecordsAffected;
@@ -34,7 +36,7 @@ public class WrapperDbDataReader : DbDataReader
 
     public override int Depth => throw new NotImplementedException();
 
-    public override bool HasRows => throw new NotImplementedException();
+    public override bool HasRows => _hasRows;
 
     public override bool IsClosed => throw new NotImplementedException();
 
