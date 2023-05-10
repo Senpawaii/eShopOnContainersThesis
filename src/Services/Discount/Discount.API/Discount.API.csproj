@@ -24,11 +24,11 @@
 	  </Content>
   </ItemGroup>
 
-	<ItemGroup>
+	<!-- <ItemGroup>
 		<Protobuf Include="Proto\Discount.proto" GrpcServices="Server" Generator="MSBuild:Compile" />
 		<Content Include="@(Protobuf)" />
 		<None Remove="@(Protobuf)" />
-	</ItemGroup>
+	</ItemGroup> -->
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.EntityFrameworkCore" />

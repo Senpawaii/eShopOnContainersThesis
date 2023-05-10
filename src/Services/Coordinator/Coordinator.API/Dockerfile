@@ -59,5 +59,5 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app .
 COPY --from=build /src/Services/Coordinator/Coordinator.API/Proto /app/Proto
-COPY --from=build /src/Services/Coordinator/Coordinator.API/eshop.pfx .
+# COPY --from=build /src/Services/Coordinator/Coordinator.API/eshop.pfx .
 ENTRYPOINT ["dotnet", "Coordinator.API.dll"]

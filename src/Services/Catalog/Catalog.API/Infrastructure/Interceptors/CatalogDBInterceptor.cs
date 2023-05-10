@@ -82,67 +82,88 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         (var commandType, var targetTable) = GetCommandInfo(command);
 
-        if(commandType == UNKNOWN_COMMAND) {
-            return new ValueTask<InterceptionResult<DbDataReader>>(result);
-        }
-
         // Check if the Transaction ID
         var funcID = _scopedMetadata.ScopedMetadataFunctionalityID;
 
-        // Check if is this a functionality context (ID differs from null)
         if (funcID == null) {
+            // This is a system query
             return new ValueTask<InterceptionResult<DbDataReader>>(result);
         }
 
-        if (commandType == SELECT_COMMAND) {
-            UpdateSelectCommand(command);
-
-        }
-        else if(commandType == INSERT_COMMAND) {
-            bool funcState = _wrapper.SingletonGetTransactionState(funcID);
-
-            // If the Transaction is not in commit state, store data in wrapper
-            if (!funcState) {
-                // TODO, the updateInsertCommand command should not be executed in this case, perhaps store the original command?
-                var mockReader = StoreDataInWrapper(command);
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
-            } 
-            else {
-                UpdateInsertCommand(command, targetTable);
-            }
+        switch (commandType) {
+            case UNKNOWN_COMMAND:
+                return new ValueTask<InterceptionResult<DbDataReader>>(result);
+            case SELECT_COMMAND:
+                UpdateSelectCommand(command);
+                break;
+            case INSERT_COMMAND:
+                bool funcStateIns = _wrapper.SingletonGetTransactionState(funcID);
+                if (!funcStateIns) {
+                    // If the Transaction is not in commit state, store data in wrapper
+                    var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                    result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
+                }
+                else {
+                    // Transaction is in commit state, update the command to store in the database
+                    UpdateInsertCommand(command, targetTable);
+                }
+                break;
+            case UPDATE_COMMAND:
+                // Update operations will be considered as insertion operations
+                bool funcStateUpd = _wrapper.SingletonGetTransactionState(funcID);
+                if (!funcStateUpd) {
+                    // If the Transaction is not in commit state, store the updated data in wrapper
+                    var mockReader = StoreDataInWrapper(command, UPDATE_COMMAND, targetTable);
+                    result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
+                }
+                else {
+                    // Transaction is in commit state, update the command to store in the database
+                    UpdateUpdateCommand(command, targetTable);
+                }
+                break;
         }
 
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
     }
 
-    private MockDbDataReader StoreDataInWrapper(DbCommand command) {
+    private MockDbDataReader StoreDataInWrapper(DbCommand command, int operation, string targetTable) {
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
 
+        string regexPattern;
+        if (operation == INSERT_COMMAND) {
+            regexPattern = @"\[(\w+)\]";
+        } else {
+            regexPattern = @"\[(\w+)\] = (@\w+)";
+        }
+
         // Get the number of columns in each row to be inserted
-        var regex = new Regex(@"INSERT INTO \[(?<tableName>[a-zA-Z]+)\]\s+\((?<columnNames>(\[[a-zA-Z]+\],?\s*)+)\)\s*VALUES\s+(?<params>([@a-zA-Z\d\(\)]+,?\s*)+);");
+        var regex = new Regex(regexPattern);
         var matches = regex.Matches(command.CommandText);
 
-        var targetTable = matches[0].Groups["tableName"].Value;
-        var columns = matches[0].Groups["columnNames"].Value.Split(", ");
-        for(int i = 0; i < columns.Length; i++) {
-            columns[i] = columns[i].Trim('[', ']');
+        var columns = new List<string>();
+
+        // Discard the first match, it is the table name
+        for(int i = 1; i < matches.Count; i++) {
+            columns.Add(matches[i].Groups[1].Value);
         }
-        //var parameters = matches[0].Groups["params"].Value;
-        //string pattern = @"\((.*?)\)";
-        //var paramMatches = Regex.Matches(parameters, pattern);
+
+        //var columns = matches[0].Groups["columnNames"].Value.Split(", ");
+        //for(int i = 0; i < columns.Length; i++) {
+        //    columns[i] = columns[i].Trim('[', ']');
+        //}
 
         Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);
 
         // Get the number of rows being inserted
-        int numberRows = command.Parameters.Count / columns.Length;
+        int numberRows = command.Parameters.Count / columns.Count;
         var rowsAffected = 0;
 
         var rows = new List<object[]>();
         for (int i = 0; i < numberRows; i += 1) {
-            var row = new object[columns.Length + 1]; // Added Timestamp at the end
-            for(int j = 0; j < columns.Length; j++) {
+            var row = new object[columns.Count + 1]; // Added Timestamp at the end
+            for(int j = 0; j < columns.Count; j++) {
                 var columnName = columns[j];
-                var paramValue = command.Parameters[(i * columns.Length) + j].Value;
+                var paramValue = command.Parameters[(i * columns.Count) + j].Value;
                 var correctIndexToStore = standardColumnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
             }
@@ -151,22 +172,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             rows.Add(row);
             rowsAffected++;
         }
-
-        // Add a dict perhaps: columns[i] : parameters[i]
-
-        //var values = matches[matches.Count - 1].Groups[1].Value.Split(',');
-        //var numberColumnsPerRow = values.Length;
-
-
-        //for (int i = 0; i < command.Parameters.Count; i += numberColumnsPerRow) {
-        //    var row = new List<object>();
-        //    for (int j = 0; j < i + numberColumnsPerRow; j++) {
-        //        var columnValue = command.Parameters[$"@p{j}"];
-        //        row.Add(columnValue.Value == DBNull.Value ? null : columnValue.Value);
-        //    }
-        //    rows.Add(row.ToArray());
-        //    rowsAffected++;
-        //}
 
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
@@ -187,38 +192,39 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public (int, string) GetCommandInfo(DbCommand command) {
         var commandType = GetCommandType(command);
 
-        // Check if the command is an INSERT command.
-        if (commandType == INSERT_COMMAND) {
-            string targetTable = GetTargetTable(command.CommandText);
-            return (INSERT_COMMAND, targetTable);
+        switch(commandType) {
+            case INSERT_COMMAND:
+                string targetTable = GetTargetTable(command.CommandText);
+                return (INSERT_COMMAND, targetTable);
+            case SELECT_COMMAND:
+                targetTable = GetTargetTable(command.CommandText);
+                List<string> exceptionTables = new List<string>() {
+                    "__EFMigrationsHistory"
+                };
+                if (!exceptionTables.Contains(targetTable)) {
+                    return (SELECT_COMMAND, targetTable);
+                }
+                break;
+            case UPDATE_COMMAND:
+                targetTable = GetTargetTable(command.CommandText);
+                return (UPDATE_COMMAND, targetTable);
         }
-        else if (commandType == SELECT_COMMAND) {
-            string targetTable = GetTargetTable(command.CommandText);
-            List<string> exceptionTables = new List<string>() {
-                "__EFMigrationsHistory"
-            };
-                
-            if (!exceptionTables.Contains(targetTable)) {
-                return (SELECT_COMMAND, targetTable);
-            }
-        }
-
         return (UNKNOWN_COMMAND, null);
     }
 
     private int GetCommandType(DbCommand command) {
         var commandText = command.CommandText.ToUpperInvariant();
 
-        if (commandText.Contains("INSERT")) {
+        if (commandText.Contains("INSERT ")) {
             return INSERT_COMMAND;
         }
-        else if (commandText.Contains("UPDATE")) {
+        else if (commandText.Contains("UPDATE ")) {
             return UPDATE_COMMAND;
         }
-        else if (commandText.Contains("DELETE")) {
+        else if (commandText.Contains("DELETE ")) {
             return DELETE_COMMAND;
         }
-        else if (commandText.Contains("SELECT")) {
+        else if (commandText.Contains("SELECT ")) {
             return SELECT_COMMAND;
         }
         else {
@@ -293,6 +299,28 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             UpdateBrandOrTypeOp(command, newParameters, timestamp);
         }
 
+        // Assign new Parameters and Command text to database command
+        command.Parameters.Clear();
+        command.Parameters.AddRange(newParameters.ToArray());
+        command.CommandText = commandWithTimestamp;
+    }
+
+    private void UpdateUpdateCommand(DbCommand command, string targetTable) {
+        // Get the timestamp received from the Coordinator
+        string timestamp = _scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+
+        // Replace Command Text to account for new parameter
+        string commandWithTimestamp;
+        commandWithTimestamp = UpdateUpdateCommandText(command, targetTable);
+
+        // Generate new list of parameters
+        List<DbParameter> newParameters = new List<DbParameter>();
+        if(targetTable == "Catalog") {
+            UpdateItemOp(command, newParameters, timestamp);
+        } 
+        else {
+            UpdateBrandOrTypeOp(command, newParameters, timestamp);
+        }
         // Assign new Parameters and Command text to database command
         command.Parameters.Clear();
         command.Parameters.AddRange(newParameters.ToArray());
@@ -408,6 +436,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         string updatedCommandText;
         int numberColumns = 0;
 
+        // Update the CommandText to include the Timestamp column and parameter for each entry
         if (targetTable == "CatalogType") {
             numberColumns = 3;
             updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogType\]\s+\(\s*\[Id\],\s*\[Type\]\s*", "$0, [Timestamp]");
@@ -418,10 +447,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
         else {
             numberColumns = 12;
-            // Update the CommandText to include the Timestamp column and parameter for each entry
             updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Catalog\]\s+\(\s*\[Id\],\s*\[AvailableStock\],\s*\[CatalogBrandId\],\s*\[CatalogTypeId\],\s*\[Description\],\s*\[MaxStockThreshold\],\s*\[Name\],\s*\[OnReorder\],\s*\[PictureFileName\],\s*\[Price\],\s*\[RestockThreshold\]\s*", "$0, [Timestamp]");
         }
 
+        // 
         var regex = new Regex(@"\(@p\d+[,\s@p\d]*@p(?<LastIndexOfRow>\d+)\)");
         var matches = regex.Matches(command.CommandText);
         int numRows = matches.Count;
@@ -442,6 +471,27 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 updatedCommandText += ";";
             }
         }
+        return updatedCommandText;
+    }
+
+    private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
+        string updatedCommandText;
+        int numberColumns = 0;
+        if (targetTable == "CatalogType") {
+            numberColumns = 3;
+            updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogType\]\s+SET\s*\[Type\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
+        }
+        else if (targetTable == "CatalogBrand") {
+            numberColumns = 3;
+            updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogBrand\]\s+SET\s*\[Brand\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
+        }
+        else {
+            numberColumns = 12;
+            // Update the CommandText to include the Timestamp column and parameter for each entry
+            updatedCommandText = Regex.Replace(command.CommandText, @"\[RestockThreshold] = @p\d*", "$0, [Timestamp] = @p{}");
+        }
+        var regex = new Regex(@"WHERE\s*\[Id\]\s*=\s*@p\d+");
+        updatedCommandText = regex.Replace(updatedCommandText, "$0 AND [Timestamp] = @p2");
         return updatedCommandText;
     }
 
@@ -575,6 +625,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
         
+        if(funcId == null) {
+            // This is a system transaction or a database initial population
+            return result;
+        }
+
         // Check if the command is an INSERT command and has yet to be committed
         if(command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
             return result;

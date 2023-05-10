@@ -181,29 +181,38 @@ public class CatalogController : ControllerBase {
         return await _catalogContext.CatalogBrands.ToListAsync();
     }
 
-    //PUT api/v1/[controller]/items
-    [Route("items")]
-    [HttpPut]
+    //POST api/v1/[controller]/items
+    [Route("items/price")]
+    [HttpPost]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     [ProducesResponseType((int)HttpStatusCode.Created)]
-    public async Task<ActionResult> UpdateProductAsync([FromBody] CatalogItem productToUpdate) {
-        var catalogItem = await _catalogContext.CatalogItems.SingleOrDefaultAsync(i => i.Id == productToUpdate.Id);
+    public async Task<ActionResult> UpdateProductPriceAsync([FromQuery] string name, [FromQuery] int brandId, [FromQuery] int typeId, [FromQuery] decimal price) {
+        var items = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
-        if (catalogItem == null) {
-            return NotFound(new { Message = $"Item with id {productToUpdate.Id} not found." });
+        items = items.Where(ci => ci.Name == name && ci.CatalogBrandId == brandId && ci.CatalogTypeId == typeId);
+
+        if (items.Count() == 0) {
+            return NotFound(new { Message = $"Item with name: {name}, brandId: {brandId} and typeId: {typeId} not found." });
         }
+        var item = items.First();
+        var oldPrice = item.Price;
+        var raiseProductPriceChangedEvent = oldPrice != price;
 
-        var oldPrice = catalogItem.Price;
-        var raiseProductPriceChangedEvent = oldPrice != productToUpdate.Price;
-
-        // Update current product
-        catalogItem = productToUpdate;
-        _catalogContext.CatalogItems.Update(catalogItem);
+        // Update current product's price
+        var updatedItem = new CatalogItem {
+            CatalogBrandId = brandId,
+            CatalogTypeId = typeId,
+            Description = item.Description,
+            Name = item.Name,
+            PictureFileName = item.PictureFileName,
+            Price = price
+        };
+        _catalogContext.CatalogItems.Add(updatedItem);
 
         if (raiseProductPriceChangedEvent) // Save product's data and publish integration event through the Event Bus if price has changed
         {
             //Create Integration Event to be published through the Event Bus
-            var priceChangedEvent = new ProductPriceChangedIntegrationEvent(catalogItem.Id, productToUpdate.Price, oldPrice);
+            var priceChangedEvent = new ProductPriceChangedIntegrationEvent(item.Id, price, oldPrice);
 
             // Achieving atomicity between original Catalog database operation and the IntegrationEventLog thanks to a local transaction
             await _catalogIntegrationEventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
@@ -216,7 +225,8 @@ public class CatalogController : ControllerBase {
             await _catalogContext.SaveChangesAsync();
         }
 
-        return CreatedAtAction(nameof(ItemByIdAsync), new { id = productToUpdate.Id }, null);
+        await _catalogContext.SaveChangesAsync();
+        return CreatedAtAction(nameof(ItemByIdAsync), new { id = updatedItem.Id }, null);
     }
 
     //POST api/v1/[controller]/items

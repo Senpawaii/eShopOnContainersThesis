@@ -7,7 +7,6 @@ using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF;
 using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Services;
 using Microsoft.eShopOnContainers.Services.Discount.API;
 using Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
-using Microsoft.eShopOnContainers.Services.Discount.API.Grpc;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.Filters;
 using Microsoft.eShopOnContainers.Services.Discount.API.Middleware;
@@ -80,19 +79,19 @@ public class Startup {
 
             endpoints.MapControllers();
 
-            endpoints.MapGet("/_proto/", async ctx => {
-                ctx.Response.ContentType = "text/plain";
-                using var fs = new FileStream(Path.Combine(env.ContentRootPath, "Proto", "discount.proto"), FileMode.Open, FileAccess.Read);
-                using var sr = new StreamReader(fs);
-                while (!sr.EndOfStream) {
-                    var line = await sr.ReadLineAsync();
-                    if (line != "/* >>" || line != "<< */") {
-                        await ctx.Response.WriteAsync(line);
-                    }
-                }
-            });
+            // endpoints.MapGet("/_proto/", async ctx => {
+            //     ctx.Response.ContentType = "text/plain";
+            //     using var fs = new FileStream(Path.Combine(env.ContentRootPath, "Proto", "discount.proto"), FileMode.Open, FileAccess.Read);
+            //     using var sr = new StreamReader(fs);
+            //     while (!sr.EndOfStream) {
+            //         var line = await sr.ReadLineAsync();
+            //         if (line != "/* >>" || line != "<< */") {
+            //             await ctx.Response.WriteAsync(line);
+            //         }
+            //     }
+            // });
 
-            endpoints.MapGrpcService<DiscountService>();
+            // endpoints.MapGrpcService<DiscountService>();
 
             endpoints.MapHealthChecks("/hc", new HealthCheckOptions() {
                 Predicate = _ => true,

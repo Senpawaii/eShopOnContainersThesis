@@ -69,6 +69,6 @@ FROM build AS publish
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app .
-COPY --from=build /src/Services/Discount/Discount.API/Proto /app/Proto
-COPY --from=build /src/Services/Discount/Discount.API/eshop.pfx .
+# COPY --from=build /src/Services/Discount/Discount.API/Proto /app/Proto
+# COPY --from=build /src/Services/Discount/Discount.API/eshop.pfx .
 ENTRYPOINT ["dotnet", "Discount.API.dll"]
