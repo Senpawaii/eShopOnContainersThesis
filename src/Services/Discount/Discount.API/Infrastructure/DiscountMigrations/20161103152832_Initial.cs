@@ -15,8 +15,9 @@ namespace Discount.API.Infrastructure.Migrations
                 columns: table => new
                 {
                     Id = table.Column<int>(nullable: false),
-                    CatalogItemId = table.Column<int>(nullable: false),
-                    CatalogItemName = table.Column<string>(maxLength: 50, nullable: false),
+                    ItemName = table.Column<string>(maxLength: 50, nullable: false),
+                    ItemBrand = table.Column<string>(maxLength: 50, nullable: false),
+                    ItemType = table.Column<string>(maxLength: 50, nullable: false),
                     DiscountValue = table.Column<int>(nullable: false)
                 },
                 constraints: table =>

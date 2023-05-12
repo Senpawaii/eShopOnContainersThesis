@@ -22,7 +22,7 @@ public class DiscountController : ControllerBase {
     }
 
     /// <summary>
-    /// Given a list of Catalog Item Ids, return all discounts associated with these items.
+    /// Given a list of Discount Items, return all discounts associated with these items.
     /// </summary>
     /// <param name="ids"></param>
     /// <returns></returns>
@@ -30,8 +30,9 @@ public class DiscountController : ControllerBase {
     [Route("discounts")]
     [ProducesResponseType(typeof(IEnumerable<DiscountItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    public async Task<IActionResult> DiscountsAsync([FromQuery] List<int> ids) {
-        var discounts = await _discountContext.Discount.Where(item => ids.Contains(item.CatalogItemId)).ToListAsync();
+    public async Task<IActionResult> DiscountsAsync([FromQuery] List<string> itemNames, [FromQuery] List<string> itemBrands, [FromQuery] List<string> itemTypes) {
+        // Get the list of discount items from the database that match the triple of item name, brand, and type
+        var discounts = await _discountContext.Discount.Where(i => itemNames.Contains(i.ItemName) && itemBrands.Contains(i.ItemBrand) && itemTypes.Contains(i.ItemType)).ToListAsync();
         return Ok(discounts);
     }
 
@@ -46,24 +47,25 @@ public class DiscountController : ControllerBase {
     [Route("discounts")]
     [ProducesResponseType((int)HttpStatusCode.Created)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    public async Task<ActionResult<int>> CreateDiscountAsync([FromQuery] string catalogItemId, [FromQuery] string discountValue, [FromQuery] string catalogItemName) {
-        if(catalogItemId.IsNullOrEmpty() || !int.TryParse(catalogItemId, out int itemId)) {
-            return BadRequest("Invalid Catalog Item Id (ID should not be empty or null and should be represented with by a number)");
+    public async Task<ActionResult<int>> CreateDiscountAsync([FromQuery] string itemName, [FromQuery] string itemBrand, [FromQuery] string itemType, [FromQuery] string discountValue) {
+        // Parse the query parameters
+        if(itemName.IsNullOrEmpty()) {
+            return BadRequest("Invalid Item Name");
         }
-
+        if(itemBrand.IsNullOrEmpty()) {
+            return BadRequest("Invalid Item Brand");
+        }
+        if(itemType.IsNullOrEmpty()) {
+            return BadRequest("Invalid Item Type");
+        }
         if(discountValue.IsNullOrEmpty() || !int.TryParse(discountValue, out int discount)) {
             return BadRequest("Invalid Discount Value (Discount value should not be empty or null and should be represented with by a number)");
         }
-
-        if (catalogItemName.IsNullOrEmpty()) {
-            return BadRequest("Invalid Catalog Item Name (Catalog Item Name should not be empty or null)");
-        }
-
-        // Possibly add a verification so that no invalid catalogItemIds are registered
-
+        
         var discountItem = new DiscountItem {
-            CatalogItemId = itemId,
-            CatalogItemName = catalogItemName,
+            ItemName = itemName,
+            ItemBrand = itemBrand,
+            ItemType = itemType,
             DiscountValue = discount
         };
 
@@ -73,4 +75,32 @@ public class DiscountController : ControllerBase {
         return discountItem.Id;
     }
 
+    //PUT api/v1/[controller]/discounts
+    [Route("discounts")]
+    [HttpPut]
+    [ProducesResponseType((int)HttpStatusCode.NotFound)]
+    [ProducesResponseType((int)HttpStatusCode.Created)]
+    public async Task<ActionResult> UpdateProductPriceAsync([FromBody] DiscountItem discountToUpdate) {
+        // Extract the item name, brand, and type from the discount item
+        var itemName = discountToUpdate.ItemName;
+        var itemBrand = discountToUpdate.ItemBrand;
+        var itemType = discountToUpdate.ItemType;
+
+        // Get the discount item from the database
+        var discountItem = await _discountContext.Discount.SingleOrDefaultAsync(i => i.ItemName == itemName && i.ItemBrand == itemBrand && i.ItemType == itemType);
+
+        if (discountItem == null) {
+            return NotFound($"Discount Item with Name: {itemName}, Brand: {itemBrand}, and Type: {itemType} was not found.");
+        }
+
+        var oldDiscount = discountItem.DiscountValue;
+
+        // Update current product
+        discountItem = discountToUpdate;
+        _discountContext.Discount.Update(discountItem);
+        await _discountContext.SaveChangesAsync();
+
+        // Return the updated discount item
+        return CreatedAtAction(nameof(DiscountsAsync), new { itemName = discountItem.ItemName, itemBrand = discountItem.ItemBrand, itemType = discountItem.ItemType }, null);
+    }
 }

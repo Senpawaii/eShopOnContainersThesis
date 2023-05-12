@@ -3,10 +3,15 @@
 namespace Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 
 public interface ISingletonWrapper {
-        ConcurrentDictionary<string, Tuple<int, int>> SingletonWrapperServicesUpdateTracker { get; }
+    ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedDiscountItems { get; }
+    ConcurrentDictionary<string, bool> SingletonTransactionState { get; }
 
-        Tuple<int, int> SingletonWrapperServiceTracker(string key);
+    public ConcurrentBag<object[]> SingletonGetDiscountItems(string key);
+    public bool SingletonGetTransactionState(string funcId);
 
-        void SingletonWrapperUpdateService(string key, Tuple<int, int> versions);
+    public void SingletonAddDiscountItem(string funcID, IEnumerable<object[]> values);
+    public bool SingletonSetTransactionState(string funcId, bool state);
+    public void SingletonRemoveFunctionalityObjects(string funcID);
+
 
 }

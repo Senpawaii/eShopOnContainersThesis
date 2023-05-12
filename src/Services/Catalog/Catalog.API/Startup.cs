@@ -36,14 +36,15 @@ public class Startup
             .AddIntegrationServices(Configuration)
             .AddEventBus(Configuration)
             .AddSwagger(Configuration)
-            .AddCustomHealthCheck(Configuration)
-            .AddHttpClient<ICoordinatorService, CoordinatorService>();
+            .AddCustomHealthCheck(Configuration);
+            
 
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services
                 .AddScoped<IScopedMetadata, ScopedMetadata>()
-                .AddSingleton<ISingletonWrapper, SingletonWrapper>();
+                .AddSingleton<ISingletonWrapper, SingletonWrapper>()
+                .AddHttpClient<ICoordinatorService, CoordinatorService>();
         }
 
         var container = new ContainerBuilder();

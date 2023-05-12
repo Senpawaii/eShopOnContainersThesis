@@ -16,10 +16,10 @@ public class CoordinatorService : CoordinatorBase {
         _logger = logger;
     }
 
-    public override async Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context) {
-        _logger.LogInformation($"Begin grpc call CoordinatorService: Hello <>", request.Name);
-        return new HelloReply() {
-            Message = $"Hello {request.Name}",
-        };
-    }
+    //public override async Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context) {
+    //    _logger.LogInformation($"Begin grpc call CoordinatorService: Hello <>", request.Name);
+    //    return new HelloReply() {
+    //        Message = $"Hello {request.Name}",
+    //    };
+    //}
 }

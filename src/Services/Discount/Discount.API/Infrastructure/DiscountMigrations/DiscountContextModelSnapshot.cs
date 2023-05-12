@@ -23,13 +23,19 @@ namespace Discount.API.Infrastructure.Migrations
                         .HasAnnotation("SqlServer:HiLoSequenceName", "discount_hilo")
                         .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.SequenceHiLo);
 
-                    b.Property<int>("CatalogItemId");
-
-                    b.Property<int>("DiscountValue");
-
-                    b.Property<string>("CatalogItemName")
+                    b.Property<string>("ItemName")
                         .IsRequired()
                         .HasMaxLength(50);
+
+                    b.Property<string>("ItemBrand")
+                        .IsRequired()
+                        .HasMaxLength(50);
+
+                    b.Property<string>("ItemType")
+                        .IsRequired()
+                        .HasMaxLength(50);
+
+                    b.Property<int>("DiscountValue");
 
                     b.HasKey("Id");
 

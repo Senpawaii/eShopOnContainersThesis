@@ -72,7 +72,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         switch (commandType) {
             case UNKNOWN_COMMAND:
                 return result;
-                break;
             case SELECT_COMMAND:
                 UpdateSelectCommand(command);
                 break;
@@ -96,14 +95,14 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 switch (targetTable) {
                     case "CatalogBrand":
                         var newBrand = new CatalogBrand() {
-                            Id = (int)columnsToInsert["Id"],
+                            //Id = (int)columnsToInsert["Id"],
                             Brand = (string)columnsToInsert["Brand"]
                         };
                         _catalogContext.CatalogBrands.Add(newBrand);
                         break;
                     case "Catalog":
                         var newItem = new CatalogItem() {
-                            Id = (int)columnsToInsert["Id"],
+                            //Id = (int)columnsToInsert["Id"],
                             CatalogBrandId = (int)columnsToInsert["CatalogBrandId"],
                             CatalogTypeId = (int)columnsToInsert["CatalogTypeId"],
                             Description = (string)columnsToInsert["Description"],
@@ -119,7 +118,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         break;
                     case "CatalogType":
                         var item = new CatalogType() {
-                            Id = (int)columnsToInsert["Id"],
+                            //Id = (int)columnsToInsert["Id"],
                             Type = (string)columnsToInsert["Type"]
                         };
                         _catalogContext.CatalogTypes.Add(item);
@@ -579,26 +578,22 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return updatedCommandText;
     }
 
-    private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
-        string updatedCommandText;
-        int numberColumns = 0;
-        if (targetTable == "CatalogType") {
-            numberColumns = 3;
-            updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogType\]\s+SET\s*\[Type\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
-        }
-        else if (targetTable == "CatalogBrand") {
-            numberColumns = 3;
-            updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogBrand\]\s+SET\s*\[Brand\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
-        }
-        else {
-            numberColumns = 12;
-            // Update the CommandText to include the Timestamp column and parameter for each entry
-            updatedCommandText = Regex.Replace(command.CommandText, @"\[RestockThreshold] = @p\d*", "$0, [Timestamp] = @p{}");
-        }
-        var regex = new Regex(@"WHERE\s*\[Id\]\s*=\s*@p\d+");
-        updatedCommandText = regex.Replace(updatedCommandText, "$0 AND [Timestamp] = @p2");
-        return updatedCommandText;
-    }
+    //private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
+    //    string updatedCommandText;
+    //    if (targetTable == "CatalogType") {
+    //        updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogType\]\s+SET\s*\[Type\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
+    //    }
+    //    else if (targetTable == "CatalogBrand") {
+    //        updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogBrand\]\s+SET\s*\[Brand\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
+    //    }
+    //    else {
+    //        // Update the CommandText to include the Timestamp column and parameter for each entry
+    //        updatedCommandText = Regex.Replace(command.CommandText, @"\[RestockThreshold] = @p\d*", "$0, [Timestamp] = @p{}");
+    //    }
+    //    var regex = new Regex(@"WHERE\s*\[Id\]\s*=\s*@p\d+");
+    //    updatedCommandText = regex.Replace(updatedCommandText, "$0 AND [Timestamp] = @p2");
+    //    return updatedCommandText;
+    //}
 
 
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {

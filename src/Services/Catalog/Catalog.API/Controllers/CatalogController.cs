@@ -181,7 +181,7 @@ public class CatalogController : ControllerBase {
         return await _catalogContext.CatalogBrands.ToListAsync();
     }
 
-    //POST api/v1/[controller]/items
+    //PUT api/v1/[controller]/items
     [Route("items")]
     [HttpPut]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]

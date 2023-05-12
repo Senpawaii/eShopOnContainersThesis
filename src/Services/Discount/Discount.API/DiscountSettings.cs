@@ -11,4 +11,6 @@ public class DiscountSettings {
     public bool ThesisWrapperEnabled { get; set; }
 
     public string CatalogUrl { get; set; }
+
+    public string CoordinatorUrl { get; set; }
 }

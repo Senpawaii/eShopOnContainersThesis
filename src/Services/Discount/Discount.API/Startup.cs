@@ -10,6 +10,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.Filters;
 using Microsoft.eShopOnContainers.Services.Discount.API.Middleware;
+using Microsoft.eShopOnContainers.Services.Discount.API.Services;
 using System.Data.Common;
 using System.Reflection;
 
@@ -38,7 +39,9 @@ public class Startup {
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services
                 .AddScoped<IScopedMetadata, ScopedMetadata>()
-                .AddSingleton<ISingletonWrapper, SingletonWrapper>();
+                .AddSingleton<ISingletonWrapper, SingletonWrapper>()
+                .AddHttpClient<ICoordinatorService, CoordinatorService>();
+
         }
 
         var container = new ContainerBuilder();
