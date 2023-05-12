@@ -18,6 +18,7 @@ using System.Reflection.PortableExecutable;
 using System.Threading;
 using System.Data.Sql;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
+using Autofac.Core;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -27,13 +28,25 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
 
-    public CatalogDBInterceptor(IScopedMetadata svc, ISingletonWrapper wrapper) {
-        _scopedMetadata = svc;
-        _wrapper = wrapper;
+    public CatalogDBInterceptor(CatalogContext catalogContext, IOptions<CatalogSettings> settings) {
+        var builder = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddEnvironmentVariables();
+        var config = builder.Build();
+        var connectionString = config["ConnectionString"];
+        var contextOptions = new DbContextOptionsBuilder<CatalogContext>()
+            .UseSqlServer(connectionString)
+            .Options;
+
+        _scopedMetadata = catalogContext._scopedMetadata;
+        _wrapper = catalogContext._wrapper;
+        _catalogContext = new CatalogContext(contextOptions, _scopedMetadata, _wrapper, settings);
     }
 
     public IScopedMetadata _scopedMetadata;
     public ISingletonWrapper _wrapper;
+    public CatalogContext _catalogContext;
     private string _originalCommandText;
 
     public override InterceptionResult<DbDataReader> ReaderExecuting(
@@ -56,19 +69,70 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             return result;
         }
 
-        if (commandType == SELECT_COMMAND) {
-            UpdateSelectCommand(command);
+        switch (commandType) {
+            case UNKNOWN_COMMAND:
+                return result;
+                break;
+            case SELECT_COMMAND:
+                UpdateSelectCommand(command);
+                break;
+            case INSERT_COMMAND:
+                bool funcStateIns = _wrapper.SingletonGetTransactionState(funcID);
+                if (!funcStateIns) {
+                    // If the Transaction is not in commit state, store data in wrapper
+                    var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                    result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
+                }
+                else {
+                    // Transaction is in commit state, update the command to store in the database
+                    UpdateInsertCommand(command, targetTable);
+                }
+                break;
+            case UPDATE_COMMAND:
+                // Convert the Update Command into an INSERT command
+                Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
 
+                // Add the new object to the catalog context
+                switch (targetTable) {
+                    case "CatalogBrand":
+                        var newBrand = new CatalogBrand() {
+                            Id = (int)columnsToInsert["Id"],
+                            Brand = (string)columnsToInsert["Brand"]
+                        };
+                        _catalogContext.CatalogBrands.Add(newBrand);
+                        break;
+                    case "Catalog":
+                        var newItem = new CatalogItem() {
+                            Id = (int)columnsToInsert["Id"],
+                            CatalogBrandId = (int)columnsToInsert["CatalogBrandId"],
+                            CatalogTypeId = (int)columnsToInsert["CatalogTypeId"],
+                            Description = (string)columnsToInsert["Description"],
+                            Name = (string)columnsToInsert["Name"],
+                            PictureFileName = (string)columnsToInsert["PictureFileName"],
+                            Price = (decimal)columnsToInsert["Price"],
+                            AvailableStock = (int)columnsToInsert["AvailableStock"],
+                            MaxStockThreshold = (int)columnsToInsert["MaxStockThreshold"],
+                            OnReorder = (bool)columnsToInsert["OnReorder"],
+                            RestockThreshold = (int)columnsToInsert["RestockThreshold"]
+                        };
+                        _catalogContext.CatalogItems.Add(newItem);
+                        break;
+                    case "CatalogType":
+                        var item = new CatalogType() {
+                            Id = (int)columnsToInsert["Id"],
+                            Type = (string)columnsToInsert["Type"]
+                        };
+                        _catalogContext.CatalogTypes.Add(item);
+                        break;
+                }
+                _catalogContext.SaveChanges();
+                var mockRows = new List<object[]>();
+                var testMock = new List<object[]>();
+                testMock.Add(new object[] { 1 });
+                result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
+                break;
         }
-        else if (commandType == INSERT_COMMAND) {
-            bool funcState = _wrapper.SingletonGetTransactionState(funcID);
 
-            // If the Transaction is not in commit state, store data in wrapper
-            if (!funcState) {
-                // TODO, the updateInsertCommand command should not be executed in this case, perhaps store the original command?
-            }
-            UpdateInsertCommand(command, targetTable);
-        }
         return result;
     }
 
@@ -109,17 +173,50 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 }
                 break;
             case UPDATE_COMMAND:
-                // Update operations will be considered as insertion operations
-                bool funcStateUpd = _wrapper.SingletonGetTransactionState(funcID);
-                if (!funcStateUpd) {
-                    // If the Transaction is not in commit state, store the updated data in wrapper
-                    var mockReader = StoreDataInWrapper(command, UPDATE_COMMAND, targetTable);
-                    result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
+                // Convert the Update Command into an INSERT command
+                Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
+                var mockRows = new List<object[]>();
+                // Add the new object to the catalog context
+                switch (targetTable) {
+                    case "CatalogBrand":
+                        var newBrand = new CatalogBrand() {
+                            //Id = (int)columnsToInsert["Id"],
+                            Brand = (string)columnsToInsert["Brand"]
+                        };
+                        _catalogContext.CatalogBrands.Add(newBrand);
+                        mockRows.Add(new object[] { newBrand.Id, newBrand.Brand });
+                        break;
+                    case "Catalog":
+                        var newItem = new CatalogItem() {
+                            //Id = (int)columnsToInsert["Id"],
+                            CatalogBrandId = (int)columnsToInsert["CatalogBrandId"],
+                            CatalogTypeId = (int)columnsToInsert["CatalogTypeId"],
+                            Description = (string)columnsToInsert["Description"],
+                            Name = (string)columnsToInsert["Name"],
+                            PictureFileName = (string)columnsToInsert["PictureFileName"],
+                            Price = (decimal)columnsToInsert["Price"],
+                            AvailableStock = (int)columnsToInsert["AvailableStock"],
+                            MaxStockThreshold = (int)columnsToInsert["MaxStockThreshold"],
+                            OnReorder = (bool)columnsToInsert["OnReorder"],
+                            RestockThreshold = (int)columnsToInsert["RestockThreshold"]
+                        };
+                        _catalogContext.CatalogItems.Add(newItem);
+                        mockRows.Add(new object[] { newItem.Id, newItem.CatalogBrandId, newItem.CatalogTypeId, newItem.Description, newItem.Name, newItem.PictureFileName, newItem.Price, newItem.AvailableStock, newItem.MaxStockThreshold, newItem.OnReorder, newItem.RestockThreshold });
+                        break;
+                    case "CatalogType":
+                        var item = new CatalogType() {
+                            //Id = (int)columnsToInsert["Id"],
+                            Type = (string)columnsToInsert["Type"]
+                        };
+                        _catalogContext.CatalogTypes.Add(item);
+                        mockRows.Add(new object[] { item.Id, item.Type });
+                        break;
                 }
-                else {
-                    // Transaction is in commit state, update the command to store in the database
-                    UpdateUpdateCommand(command, targetTable);
-                }
+
+                _catalogContext.SaveChanges();
+                var testMock = new List<object[]>();
+                testMock.Add(new object[] { 1 });
+                result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
                 break;
         }
 
@@ -305,26 +402,34 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         command.CommandText = commandWithTimestamp;
     }
 
-    private void UpdateUpdateCommand(DbCommand command, string targetTable) {
-        // Get the timestamp received from the Coordinator
-        string timestamp = _scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+    private Dictionary<string, object> UpdateToInsert(DbCommand command, string targetTable) {
+        var regex = new Regex(@"\[(\w+)\] = (@\w+)");
+        var matches = regex.Matches(command.CommandText);
 
-        // Replace Command Text to account for new parameter
-        string commandWithTimestamp;
-        commandWithTimestamp = UpdateUpdateCommandText(command, targetTable);
+        var columns = new Dictionary<string, object>();
 
-        // Generate new list of parameters
-        List<DbParameter> newParameters = new List<DbParameter>();
-        if(targetTable == "Catalog") {
-            UpdateItemOp(command, newParameters, timestamp);
-        } 
-        else {
-            UpdateBrandOrTypeOp(command, newParameters, timestamp);
+        for (int i = 0; i < matches.Count; i++) {
+            string parameterName = matches[i].Groups[2].Value;
+            var paramterValue = command.Parameters[parameterName].Value;
+            columns[matches[i].Groups[1].Value] = paramterValue;
         }
-        // Assign new Parameters and Command text to database command
-        command.Parameters.Clear();
-        command.Parameters.AddRange(newParameters.ToArray());
-        command.CommandText = commandWithTimestamp;
+
+        //string valuesP = "";
+        //var parameters = new List<DbParameter>();
+        //for (int i = 0; i < columns.Count; i++) {
+        //    valuesP += $"@p{i}";
+        //    parameters.Add(command.Parameters[i]);
+        //    if (i != columns.Count - 1) {
+        //        valuesP += ", ";
+        //    } else {
+        //        valuesP += ")";
+        //    }
+        //}
+        //command.CommandText = "SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [" + targetTable + "] (" + string.Join(", ", columns) + ") VALUES (" + valuesP;
+        //command.Parameters.Clear();
+        //command.Parameters.AddRange(parameters.ToArray());
+
+        return columns;
     }
 
     private static void UpdateItemOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
@@ -567,6 +672,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     wrapperData = _wrapper.SingletonGetCatalogITems(funcId).ToList();
                     break;
             }
+
+            // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
+            newData = GroupVersionedObjects(newData, targetTable);
+            wrapperData = GroupVersionedObjects(wrapperData, targetTable);
+
             if (wrapperData != null) {
                 if (HasFilterCondition(command.CommandText)) {
                     // The select query contains a WHERE clause
@@ -577,6 +687,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         foreach (var wrapperRow in wrapperData) {
                             newData.Add(wrapperRow);
                         }
+                    } else {
+                        // The select query contains a COUNT clause, so we need to update the count
+                        newData[0][0] = Convert.ToInt32(newData[0][0]) + wrapperData.Count;
                     }
                 }
 
@@ -935,7 +1048,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private string GetTargetTable(string commandText) {
         // Extract the name of the table target by the SQL query
-        var match = Regex.Match(commandText, @"(?i)(?:INSERT INTO|FROM)\s*\[(?<Target>[_a-zA-Z]*)\]",
+        var match = Regex.Match(commandText, @"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]",
             RegexOptions.IgnoreCase | RegexOptions.Multiline);
         return match.Success ? match.Groups["Target"].Value : null;
     }

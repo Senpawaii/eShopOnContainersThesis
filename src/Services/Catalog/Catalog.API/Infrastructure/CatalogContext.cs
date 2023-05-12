@@ -10,6 +10,7 @@ public class CatalogContext : DbContext
         _wrapperThesis = settings.Value.ThesisWrapperEnabled;
         _scopedMetadata = scopedMetadata;
         _wrapper = wrapper;
+        _settings = settings;
     }
 
     public CatalogContext(DbContextOptions<CatalogContext> options, IOptions<CatalogSettings> settings) : base(options) {
@@ -18,6 +19,7 @@ public class CatalogContext : DbContext
     public readonly IScopedMetadata _scopedMetadata;
     public readonly ISingletonWrapper _wrapper;
     public readonly bool _wrapperThesis;
+    public readonly IOptions<CatalogSettings> _settings;
     public DbSet<CatalogItem> CatalogItems { get; set; }
     public DbSet<CatalogBrand> CatalogBrands { get; set; }
     public DbSet<CatalogType> CatalogTypes { get; set; }
@@ -31,7 +33,7 @@ public class CatalogContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) {
         if(_wrapperThesis) {
-            optionsBuilder.AddInterceptors(new CatalogDBInterceptor(_scopedMetadata, _wrapper));
+            optionsBuilder.AddInterceptors(new CatalogDBInterceptor(this, _settings));
         }
     }
 }
