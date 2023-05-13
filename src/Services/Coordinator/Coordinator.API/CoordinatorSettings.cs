@@ -2,5 +2,6 @@
 
 public class CoordinatorSettings {
     public string CatalogUrl { get; set; }
+    public string DiscountUrl { get; set; }
 }
 

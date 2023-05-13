@@ -19,12 +19,14 @@ public class CoordinatorController : ControllerBase {
     private readonly ILogger<CoordinatorController> _logger;
     private readonly IFunctionalityService _functionalityService;
     private readonly ICatalogService _catalogService;
+    private readonly IDiscountService _discountService;
 
-    public CoordinatorController(IOptions<CoordinatorSettings> settings, ILogger<CoordinatorController> logger, IFunctionalityService functionalityService, ICatalogService catalogSvc) {
+    public CoordinatorController(IOptions<CoordinatorSettings> settings, ILogger<CoordinatorController> logger, IFunctionalityService functionalityService, ICatalogService catalogSvc, IDiscountService discountSvc) {
         _settings = settings.Value;
         _logger = logger;
         _functionalityService = functionalityService;
         _catalogService = catalogSvc;
+        _discountService = discountSvc;
     }
 
     [HttpGet]
@@ -70,6 +72,7 @@ public class CoordinatorController : ControllerBase {
                     await _catalogService.IssueCommit(maxTS.ToString(), funcID);
                     break;
                 case "DiscountService":
+                    await _discountService.IssueCommit(maxTS.ToString(), funcID);
                     break;
             }
         }

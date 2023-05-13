@@ -83,7 +83,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
 
-                // Add the new object to the catalog context
+                // Add the new object to the Discount context
                 switch (targetTable) {
                     case "Discount":
                         var newDiscount = new DiscountItem() {
@@ -146,7 +146,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
                 var mockRows = new List<object[]>();
-                // Add the new object to the catalog context
+                // Add the new object to the Discount context
                 switch (targetTable) {
                     case "Discount":
                         var newDiscount = new DiscountItem() {
@@ -269,7 +269,6 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     /// <summary>
     /// Updates the Read queries for Item Count, Brands and Types command, adding a filter for the functionality Timestamp (DateTime). 
     /// Applicable to queries that contain either:
-    /// "SELECT COUNT_BIG(*) ..."; "SELECT ... FROM [CatalogBrand] ..."; "SELECT ... FROM [CatalogType] ..."
     /// </summary>
     /// <param name="command"></param>
     private void UpdateSelectCommand(DbCommand command) {
@@ -349,7 +348,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     }
 
     private static void UpdateDiscountOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
-        int numObjectsToInsert = command.Parameters.Count / 11;
+        int numObjectsToInsert = command.Parameters.Count / 5;
 
         for (int i = 0; i < numObjectsToInsert; i++) {
             // Get the ID param
@@ -398,7 +397,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // Update the CommandText to include the Timestamp column and parameter for each entry
         if (targetTable == "Discount") {
             numberColumns = 6;
-            updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Discount\]\s+\(\s*\[Id\],\s*\[ItemName\],\s*\[ItemBrand\],\s*\[ItemType\],\s*\[DiscountValue\]\s*", "$0, [Timestamp]");
+            updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Discount\]\s+\(\s*\[Id\],\s*\[DiscountValue\],\s*\[ItemBrand\],\s*\[ItemName\],\s*\[ItemType\]\s*", "$0, [Timestamp]");
         }
         
         var regex = new Regex(@"\(@p\d+[,\s@p\d]*@p(?<LastIndexOfRow>\d+)\)");
@@ -719,7 +718,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         var groupByColumns = GetUniqueIndentifierColumns(targetTable);
 
         switch (targetTable) {
-            case "Catalog":
+            case "Discount":
                 var newDataGrouped = newData
                     .GroupBy(row => new { ItemName = row[1], ItemBrand = row[2], ItemType = row[3] });
 
@@ -736,7 +735,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     private List<object[]> PartialRowSelection(string commandText, List<object[]> newData, List<string> selectedColumns) {
         string targetTable = GetTargetTable(commandText);
 
-        // Get the default indexes for the columns of the Catalog Database
+        // Get the default indexes for the columns of the Discount Database
         Dictionary<string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
 
         newData = newData.Select(row => {
@@ -783,7 +782,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             parametersFilter[columnName] = parameter.Value;
         }
 
-        // Get the default indexes for the columns of the Catalog Database
+        // Get the default indexes for the columns of the Discount Database
         var columnIndexes = GetDefaultColumIndexes(commandText);
 
         foreach (KeyValuePair<string, object> parameter in parametersFilter) {

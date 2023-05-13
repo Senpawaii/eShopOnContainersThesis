@@ -103,4 +103,12 @@ public class DiscountController : ControllerBase {
         // Return the updated discount item
         return CreatedAtAction(nameof(DiscountsAsync), new { itemName = discountItem.ItemName, itemBrand = discountItem.ItemBrand, itemType = discountItem.ItemType }, null);
     }
+
+    [HttpGet]
+    [Route("commit")]
+    [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
+    public Task Commit() {
+        // Flush any data in the wrapper to the Database
+        return Task.CompletedTask;
+    }
 }

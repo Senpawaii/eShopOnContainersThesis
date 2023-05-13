@@ -14,14 +14,16 @@ public class Startup {
     public IServiceProvider ConfigureServices(IServiceCollection services) {
         services
             .AddAppInsight(Configuration)
-            .AddGrpc().Services
             .AddCustomMVC(Configuration)
             .AddHttpContextAccessor()
             .AddCustomOptions(Configuration)
             .AddSwagger(Configuration)
             .AddCustomHealthCheck(Configuration)
-            .AddSingleton<IFunctionalityService, FunctionalityService>()
-            .AddHttpClient<ICatalogService, CatalogService>();
+            .AddSingleton<IFunctionalityService, FunctionalityService>();
+
+        // Add CatalogClient and DiscountClient dependencies
+        services.AddHttpClient<ICatalogService, CatalogService>();
+        services.AddHttpClient<IDiscountService, DiscountService>();
 
         var container = new ContainerBuilder();
         container.Populate(services);
@@ -54,20 +56,6 @@ public class Startup {
             endpoints.MapDefaultControllerRoute();
 
             endpoints.MapControllers();
-
-            endpoints.MapGet("/_proto/", async ctx => {
-                ctx.Response.ContentType = "text/plain";
-                using var fs = new FileStream(Path.Combine(env.ContentRootPath, "Proto", "coordinator.proto"), FileMode.Open, FileAccess.Read);
-                using var sr = new StreamReader(fs);
-                while (!sr.EndOfStream) {
-                    var line = await sr.ReadLineAsync();
-                    if (line != "/* >>" || line != "<< */") {
-                        await ctx.Response.WriteAsync(line);
-                    }
-                }
-            });
-
-            endpoints.MapGrpcService<CoordinatorService>();
 
             endpoints.MapHealthChecks("/hc", new HealthCheckOptions() {
                 Predicate = _ => true,
