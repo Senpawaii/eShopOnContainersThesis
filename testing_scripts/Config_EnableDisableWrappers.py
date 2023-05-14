@@ -30,20 +30,21 @@ logging.basicConfig(
     ]
 )
 
-file_path = os.path.join(current_directory, 'src\\Services\\Catalog\\Catalog.API\\appsettings.json')
+file_path = [os.path.join(current_directory, 'src\\Services\\Catalog\\Catalog.API\\appsettings.json'), os.path.join(current_directory, 'src\\Services\\Discount\\Discount.API\\appsettings.json')]
+services = ['Catalog', 'Discount']
+# Read appsettings for each service and change ThesisWrapperEnabled to True/False'
+for index, file_path in enumerate(file_path):
+    with open(file_path, 'r', encoding='utf-8-sig') as f:
+        data = json.load(f)
 
-with open(file_path, 'r', encoding='utf-8-sig') as f:
-    data = json.load(f)
+        # Change Catalog.API appsettings.json file
+        if args.thesisWrapper == True:
+            data["ThesisWrapperEnabled"] = True
+            logging.info(f'ThesisWrapperEnabled in <{services[index]}> Service set to True')
+        else:
+            data["ThesisWrapperEnabled"] = False
+            logging.info(f'ThesisWrapperEnabled in <{services[index]}> Service set to False')
 
-    # Change Catalog.API appsettings.json file
-    if args.thesisWrapper == True:
-        data["ThesisWrapperEnabled"] = True
-        logging.info('ThesisWrapperEnabled set to True')
-    else:
-        data["ThesisWrapperEnabled"] = False
-        logging.info('ThesisWrapperEnabled set to False')
-
-# Write changes to Catalog.API appsettings.json file
-with open(file_path, 'w') as f:
-    json.dump(data, f, indent=4)
-
+    # Write changes to Catalog.API appsettings.json file
+    with open(file_path, 'w') as f:
+        json.dump(data, f, indent=4)
