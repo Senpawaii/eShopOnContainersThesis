@@ -199,9 +199,6 @@ def updateDiscount(discountItem: dict, discount: int, funcID: str):
 def assign_operations(catalogItem: dict, discountItem: dict):
     start_time = time.time()
     while time.time() - start_time < 10:
-        # Wait for a thread to be available
-        # executor._idle_semaphore.acquire()
-        
         # Assign read/write operations to thread based on read_write_ratio
         if random.choice(read_write_list) == 0:
             # Read operation
@@ -209,14 +206,11 @@ def assign_operations(catalogItem: dict, discountItem: dict):
         else:
             # Write operation
             future = executor.submit(writeOperations, catalogItem, discountItem)
-        # executor._idle_semaphore.release()
 
 
-numThreads = 10 # Number of threads to be used in the test
+numThreads = 20 # Number of threads to be used in the test
 # Create a thread pool with numThreads threads
 executor = ThreadPoolExecutor(max_workers=numThreads)  
-# Initialize semaphore with numThreads tokens
-# executor._idle_semaphore = threading.BoundedSemaphore(numThreads) 
 
 # Create a single dictionary with an entry for each thread. Each thread is assigned a list of time taken and success count
 timeTakenList = {}
@@ -224,7 +218,7 @@ successCount = {}
 read_write_ratio = 1 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
 
 # Create a list for chances of read/write operations
-read_write_list = [0 for _ in range(read_write_ratio)] + [1 for _ in range(10 - read_write_ratio)]
+read_write_list = [1 for _ in range(read_write_ratio)] + [0 for _ in range(10 - read_write_ratio)]
 
 # Create predefined list of prices and discounts to be used in tests equal to the number of threads
 prices = [10 * (i+1) for i in range(numThreads)]
