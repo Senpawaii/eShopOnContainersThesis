@@ -16,6 +16,8 @@ from time import perf_counter_ns
 
 catalogServicePort = "5101"
 discountServicePort = "5140"
+basketServicePort = "5103"
+webaggregatorServicePort = "5121"
 current_directory = os.getcwd()
 
 def ConfigureLoggingSettings():
@@ -47,11 +49,6 @@ def QueryCatalogItemById(id: int) -> dict:
     # Log response
     logging.info('Response from Catalog Service: ' + str(response.status_code) + ' ' + str(response.reason))
     return response.json()
-
-
-def readBasket():
-    TODO: 1
-    return
 
 
 def QueryDiscountItemById(catalogItem: dict) -> dict:
@@ -87,6 +84,73 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
     discountItem = response.json()[0]
 
     return discountItem
+
+
+def AddCatalogItemToBasket(catalogItem: dict, discountItem: dict):
+    # Get the CatalogItemId from the catalogItem
+    catalogItemId = catalogItem[0]["id"]
+    catalogItemName = catalogItem[0]["name"]
+
+    # Get the ItemBrand and ItemType from the discountItem
+    itemBrand = discountItem["itemBrand"]
+    itemType = discountItem["itemType"]
+
+    # Create the json body for the request
+    body = { "catalogItemId": catalogItemId, "basketId": "e5d06a2d-fc81-4051-8f30-0a85836eac70", "quantity": 1, "CatalogItemName": catalogItemName, "CatalogItemBrandName": itemBrand, "CatalogItemTypeName": itemType }
+
+    address = 'http://host.docker.internal:' + webaggregatorServicePort + '/api/v1/Basket/items'
+
+    response = requests.post(address, json=body)
+
+    # Ensure that the response is 200
+    if response.status_code != 200:
+        logging.error("Error adding item to basket. Response from Basket.API: " + str(response.status_code) + " " + str(response.reason))
+        return
+    return
+
+
+def readBasket():
+    basketID = "e5d06a2d-fc81-4051-8f30-0a85836eac70"
+
+    # Get the thread identity
+    identity = threading.get_ident()
+
+    address = 'http://host.docker.internal:' + basketServicePort + '/api/v1/Basket/' + basketID
+
+    # Measure time taken to send request with nano seconds precision
+    start = perf_counter_ns()
+
+    # Send request
+    response = requests.get(address)
+
+    # Stop timer
+    end = perf_counter_ns()
+    # Calculate time taken
+    timeTaken = end - start
+
+    # Add time taken to list
+    if identity not in timeTakenList:
+        timeTakenList[identity] = [timeTaken]
+    else:
+        timeTakenList[identity].append(timeTaken)
+
+    # Register success if response is 200
+    if response.status_code == 200:
+        if identity not in successCount:
+            successCount[identity] = 1
+        else:
+            successCount[identity] += 1
+    
+    # Extract the basket items from the response
+    basketItems = response.json()["items"]
+
+    # Extract the basket item price and discount from the basket items
+    basketItemPrice = basketItems[0]["unitPrice"]
+    basketItemDiscount = basketItems[0]["discount"]
+
+    #Log response
+    logging.info('Thread <' + str(identity) + '> Read Basket Service: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Time taken: ' + str(timeTaken) + 'ns')
+    return
 
 
 def writeOperations(catalogItem: dict, discountItem: dict):
@@ -198,7 +262,7 @@ def updateDiscount(discountItem: dict, discount: int, funcID: str):
 
 def assign_operations(catalogItem: dict, discountItem: dict):
     start_time = time.time()
-    while time.time() - start_time < 10:
+    while time.time() - start_time < 20:
         # Assign read/write operations to thread based on read_write_ratio
         if random.choice(read_write_list) == 0:
             # Read operation
@@ -208,14 +272,14 @@ def assign_operations(catalogItem: dict, discountItem: dict):
             future = executor.submit(writeOperations, catalogItem, discountItem)
 
 
-numThreads = 20 # Number of threads to be used in the test
+numThreads = 5 # Number of threads to be used in the test
 # Create a thread pool with numThreads threads
 executor = ThreadPoolExecutor(max_workers=numThreads)  
 
 # Create a single dictionary with an entry for each thread. Each thread is assigned a list of time taken and success count
 timeTakenList = {}
 successCount = {}
-read_write_ratio = 1 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
+read_write_ratio = 5 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
 
 # Create a list for chances of read/write operations
 read_write_list = [1 for _ in range(read_write_ratio)] + [0 for _ in range(10 - read_write_ratio)]
@@ -236,6 +300,9 @@ def main():
     catalogItem = QueryCatalogItemById(1)
     discountItem = QueryDiscountItemById(catalogItem)
     
+    # Add the catalog Item to the Basket to be used in tests
+    AddCatalogItemToBasket(catalogItem, discountItem)
+
     # Create new Thread for assigning operations
     assign_operations_thread = threading.Thread(target=assign_operations, args=(catalogItem, discountItem))
     # Start thread
