@@ -19,9 +19,6 @@ try {
         var logger = services.GetService<ILogger<DiscountContextSeed>>();
 
         var thesisWrappers = settings.Value.ThesisWrapperEnabled;
-        if (thesisWrappers) {
-            // Execute any thesis specific action related to the database tables here
-        }
 
         new DiscountContextSeed().SeedAsync(context, env, settings, logger).Wait();
     })

@@ -64,8 +64,11 @@ public class BasketService : Basket.BasketBase
             Pictureurl = item.PictureUrl,
             Productid = item.ProductId,
             Productname = item.ProductName,
+            Productbrand = item.ProductBrand,
+            Producttype = item.ProductType,
             Quantity = item.Quantity,
-            Unitprice = (double)item.UnitPrice
+            Unitprice = (double)item.UnitPrice,
+            Discount = (double)item.Discount
         }));
 
         return response;
@@ -85,8 +88,11 @@ public class BasketService : Basket.BasketBase
             PictureUrl = item.Pictureurl,
             ProductId = item.Productid,
             ProductName = item.Productname,
+            ProductBrand = item.Productbrand,
+            ProductType = item.Producttype,
             Quantity = item.Quantity,
-            UnitPrice = (decimal)item.Unitprice
+            UnitPrice = (decimal)item.Unitprice,
+            Discount = (decimal)item.Discount
         }));
 
         return response;

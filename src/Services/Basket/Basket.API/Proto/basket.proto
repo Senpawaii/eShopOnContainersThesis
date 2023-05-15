@@ -27,8 +27,11 @@ message BasketItemResponse {
 	string id = 1;
 	int32 productid = 2;
 	string productname = 3;
-	double unitprice = 4;
-	double oldunitprice = 5;
-	int32 quantity = 6;
-	string pictureurl = 7;
+	string productbrand = 4;
+	string producttype = 5;
+	double unitprice = 6;
+	double oldunitprice = 7;
+	int32 quantity = 8;
+	string pictureurl = 9;
+	double discount = 10;
 }

@@ -391,6 +391,43 @@ public class CatalogController : ControllerBase {
         return itemId;
     }
 
+    // GET api/v1/[controller]/items/name/brand/type
+    [HttpGet]
+    [Route("items/name/{name}/brand/{catalogBrand}/type/{catalogType}/price")]
+    [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.NotFound)]
+    public async Task<ActionResult<decimal>> ItemPriceGivenNameBrandType(string name, string catalogBrand, string catalogType) {
+        _logger.LogInformation("Executing ItemPriceGivenNameBrandType request...");
+        var items = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
+        var brands = (IQueryable<CatalogBrand>)_catalogContext.CatalogBrands;
+        var types = (IQueryable<CatalogType>)_catalogContext.CatalogTypes;
+
+        brands = brands.Where(bn => bn.Brand == catalogBrand);
+        if (await brands.CountAsync() == 0) {
+            return NotFound();
+        }
+        var brandId = brands.Select(a => a.Id).First();
+
+        types = types.Where(tn => tn.Type == catalogType);
+        if (await types.CountAsync() == 0) {
+            return NotFound();
+        }
+        var typeId = types.Select(a => a.Id).First();
+
+        items = items.Where(ci => ci.Name == name && ci.CatalogBrandId == brandId && ci.CatalogTypeId == typeId);
+
+        var totalItems = await items
+            .CountAsync();
+
+        if (totalItems == 0) { return NotFound(); }
+        var itemPrice = items.Select(a => a.Price).First();
+
+        _logger.LogInformation("Finished ItemPriceGivenNameBrandType request!");
+
+        return itemPrice;
+    }
+
+
     private List<CatalogItem> ChangeUriPlaceholder(List<CatalogItem> items) {
         var baseUri = _settings.PicBaseUrl;
         var azureStorageEnabled = _settings.AzureStorageEnabled;

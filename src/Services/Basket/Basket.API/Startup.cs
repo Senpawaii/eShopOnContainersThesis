@@ -1,3 +1,5 @@
+using Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.HttpHandlers;
+
 namespace Microsoft.eShopOnContainers.Services.Basket.API;
 public class Startup
 {
@@ -53,10 +55,12 @@ public class Startup
                 }
             });
 
-            options.OperationFilter<AuthorizeCheckOperationFilter>();
+            // Disabled for testing purposes
+            //options.OperationFilter<AuthorizeCheckOperationFilter>();
         });
 
-        ConfigureAuthService(services);
+        // Disabled for testing purposes
+        //ConfigureAuthService(services);
 
         services.AddCustomHealthCheck(Configuration);
 
@@ -134,6 +138,14 @@ public class Startup
         services.AddTransient<IBasketRepository, RedisBasketRepository>();
         services.AddTransient<IIdentityService, IdentityService>();
 
+
+        // Register the HTTP Message Handler
+        services.AddScoped<CustomDelegatingHandler>();
+        // Register the HTTP client for Catalog.API and Discount.API
+        services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+        services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+
+
         services.AddOptions();
 
         var container = new ContainerBuilder();
@@ -164,7 +176,9 @@ public class Startup
 
         app.UseRouting();
         app.UseCors("CorsPolicy");
-        ConfigureAuth(app);
+
+        // Disabled for testing purposes
+        //ConfigureAuth(app);
 
         app.UseStaticFiles();
 
@@ -210,25 +224,25 @@ public class Startup
     private void ConfigureAuthService(IServiceCollection services)
     {
         // prevent from mapping "sub" claim to nameidentifier.
-        JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Remove("sub");
+        //JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Remove("sub");
 
-        var identityUrl = Configuration.GetValue<string>("IdentityUrl");
+        //var identityUrl = Configuration.GetValue<string>("IdentityUrl");
 
-        services.AddAuthentication("Bearer").AddJwtBearer(options =>
-        {
-            options.Authority = identityUrl;
-            options.RequireHttpsMetadata = false;
-            options.Audience = "basket";
-            options.TokenValidationParameters.ValidateAudience = false;
-        });
-        services.AddAuthorization(options =>
-        {
-            options.AddPolicy("ApiScope", policy =>
-            {
-                policy.RequireAuthenticatedUser();
-                policy.RequireClaim("scope", "basket");
-            });
-        });
+        //services.AddAuthentication("Bearer").AddJwtBearer(options =>
+        //{
+        //    options.Authority = identityUrl;
+        //    options.RequireHttpsMetadata = false;
+        //    options.Audience = "basket";
+        //    options.TokenValidationParameters.ValidateAudience = false;
+        //});
+        //services.AddAuthorization(options =>
+        //{
+        //    options.AddPolicy("ApiScope", policy =>
+        //    {
+        //        policy.RequireAuthenticatedUser();
+        //        policy.RequireClaim("scope", "basket");
+        //    });
+        //});
     }
 
     protected virtual void ConfigureAuth(IApplicationBuilder app)

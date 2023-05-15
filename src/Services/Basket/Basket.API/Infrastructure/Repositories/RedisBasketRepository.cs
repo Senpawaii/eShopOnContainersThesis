@@ -5,12 +5,16 @@ public class RedisBasketRepository : IBasketRepository
     private readonly ILogger<RedisBasketRepository> _logger;
     private readonly ConnectionMultiplexer _redis;
     private readonly IDatabase _database;
+    private readonly ICatalogService _catalogService;
+    private readonly IDiscountService _discountService;
 
-    public RedisBasketRepository(ILoggerFactory loggerFactory, ConnectionMultiplexer redis)
+    public RedisBasketRepository(ILoggerFactory loggerFactory, ConnectionMultiplexer redis, ICatalogService catalogSvc, IDiscountService discountSvc)
     {
         _logger = loggerFactory.CreateLogger<RedisBasketRepository>();
         _redis = redis;
         _database = redis.GetDatabase();
+        _catalogService = catalogSvc;
+        _discountService = discountSvc;
     }
 
     public async Task<bool> DeleteBasketAsync(string id)
@@ -35,10 +39,20 @@ public class RedisBasketRepository : IBasketRepository
             return null;
         }
 
-        return JsonSerializer.Deserialize<CustomerBasket>(data, new JsonSerializerOptions
+        CustomerBasket basket = JsonSerializer.Deserialize<CustomerBasket>(data, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         });
+
+        // Update each basket item price and discount from the catalog and discount services
+        foreach (var item in basket.Items) {
+            var catalogItemPrice = await _catalogService.GetCatalogItemPriceAsync(item.ProductName, item.ProductBrand, item.ProductType);
+            var discountValue = await _discountService.GetDiscountValueAsync(item.ProductName, item.ProductBrand, item.ProductType);
+            item.UnitPrice = catalogItemPrice;
+            item.Discount = discountValue;
+        }
+
+        return basket;
     }
 
     public async Task<CustomerBasket> UpdateBasketAsync(CustomerBasket basket)

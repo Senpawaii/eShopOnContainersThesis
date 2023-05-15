@@ -14,7 +14,7 @@ public class DiscountService : IDiscountService {
         _logger = logger;
         _settings = settings;
 
-        _remoteServiceBaseUrl = settings.Value.CatalogUrl;
+        _remoteServiceBaseUrl = settings.Value.DiscountUrl;
     }
 
     public async Task IssueCommit(string maxTS, string funcID) {

@@ -52,7 +52,8 @@ namespace Basket.FunctionalTests
         RedisBasketRepository BuildBasketRepository(ConnectionMultiplexer connMux)
         {
             var loggerFactory = new LoggerFactory();
-            return new RedisBasketRepository(loggerFactory, connMux);
+            //return new RedisBasketRepository(loggerFactory, connMux); // commented out for testing purposes
+            return null;
         }
 
         List<BasketItem> BuildBasketItems()

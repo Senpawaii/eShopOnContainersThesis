@@ -23,7 +23,7 @@ public class Startup
             .AddUrlGroup(new Uri(Configuration["PaymentUrlHC"]), name: "paymentapi-check", tags: new string[] { "paymentapi" });
 
         services.AddCustomMvc(Configuration)
-            .AddCustomAuthentication(Configuration)
+            //.AddCustomAuthentication(Configuration) // disabled for testing
             //.AddCustomAuthorization(Configuration)
             .AddApplicationServices()
             .AddGrpcServices();
@@ -58,8 +58,8 @@ public class Startup
 
         app.UseRouting();
         app.UseCors("CorsPolicy");
-        app.UseAuthentication();
-        app.UseAuthorization();
+        //app.UseAuthentication(); // disabled for testing
+        //app.UseAuthorization(); // disabled for testing
 
         app.UseEndpoints(endpoints =>
         {
@@ -118,25 +118,27 @@ public static class ServiceCollectionExtensions
                 Description = "Shopping Aggregator for Web Clients"
             });
 
-            options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
-            {
-                Type = SecuritySchemeType.OAuth2,
-                Flows = new OpenApiOAuthFlows()
-                {
-                    Implicit = new OpenApiOAuthFlow()
-                    {
-                        AuthorizationUrl = new Uri($"{configuration.GetValue<string>("IdentityUrlExternal")}/connect/authorize"),
-                        TokenUrl = new Uri($"{configuration.GetValue<string>("IdentityUrlExternal")}/connect/token"),
+            // disabled for testing
+            //options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
+            //{
+            //    Type = SecuritySchemeType.OAuth2,
+            //    Flows = new OpenApiOAuthFlows()
+            //    {
+            //        Implicit = new OpenApiOAuthFlow()
+            //        {
+            //            AuthorizationUrl = new Uri($"{configuration.GetValue<string>("IdentityUrlExternal")}/connect/authorize"),
+            //            TokenUrl = new Uri($"{configuration.GetValue<string>("IdentityUrlExternal")}/connect/token"),
 
-                        Scopes = new Dictionary<string, string>()
-                        {
-                            { "webshoppingagg", "Shopping Aggregator for Web Clients" }
-                        }
-                    }
-                }
-            });
+            //            Scopes = new Dictionary<string, string>()
+            //            {
+            //                { "webshoppingagg", "Shopping Aggregator for Web Clients" }
+            //            }
+            //        }
+            //    }
+            //});
 
-            options.OperationFilter<AuthorizeCheckOperationFilter>();
+            // disabled for testing
+            // options.OperationFilter<AuthorizeCheckOperationFilter>();
         });
 
         services.AddCors(options =>

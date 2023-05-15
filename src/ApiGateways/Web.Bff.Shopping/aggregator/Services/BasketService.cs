@@ -52,6 +52,8 @@ public class BasketService : IBasketService
                     PictureUrl = item.Pictureurl,
                     ProductId = item.Productid,
                     ProductName = item.Productname,
+                    ProductBrand = item.Productbrand,
+                    ProductType = item.Producttype,
                     Quantity = item.Quantity,
                     UnitPrice = (decimal)item.Unitprice
                 });
@@ -84,6 +86,8 @@ public class BasketService : IBasketService
                     Pictureurl = item.PictureUrl,
                     Productid = item.ProductId,
                     Productname = item.ProductName,
+                    Productbrand = item.ProductBrand,
+                    Producttype = item.ProductType,
                     Quantity = item.Quantity,
                     Unitprice = (double)item.UnitPrice
                 });

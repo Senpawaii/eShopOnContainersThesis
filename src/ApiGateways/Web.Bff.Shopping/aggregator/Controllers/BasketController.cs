@@ -1,7 +1,7 @@
 ﻿namespace Microsoft.eShopOnContainers.Web.Shopping.HttpAggregator.Controllers;
 
 [Route("api/v1/[controller]")]
-[Authorize]
+//[Authorize] // disabled for testing
 [ApiController]
 public class BasketController : ControllerBase
 {
@@ -126,7 +126,7 @@ public class BasketController : ControllerBase
         // Step 2: Get current basket status
         var currentBasket = (await _basket.GetByIdAsync(data.BasketId)) ?? new BasketData(data.BasketId);
         // Step 3: Search if exist product into basket
-        var product = currentBasket.Items.SingleOrDefault(i => i.ProductId == item.Id);
+        var product = currentBasket.Items.SingleOrDefault(i => i.ProductName == item.Name && i.ProductBrand == data.CatalogItemBrandName && i.ProductType == data.CatalogItemTypeName);
         if (product != null)
         {
             // Step 4: Update quantity for product
@@ -142,6 +142,8 @@ public class BasketController : ControllerBase
                 ProductId = item.Id,
                 ProductName = item.Name,
                 Quantity = data.Quantity,
+                ProductBrand = data.CatalogItemBrandName,
+                ProductType = data.CatalogItemTypeName,
                 Id = Guid.NewGuid().ToString()
             });
         }

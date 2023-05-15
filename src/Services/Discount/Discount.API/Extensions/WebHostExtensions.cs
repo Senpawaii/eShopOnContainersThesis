@@ -83,7 +83,10 @@ public static class WebHostExtensions
                 }
             }
         }
-        context.Database.Migrate();
+        else {
+            context.Database.Migrate();
+        }
+
         seeder(context, services);
     }
 }
