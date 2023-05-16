@@ -115,7 +115,10 @@ def readBasket():
     # Get the thread identity
     identity = threading.get_ident()
 
-    address = 'http://host.docker.internal:' + basketServicePort + '/api/v1/Basket/' + basketID
+    # Get current time in nano seconds precision
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+
+    address = 'http://host.docker.internal:' + basketServicePort + '/api/v1/Basket/' + basketID + '?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
 
     # Measure time taken to send request with nano seconds precision
     start = perf_counter_ns()
@@ -262,7 +265,7 @@ def updateDiscount(discountItem: dict, discount: int, funcID: str):
 
 def assign_operations(catalogItem: dict, discountItem: dict):
     start_time = time.time()
-    while time.time() - start_time < 20:
+    while time.time() - start_time < 30:
         # Assign read/write operations to thread based on read_write_ratio
         if random.choice(read_write_list) == 0:
             # Read operation
@@ -272,14 +275,14 @@ def assign_operations(catalogItem: dict, discountItem: dict):
             future = executor.submit(writeOperations, catalogItem, discountItem)
 
 
-numThreads = 5 # Number of threads to be used in the test
+numThreads = 10 # Number of threads to be used in the test
 # Create a thread pool with numThreads threads
 executor = ThreadPoolExecutor(max_workers=numThreads)  
 
 # Create a single dictionary with an entry for each thread. Each thread is assigned a list of time taken and success count
 timeTakenList = {}
 successCount = {}
-read_write_ratio = 5 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
+read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
 
 # Create a list for chances of read/write operations
 read_write_list = [1 for _ in range(read_write_ratio)] + [0 for _ in range(10 - read_write_ratio)]

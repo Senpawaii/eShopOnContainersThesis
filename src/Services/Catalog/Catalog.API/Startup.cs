@@ -77,7 +77,6 @@ public class Startup
         app.UseRouting();
         app.UseCors("CorsPolicy");
 
-        // TODO The middleware should only be called for the /api/v1/catalog/items (and 2 more routes), instead of all Catalog routes. How can we do this? 
         bool wrapperEnabled = Convert.ToBoolean(Configuration["ThesisWrapperEnabled"]);
         if (wrapperEnabled) {
             app.UseTCCMiddleware();

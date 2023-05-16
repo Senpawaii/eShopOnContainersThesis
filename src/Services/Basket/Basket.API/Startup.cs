@@ -1,4 +1,6 @@
+using Microsoft.eShopOnContainers.Services.Basket.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.HttpHandlers;
+using Microsoft.eShopOnContainers.Services.Basket.API.Middleware;
 
 namespace Microsoft.eShopOnContainers.Services.Basket.API;
 public class Startup
@@ -142,9 +144,15 @@ public class Startup
         // Register the HTTP Message Handler
         services.AddScoped<CustomDelegatingHandler>();
         // Register the HTTP client for Catalog.API and Discount.API
-        services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<CustomDelegatingHandler>();
-        services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<CustomDelegatingHandler>();
 
+        if (Configuration["ThesisWrapperEnabled"] == "True") {
+            services.AddSingleton<IScopedMetadata, ScopedMetadata>();
+            services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+            services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+        } else {
+            services.AddHttpClient<ICatalogService, CatalogService>();
+            services.AddHttpClient<IDiscountService, DiscountService>();
+        }
 
         services.AddOptions();
 
@@ -176,6 +184,11 @@ public class Startup
 
         app.UseRouting();
         app.UseCors("CorsPolicy");
+
+        bool wrapperEnabled = Convert.ToBoolean(Configuration["ThesisWrapperEnabled"]);
+        if (wrapperEnabled) {
+            app.UseTCCMiddleware();
+        }
 
         // Disabled for testing purposes
         //ConfigureAuth(app);

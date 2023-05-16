@@ -21,7 +21,7 @@ def check_discount_from_log_file(file_path):
     return results
 
 # Example usage
-log_file_path = "testing_scripts\\logs\\UpdatePriceAndDiscount_2023-05-16_00-29-45.log"
+log_file_path = "testing_scripts\\logs\\UpdatePriceAndDiscount_2023-05-16_23-20-43.log"
 results = check_discount_from_log_file(log_file_path)
 print(f"OK: {results['OK']}")
 print(f"Anomalies: {results['anomalies']}")
