@@ -29,5 +29,13 @@ public class CatalogService : ICatalogService {
         var responseString = await response.Content.ReadAsStringAsync();
     }
 
-    
+    public async Task<long> GetProposal(string funcID) {
+        string uri = $"{_settings.Value.CatalogUrl}proposeTS?functionality_ID={funcID}";
+        HttpResponseMessage response = await _httpClient.GetAsync(uri);
+        response.EnsureSuccessStatusCode();
+        var responseString = await response.Content.ReadAsStringAsync();
+        
+        // Return the Timestamp Ticks received from the Catalog Service
+        return long.Parse(responseString);
+    }
 }

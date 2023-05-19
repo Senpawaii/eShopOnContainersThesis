@@ -7,6 +7,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.DataReaders;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Microsoft.IdentityModel.Tokens;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Text.RegularExpressions;
@@ -33,13 +34,15 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         _scopedMetadata = discountContext._scopedMetadata;
         _wrapper = discountContext._wrapper;
-        _discountContext = new DiscountContext(contextOptions, _scopedMetadata, _wrapper, settings);
+        _logger = discountContext._logger;
+        _discountContext = new DiscountContext(contextOptions, _scopedMetadata, _wrapper, settings, discountContext._logger);
     }
 
     public IScopedMetadata _scopedMetadata;
     public ISingletonWrapper _wrapper;
     public DiscountContext _discountContext;
     private string _originalCommandText;
+    public ILogger<DiscountContext> _logger;
 
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
@@ -66,6 +69,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 return result;
             case SELECT_COMMAND:
                 UpdateSelectCommand(command);
+                WaitForProposedItemsIfNecessary(command, funcID);
                 break;
             case INSERT_COMMAND:
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(funcID);
@@ -76,6 +80,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 }
                 else {
                     // Transaction is in commit state, update the command to store in the database
+
+                    // Log timestamp of the transaction to be committed
+                    _logger.LogInformation($"FuncID:<{funcID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
+
                     UpdateInsertCommand(command, targetTable);
                 }
                 break;
@@ -129,6 +137,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 return new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
                 UpdateSelectCommand(command);
+                WaitForProposedItemsIfNecessary(command, funcID);
                 break;
             case INSERT_COMMAND:
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(funcID);
@@ -289,11 +298,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // Replace Command Text to account for new filter
         if (command.CommandText.Contains("WHERE")) {
             // Command already has at least 1 filter
-            command.CommandText += $" AND [d].[Timestamp] <= '{functionalityTimestamp}'";
+            command.CommandText += $" AND [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'";
         }
         else {
             // Command has no filters yet
-            command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] WHERE [d].[Timestamp] <= '{functionalityTimestamp}'");
+            command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] WHERE [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
         }
     }
 
@@ -762,11 +771,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     private IEnumerable<object[]> ApplyWhereFilterIfExist(List<object[]> wrapperData, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
-        string commandText = GetTargetTable(command.CommandText);
+        string targetTable = GetTargetTable(command.CommandText);
 
         // Store the column name associated with the respective value for comparison
         Dictionary<string, object> parametersFilter = new Dictionary<string, object>();
-        Regex regex = new Regex(@"\.*\[[a-zA-Z]\].\[(?<columnName>\S*)\]\s*=\s*(?<paramValue>\S*)");
+        Regex regex = new Regex(@"\.*\[[a-zA-Z]\].\[(?<columnName>\S*)\]\s*=\s*N?'(?<paramValue>.*?)'");
         MatchCollection matches = regex.Matches(command.CommandText);
 
         if (matches.Count == 0) {
@@ -778,12 +787,19 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         for (int i = 0; i < matches.Count; i++) {
             string columnName = matches[i].Groups[1].Value;
             string parameterParametrization = matches[i].Groups[2].Value;
-            DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
-            parametersFilter[columnName] = parameter.Value;
+            
+            // Check if the first index of the string is a "@" symbol
+            if (parameterParametrization[0] == '@') {
+                DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
+                parametersFilter[columnName] = parameter.Value;
+            }
+            else {
+                parametersFilter[columnName] = parameterParametrization;
+            }
         }
 
         // Get the default indexes for the columns of the Discount Database
-        var columnIndexes = GetDefaultColumIndexes(commandText);
+        var columnIndexes = GetDefaultColumIndexes(targetTable);
 
         foreach (KeyValuePair<string, object> parameter in parametersFilter) {
             if (columnIndexes.TryGetValue(parameter.Key, out int columnIndex)) {
@@ -895,6 +911,118 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     private Boolean HasCountClause(string commandText) {
         return commandText.Contains("COUNT");
+    }
+
+    private void WaitForProposedItemsIfNecessary(DbCommand command, string funcID) {
+        // The cases where this applies are:
+        // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
+        // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
+
+        // Get the timestamp of the command from string to DateTime
+        Regex regex = new Regex(@"\[Timestamp\] <= '(?<Timestamp>[^']*)'");
+        MatchCollection matches = regex.Matches(command.CommandText);
+        DateTime readerTimestamp = DateTime.Parse(matches[0].Groups["Timestamp"].Value.ToString());
+
+        if (!HasFilterCondition(command.CommandText)) {
+            // The reader is trying to read all items. Wait for the proposed items to be committed.
+            while (true) {
+                // Get all proposed timestamps
+                List<DateTime> proposedTimestamps = new List<DateTime>();
+                foreach (KeyValuePair<object[], ConcurrentDictionary<DateTime, int>> pair in _wrapper.Proposed_discount_items) {
+                    foreach (DateTime proposalTS in pair.Value.Keys) {
+                        if (proposalTS <= readerTimestamp) {
+                            proposedTimestamps.Add(proposalTS);
+                        }
+                    }
+                }
+                if(proposedTimestamps.Count == 0) {
+                    // All items have been flushed to the Database
+                    return;
+                }
+                Thread.Sleep(100);
+            }
+        }
+
+        // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
+        while(true) {
+            // Get list 
+            List<object[]> totalData = new List<object[]>(_wrapper.Proposed_discount_items.Keys);
+
+            var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
+
+            int possibleCases = 0;
+            foreach (object[] identifier in rowsToQuery) {
+                // Get the timestamps associated with the identifier
+                ConcurrentDictionary<DateTime, int> timestamps = _wrapper.Proposed_discount_items[identifier];
+
+                // Check if there is at least one timestamp that is less than the reader timestamp, and so that will require the reader to wait
+                foreach(DateTime proposalTS in timestamps.Keys) {
+                    if (proposalTS <= readerTimestamp) {
+                        possibleCases++;
+                    }
+                }
+            }
+
+            if (possibleCases == 0) {
+                // No need to wait for any versions
+                return;
+            } 
+            else {
+                Console.WriteLine($"Possible Cases:<{possibleCases}>. Will sleep...");
+            }
+
+            // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
+            Thread.Sleep(100);
+        }
+    }
+
+    private List<object[]> ApplyFilterToProposedSet(List<object[]> proposedSet, DbCommand command) {
+        List<object[]> filteredData = new List<object[]>();
+        string targetTable = GetTargetTable(command.CommandText);
+
+        // Store the column name associated with the respective value for comparison
+        Dictionary<string, object> parametersFilter = new Dictionary<string, object>();
+        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
+        MatchCollection matches = regex.Matches(command.CommandText);
+
+        if (matches.Count == 0) {
+            // No Where filters exist
+            return new List<object[]>();
+        }
+
+        // Extract parameter names from the matches
+        for (int i = 0; i < matches.Count; i++) {
+            string columnName = matches[i].Groups[1].Value;
+
+            // Get the parameter value: either matched again paramValue1 or paramValue2
+            string parameterParametrization = matches[i].Groups[2].Value.IsNullOrEmpty() ? matches[i].Groups[3].Value : matches[i].Groups[2].Value;
+
+            // Check if the first index of the string is a "@" symbol
+            if (parameterParametrization[0] == '@') {
+                DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
+                parametersFilter[columnName] = parameter.Value;
+            }
+            else {
+                parametersFilter[columnName] = parameterParametrization;
+            }
+        }
+
+        // Get the default indexes for the columns identifiers of the Discount Database
+        Dictionary<string, int> columnIndexes = new Dictionary<string, int> {
+            // Apply the filters according to the Target Table
+            { "ItemName", 0 },
+            { "ItemBrand", 1 },
+            { "ItemType", 2 }
+        };
+
+        foreach (KeyValuePair<string, object> parameter in parametersFilter) {
+            if (columnIndexes.TryGetValue(parameter.Key, out int columnIndex)) {
+                filteredData = proposedSet
+                        .Where(row => row[columnIndex] != null && row[columnIndex].ToString() == parameter.Value.ToString())
+                        .ToList();
+            }
+        }
+        return filteredData;
     }
 }
 

@@ -15,7 +15,7 @@ public class CustomDelegatingHandler : DelegatingHandler {
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
         // Perform logging or any other intercepting actions here
-        _logger.LogInformation($"Intercepted request: {request.RequestUri}");
+        //_logger.LogInformation($"Intercepted request: {request.RequestUri}");
 
 
         if (_metadata.ScopedMetadataFunctionalityID.Value != null) {
@@ -23,8 +23,8 @@ public class CustomDelegatingHandler : DelegatingHandler {
             var uriBuilder = new UriBuilder(request.RequestUri);
             var query = HttpUtility.ParseQueryString(uriBuilder.Query);
             query["functionality_ID"] = _metadata.ScopedMetadataFunctionalityID.Value;
-            query["interval_low"] = _metadata.ScopedMetadataLowInterval.ToString();
-            query["interval_high"] = _metadata.ScopedMetadataHighInterval.ToString();
+            query["interval_low"] = _metadata.ScopedMetadataLowInterval.Value.ToString();
+            query["interval_high"] = _metadata.ScopedMetadataHighInterval.Value.ToString();
             query["timestamp"] = _metadata.ScopedMetadataTimestamp.Value.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
             query["tokens"] = _metadata.ScopedMetadataTokens.Value.ToString();
             uriBuilder.Query = query.ToString();

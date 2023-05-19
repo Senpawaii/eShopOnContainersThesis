@@ -30,30 +30,35 @@ public class CoordinatorController : ControllerBase {
     }
 
     [HttpGet]
-    [Route("propose")]
+    [Route("tokens")]
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<int>> ProposeTimestamp([FromQuery] string ticks = "", [FromQuery] string tokens = "", [FromQuery] string funcID = "", [FromQuery] string serviceName = "") {
-        long.TryParse(ticks, out var numTicks);
+    public async Task<ActionResult<int>> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string funcID = "", [FromQuery] string serviceName = "") {
         double.TryParse(tokens, out var numTokens);
 
         // Call async condition checker
-        await AsyncCheck(numTicks, numTokens, funcID, serviceName);
+        await AsyncCheck(numTokens, funcID, serviceName);
 
         return Ok(tokens);
     }
 
-    private Task AsyncCheck(long ticks, double tokens, string funcID, string service) {
-        return Task.Factory.StartNew(() => {
+    private Task<Task> AsyncCheck(double tokens, string funcID, string service) {
+        return Task.Factory.StartNew(async () => {
             // Store the Timestamp proposal
-            _functionalityService.AddNewProposalGivenService(funcID, service, ticks);
+            //_functionalityService.AddNewProposalGivenService(funcID, service, ticks);
 
             // Incremement the Tokens
             _functionalityService.IncreaseTokens(funcID, tokens);
 
-            if(_functionalityService.HasCollectedAllTokens(funcID)) {
+            // Register the service that sent the tokens
+            _functionalityService.AddNewServiceSentTokens(funcID, service);
+
+            if (_functionalityService.HasCollectedAllTokens(funcID)) {
+                await ReceiveProposals(funcID);
+
                 long maxTS = _functionalityService.Proposals[funcID].Max(t => t.Item2);
 
                 // Call Services to commit with the MAX TS
+                _logger.LogInformation($"Func:<{funcID}> - TS:<{new DateTime(maxTS)}>");
                 BeginCommitProcess(funcID, maxTS);
             }
         });
@@ -75,6 +80,25 @@ public class CoordinatorController : ControllerBase {
                     await _discountService.IssueCommit(maxTS.ToString(), funcID);
                     break;
             }
+        }
+    }
+
+    private async Task ReceiveProposals(string funcID) {
+        // Get all services' addresses involved in the functionality
+        List<string> services = _functionalityService.ServicesTokensProposed[funcID];
+
+        foreach (string service in services) {
+            long proposedTS = -1;
+            switch (service) {
+                case "CatalogService":
+                    proposedTS = await _catalogService.GetProposal(funcID);
+                    // Add proposed TS to the list of proposals
+                    break;
+                case "DiscountService":
+                    proposedTS = await _discountService.GetProposal(funcID);
+                    break;
+            }
+            _functionalityService.AddNewProposalGivenService(funcID, service, proposedTS);
         }
     }
 }

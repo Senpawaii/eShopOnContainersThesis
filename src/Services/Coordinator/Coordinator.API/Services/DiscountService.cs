@@ -25,4 +25,14 @@ public class DiscountService : IDiscountService {
 
         var responseString = await response.Content.ReadAsStringAsync();
     }
+
+    public async Task<long> GetProposal(string funcID) {
+        string uri = $"{_settings.Value.DiscountUrl}proposeTS?functionality_ID={funcID}";
+        HttpResponseMessage response = await _httpClient.GetAsync(uri);
+        response.EnsureSuccessStatusCode();
+        var responseString = await response.Content.ReadAsStringAsync();
+
+        // Return the max TS
+        return long.Parse(responseString);
+    }
 }

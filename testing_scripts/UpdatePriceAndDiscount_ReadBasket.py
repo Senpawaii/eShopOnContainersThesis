@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import random
+import string
 import time
 import requests
 import threading
@@ -24,12 +25,12 @@ def ConfigureLoggingSettings():
     # Configure logging settings
     logging_path = os.path.join(current_directory, 'testing_scripts', 'logs')
     os.makedirs(logging_path, exist_ok=True)  # Create the log directory if it doesn't exist
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
     log_file_name = f"UpdatePriceAndDiscount_{timestamp}.log"
     log_file_path = os.path.join(logging_path, log_file_name)
 
     logging.basicConfig(
-        level=logging.DEBUG, 
+        level=logging.INFO, 
         format='%(asctime)s %(levelname)s %(message)s',
         handlers=[
             logging.FileHandler(log_file_path), # Print to file
@@ -55,7 +56,7 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
     identity = threading.get_ident()
 
     # Access catalog Service to get the brand name and type name
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
     # Get the brand name that matches the brand ID
     address = 'http://host.docker.internal:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
@@ -115,10 +116,12 @@ def readBasket():
     # Get the thread identity
     identity = threading.get_ident()
 
-    # Get current time in nano seconds precision
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+    funcID = ''.join(random.choices(string.ascii_lowercase, k=10))
 
-    address = 'http://host.docker.internal:' + basketServicePort + '/api/v1/Basket/' + basketID + '?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    # Get current time in nano seconds precision
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+
+    address = 'http://host.docker.internal:' + basketServicePort + '/api/v1/Basket/' + basketID + '?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=0'
 
     # Measure time taken to send request with nano seconds precision
     start = perf_counter_ns()
@@ -152,7 +155,7 @@ def readBasket():
     basketItemDiscount = basketItems[0]["discount"]
 
     #Log response
-    logging.info('Thread <' + str(identity) + '> Read Basket Service: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Time taken: ' + str(timeTaken) + 'ns')
+    logging.info('Thread <' + str(identity) + '> FuncID: <' + funcID + '> ' + 'Read Basket: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Time taken: ' + str(timeTaken) + 'ns')
     return
 
 
@@ -160,7 +163,8 @@ def writeOperations(catalogItem: dict, discountItem: dict):
     # Execute write operations: update price and discount
 
     # Generate a random 16 bit random string
-    funcID = str(random.getrandbits(16))
+    funcID = ''.join(random.choices(string.ascii_lowercase, k=10))
+
 
     thread_identity = threading.get_ident()
 
@@ -191,7 +195,7 @@ def updatePriceOnCatalog(catalogItem: dict, price: int, funcID: str):
     catalogItem[0]["price"] = price
 
      # Get current time in nano seconds precision
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
     address = 'http://host.docker.internal:' + catalogServicePort + '/catalog-api/api/v1/Catalog/items?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=50'
 
@@ -219,7 +223,7 @@ def updatePriceOnCatalog(catalogItem: dict, price: int, funcID: str):
         else:
             successCount[identity] += 1
     #Log response
-    logging.info("Thread <" + str(identity) + "> PriceUpdate: " + str(price) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
+    logging.info("Thread <" + str(identity) + "> FuncID: <" + funcID + "> " + "PriceUpdate: " + str(price) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
 
 
 # Update Discount on Item with ID 1
@@ -231,7 +235,7 @@ def updateDiscount(discountItem: dict, discount: int, funcID: str):
     discountItem["discountValue"] = discount
 
      # Get current time in nano seconds precision
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
     address = 'http://host.docker.internal:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=50'
 

@@ -27,38 +27,52 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     // Start flushing the Wrapper Data into the Database associated with the functionality
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
+
+                    // Flush the Wrapper Data into the Database
                     await FlushWrapper(functionality_ID, wrapperSvc, ticks, scpMetadata, catalogContext);
+                    
+                    // Remove the functionality from the proposed state
+                    wrapperSvc.SingletonRemoveProposedFunctionality(functionality_ID);
+                    // Remove the wrapped items from the proposed set
+                    wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(functionality_ID);
+
                     await _next.Invoke(ctx);
                     return;
+                } 
+                else if(currentUri.Contains("proposeTS")) {
+                    // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
+                    var currentTS = scpMetadata.ScopedMetadataTimestamp.Ticks;
+                    wrapperSvc.SingletonAddProposedFunctionality(functionality_ID, currentTS);
+                    wrapperSvc.SingletonAddWrappedItemsToProposedSet(functionality_ID, currentTS);
                 }
 
                 // Check for the other parameters and remove them as needed
                 if (ctx.Request.Query.TryGetValue("interval_low", out var interval_lowStr) &&
                     ctx.Request.Query.TryGetValue("interval_high", out var interval_highStr)) {
 
-                    _logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
+                    //_logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
 
                     if (int.TryParse(interval_lowStr, out var interval_low)) {
                         svc.ScopedMetadataIntervalLow = interval_low;
                     }
                     else {
-                        _logger.LogInformation("Failed to parse Low Interval.");
+                        //_logger.LogInformation("Failed to parse Low Interval.");
                     }
                     if (int.TryParse(interval_highStr, out var interval_high)) {
                         svc.ScopedMetadataIntervalHigh = interval_high;
                     }
                     else {
-                        _logger.LogInformation("Failed to parse High Interval.");
+                        //_logger.LogInformation("Failed to parse High Interval.");
                     }
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
-                    _logger.LogInformation($"Registered timestamp: {timestamp}");
+                    //_logger.LogInformation($"Registered timestamp: {timestamp}");
                     svc.ScopedMetadataTimestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
                 }
 
                 if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
-                    _logger.LogInformation($"Registered tokens: {tokens}");
+                    //_logger.LogInformation($"Registered tokens: {tokens}");
                     Double.TryParse(tokens, out double numTokens);
                     svc.ScopedMetadataTokens = numTokens;
                 }
@@ -106,9 +120,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
-                if(svc.ScopedMetadataTokens > 0) {
+                if(svc.ScopedMetadataTokens > 0) {                    
                     // Propose Timestamp with Tokens to the Coordinator
-                    await coordinatorSvc.ProposeTS();
+                    await coordinatorSvc.SendTokens();
                 }
             }
             else {

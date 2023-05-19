@@ -28,7 +28,7 @@ public class TCCMiddleware {
             if (ctx.Request.Query.TryGetValue("interval_low", out var interval_lowStr) &&
                 ctx.Request.Query.TryGetValue("interval_high", out var interval_highStr)) {
 
-                _logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
+                //_logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
 
                 if (int.TryParse(interval_lowStr, out var interval_low)) {
                     svc.ScopedMetadataLowInterval.Value = interval_low;
@@ -45,12 +45,12 @@ public class TCCMiddleware {
             }
 
             if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
-                _logger.LogInformation($"Registered timestamp: {timestamp}");
+                //_logger.LogInformation($"Registered timestamp: {timestamp}");
                 svc.ScopedMetadataTimestamp.Value = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
             }
 
             if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
-                _logger.LogInformation($"Registered tokens: {tokens}");
+                //_logger.LogInformation($"Registered tokens: {tokens}");
                 Double.TryParse(tokens, out double numTokens);
                 svc.ScopedMetadataTokens.Value = numTokens;
             }

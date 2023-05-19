@@ -7,6 +7,7 @@ namespace Microsoft.eShopOnContainers.Services.Coordinator.API.Services;
 public class FunctionalityService : IFunctionalityService {
     ConcurrentDictionary<string, List<(string, long)>> _proposals = new ConcurrentDictionary<string, List<(string, long)>>(); 
     ConcurrentDictionary<string, double> _tokens = new ConcurrentDictionary<string, double>();
+    ConcurrentDictionary<string, List<string>> _servicesSentTokens = new ConcurrentDictionary<string, List<string>>();
 
     public FunctionalityService() {
     }
@@ -16,6 +17,22 @@ public class FunctionalityService : IFunctionalityService {
     }
     public ConcurrentDictionary<string, double> Tokens {
         get { return Tokens; }
+    }
+
+    public ConcurrentDictionary<string, List<string>> ServicesTokensProposed { 
+        get { return _servicesSentTokens; } 
+    }
+
+    public void AddNewServiceSentTokens(string funcID, string service) {
+        if(_servicesSentTokens.ContainsKey(funcID)) {
+            _servicesSentTokens[funcID].Add(service);
+        }
+        else {
+            // First proposal in the functionality
+            _servicesSentTokens[funcID] = new List<string> {
+                { service }
+            };
+        }
     }
 
     public void AddNewProposalGivenService(string funcID, string service, long proposalTicks) {

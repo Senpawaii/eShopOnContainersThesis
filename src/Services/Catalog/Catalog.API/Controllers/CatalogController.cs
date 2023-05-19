@@ -397,7 +397,7 @@ public class CatalogController : ControllerBase {
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     public async Task<ActionResult<decimal>> ItemPriceGivenNameBrandType(string name, string catalogBrand, string catalogType) {
-        _logger.LogInformation("Executing ItemPriceGivenNameBrandType request...");
+        //_logger.LogInformation("Executing ItemPriceGivenNameBrandType request...");
         var items = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
         var brands = (IQueryable<CatalogBrand>)_catalogContext.CatalogBrands;
         var types = (IQueryable<CatalogType>)_catalogContext.CatalogTypes;
@@ -422,7 +422,7 @@ public class CatalogController : ControllerBase {
         if (totalItems == 0) { return NotFound(); }
         var itemPrice = items.Select(a => a.Price).First();
 
-        _logger.LogInformation("Finished ItemPriceGivenNameBrandType request!");
+        //_logger.LogInformation("Finished ItemPriceGivenNameBrandType request!");
 
         return itemPrice;
     }
@@ -445,5 +445,14 @@ public class CatalogController : ControllerBase {
     public Task Commit() {
         // Flush any data in the wrapper to the Database
         return Task.CompletedTask;
+    }
+
+    [HttpGet]
+    [Route("proposeTS")]
+    [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
+    public Task<long> proposeTS() {
+        // Return the current timestamp
+        var ticks = DateTime.UtcNow.Ticks;
+        return Task.FromResult(ticks);
     }
 }

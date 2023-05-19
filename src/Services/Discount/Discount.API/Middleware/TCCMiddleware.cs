@@ -29,9 +29,28 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     // Start flushing the Wrapper Data into the Database associated with the functionality
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
+
+                    //await Task.Delay(30000);
+
+                    wrapperSvc.SingletonWrappedDiscountItems.TryGetValue(functionality_ID, out ConcurrentBag<object[]> objects_to_remove);
+                    // Flush the Wrapper Data into the Database
                     FlushWrapper(functionality_ID, wrapperSvc, ticks, scpMetadata, discountContext);
+
+                    DateTime proposedTS = new DateTime(ticks);
+
+                    // Remove the wrapped items from the proposed set
+                    wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(functionality_ID, objects_to_remove);
+                    // Remove the functionality from the proposed state
+                    wrapperSvc.SingletonRemoveProposedFunctionality(functionality_ID);
+
                     await _next.Invoke(ctx);
                     return;
+                }
+                else if (currentUri.Contains("proposeTS")) {
+                    // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
+                    var currentTS = scpMetadata.ScopedMetadataTimestamp.Ticks;
+                    wrapperSvc.SingletonAddProposedFunctionality(functionality_ID, currentTS);
+                    wrapperSvc.SingletonAddWrappedItemsToProposedSet(functionality_ID, currentTS);
                 }
 
                 // Check for the other parameters and remove them as needed
@@ -110,7 +129,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 if (svc.ScopedMetadataTokens > 0) {
                     // Propose Timestamp with Tokens to the Coordinator
-                    await coordinatorSvc.ProposeTS();
+                    await coordinatorSvc.SendTokens();
                 }
             }
             else {

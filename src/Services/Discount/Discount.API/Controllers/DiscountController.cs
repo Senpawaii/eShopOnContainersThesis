@@ -111,4 +111,13 @@ public class DiscountController : ControllerBase {
         // Flush any data in the wrapper to the Database
         return Task.CompletedTask;
     }
+
+    [HttpGet]
+    [Route("proposeTS")]
+    [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
+    public Task<long> proposeTS() {
+        // Return the current timestamp
+        var ticks = DateTime.UtcNow.Ticks;
+        return Task.FromResult(ticks);
+    }
 }

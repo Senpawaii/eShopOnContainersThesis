@@ -16,9 +16,8 @@ public class CoordinatorService : ICoordinatorService {
         _metadata = scopedMetadata;
     }
 
-    public async Task ProposeTS() {
-        long ticks = _metadata.ScopedMetadataTimestamp.Ticks;
-        string uri = $"{_settings.Value.CoordinatorUrl}propose?ticks={ticks}&tokens={_metadata.ScopedMetadataTokens}&funcID={_metadata.ScopedMetadataFunctionalityID}&serviceName=DiscountService";
+    public async Task SendTokens() {
+        string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={_metadata.ScopedMetadataTokens}&funcID={_metadata.ScopedMetadataFunctionalityID}&serviceName=DiscountService";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();

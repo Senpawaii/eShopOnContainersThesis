@@ -19,6 +19,7 @@ using System.Threading;
 using System.Data.Sql;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using Autofac.Core;
+using System.Runtime.CompilerServices;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -41,13 +42,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         _scopedMetadata = catalogContext._scopedMetadata;
         _wrapper = catalogContext._wrapper;
-        _catalogContext = new CatalogContext(contextOptions, _scopedMetadata, _wrapper, settings);
+        _logger = catalogContext._logger;
+        _catalogContext = new CatalogContext(contextOptions, _scopedMetadata, _wrapper, settings, catalogContext._logger);
     }
 
     public IScopedMetadata _scopedMetadata;
     public ISingletonWrapper _wrapper;
     public CatalogContext _catalogContext;
     private string _originalCommandText;
+    public ILogger<CatalogContext> _logger;
 
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
@@ -74,6 +77,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 return result;
             case SELECT_COMMAND:
                 UpdateSelectCommand(command);
+                WaitForProposedItemsIfNecessary(command, funcID);
                 break;
             case INSERT_COMMAND:
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(funcID);
@@ -84,6 +88,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 }
                 else {
                     // Transaction is in commit state, update the command to store in the database
+
+                    // Log timestamp of the transaction to be committed
+                    _logger.LogInformation($"FuncID:<{funcID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
+
                     UpdateInsertCommand(command, targetTable);
                 }
                 break;
@@ -158,6 +166,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 return new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
                 UpdateSelectCommand(command);
+                WaitForProposedItemsIfNecessary(command, funcID);
                 break;
             case INSERT_COMMAND:
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(funcID);
@@ -958,7 +967,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private IEnumerable<object[]> ApplyWhereFilterIfExist(List<object[]> wrapperData, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
-        string commandText = GetTargetTable(command.CommandText);
+        string targetTable = GetTargetTable(command.CommandText);
 
         // Store the column name associated with the respective value for comparison
         Dictionary<string, object> parametersFilter = new Dictionary<string, object>();
@@ -979,7 +988,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
 
         // Get the default indexes for the columns of the Catalog Database
-        var columnIndexes = GetDefaultColumIndexes(commandText);
+        var columnIndexes = GetDefaultColumIndexes(targetTable);
 
         foreach (KeyValuePair<string, object> parameter in parametersFilter) {
             if (columnIndexes.TryGetValue(parameter.Key, out int columnIndex)) {
@@ -1119,5 +1128,56 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private Boolean IsCountSelect(string commandText) {
         return commandText.Contains("COUNT");
+    }
+
+    private void WaitForProposedItemsIfNecessary(DbCommand command, string funcID) {
+        // The cases where this applies are:
+        // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
+        // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
+
+        if (!_wrapper.Proposed_functionalities.ContainsKey(funcID)) {
+            // No proposed items for this functionality
+            return;
+        }
+        
+        // Get the timestamp of the command from string to DateTime
+        DateTime readerTimestamp = DateTime.Parse(command.Parameters[^1].Value.ToString());
+        DateTime proposedTimestamp = new DateTime(_wrapper.Proposed_functionalities[funcID]);
+
+        if(proposedTimestamp > readerTimestamp) {
+            // The reader will not observe the new version.
+            return;
+        }
+
+        if(!HasFilterCondition(command.CommandText)) {
+            // The reader is trying to read all items. Wait for the proposed items to be committed.
+            while (_wrapper.Proposed_functionalities.ContainsKey(funcID)) {
+                Thread.Sleep(100);
+            }
+            return;
+        }
+
+        // Obtain key(s) for read set
+        string targetTable = GetTargetTable(command.CommandText);
+        List<object[]> dataToQuery = null;
+
+        switch(targetTable) {
+            case "Catalog":
+                dataToQuery = _wrapper.Proposed_catalog_items[funcID].ToList();
+                break;
+            case "CatalogBrand":
+                dataToQuery = _wrapper.Proposed_catalog_brands[funcID].ToList();
+                break;
+            case "CatalogType":
+                dataToQuery = _wrapper.Proposed_catalog_types[funcID].ToList();
+                break;
+        }
+        if(ApplyWhereFilterIfExist(dataToQuery, command).ToList().Count > 0) {
+            // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
+            while(_wrapper.Proposed_functionalities.ContainsKey(funcID)) {
+                Thread.Sleep(100);
+            }
+            return;
+        }
     }
 }

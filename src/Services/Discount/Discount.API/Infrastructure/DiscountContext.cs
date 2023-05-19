@@ -6,11 +6,12 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 public class DiscountContext : DbContext {
-    public DiscountContext(DbContextOptions<DiscountContext> options, IScopedMetadata scopedMetadata, ISingletonWrapper wrapper, IOptions<DiscountSettings> settings) : base(options) {
+    public DiscountContext(DbContextOptions<DiscountContext> options, IScopedMetadata scopedMetadata, ISingletonWrapper wrapper, IOptions<DiscountSettings> settings, ILogger<DiscountContext> logger) : base(options) {
         _wrapperThesis = settings.Value.ThesisWrapperEnabled;
         _scopedMetadata = scopedMetadata;
         _wrapper = wrapper;
         _settings = settings;
+        _logger = logger;
     }
 
     public DiscountContext(DbContextOptions<DiscountContext> options, IOptions<DiscountSettings> settings) : base(options) {
@@ -21,6 +22,7 @@ public class DiscountContext : DbContext {
     public readonly ISingletonWrapper _wrapper;
     public readonly bool _wrapperThesis;
     public readonly IOptions<DiscountSettings> _settings;
+    public readonly ILogger<DiscountContext> _logger;
 
     public DbSet<DiscountItem> Discount { get; set; }
 
