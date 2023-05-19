@@ -33,6 +33,9 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     //await Task.Delay(30000);
 
                     wrapperSvc.SingletonWrappedDiscountItems.TryGetValue(functionality_ID, out ConcurrentBag<object[]> objects_to_remove);
+
+                    _logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {functionality_ID}.");
+
                     // Flush the Wrapper Data into the Database
                     FlushWrapper(functionality_ID, wrapperSvc, ticks, scpMetadata, discountContext);
 
@@ -42,6 +45,8 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(functionality_ID, objects_to_remove);
                     // Remove the functionality from the proposed state
                     wrapperSvc.SingletonRemoveProposedFunctionality(functionality_ID);
+
+                    _logger.LogInformation($"Cleared {objects_to_remove.Count} items for functionality {functionality_ID}.");
 
                     await _next.Invoke(ctx);
                     return;
@@ -63,13 +68,13 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                         svc.ScopedMetadataIntervalLow = interval_low;
                     }
                     else {
-                        _logger.LogInformation("Failed to parse Low Interval.");
+                        // _logger.LogInformation("Failed to parse Low Interval.");
                     }
                     if (int.TryParse(interval_highStr, out var interval_high)) {
                         svc.ScopedMetadataIntervalHigh = interval_high;
                     }
                     else {
-                        _logger.LogInformation("Failed to parse High Interval.");
+                        // _logger.LogInformation("Failed to parse High Interval.");
                     }
                 }
 

@@ -40,7 +40,7 @@ def ConfigureLoggingSettings():
 
 
 def QueryCatalogItemById(id: int) -> dict:
-    address = "http://host.docker.internal:" + catalogServicePort + "/catalog-api/api/v1/Catalog/items?ids=" + str(id) + "&interval_low=0&interval_high=0&functionality_ID=func1&timestamp=2025-05-30T14:00:00.0000000Z&tokens=0"
+    address = "http://localhost:" + catalogServicePort + "/catalog-api/api/v1/Catalog/items?ids=" + str(id) + "&interval_low=0&interval_high=0&functionality_ID=func1&timestamp=2025-05-30T14:00:00.0000000Z&tokens=0"
     
     # Log request address
     logging.info("Sending request to address: " + address)
@@ -59,7 +59,7 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
     # Get the brand name that matches the brand ID
-    address = 'http://host.docker.internal:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
     response = requests.get(address)
 
     brandName = ""
@@ -68,7 +68,7 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
             brandName = brand["brand"]
 
     # Get the type name that matches the type ID
-    address = 'http://host.docker.internal:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogTypes?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogTypes?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
     response = requests.get(address)
 
     typeName = ""
@@ -78,7 +78,7 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
 
     itemName = catalogItem[0]["name"]
     # Get the discount item that matches the brand name and type name
-    address = 'http://host.docker.internal:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName + '&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName + '&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
     response = requests.get(address)
 
     # Extract the first (and only) discount item from the response list of discounts
@@ -99,7 +99,7 @@ def AddCatalogItemToBasket(catalogItem: dict, discountItem: dict):
     # Create the json body for the request
     body = { "catalogItemId": catalogItemId, "basketId": "e5d06a2d-fc81-4051-8f30-0a85836eac70", "quantity": 1, "CatalogItemName": catalogItemName, "CatalogItemBrandName": itemBrand, "CatalogItemTypeName": itemType }
 
-    address = 'http://host.docker.internal:' + webaggregatorServicePort + '/api/v1/Basket/items'
+    address = 'http://localhost:' + webaggregatorServicePort + '/api/v1/Basket/items'
 
     response = requests.post(address, json=body)
 
@@ -121,7 +121,7 @@ def readBasket():
     # Get current time in nano seconds precision
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
-    address = 'http://host.docker.internal:' + basketServicePort + '/api/v1/Basket/' + basketID + '?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=0'
+    address = 'http://localhost:' + basketServicePort + '/api/v1/Basket/' + basketID + '?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=0'
 
     # Measure time taken to send request with nano seconds precision
     start = perf_counter_ns()
@@ -168,6 +168,8 @@ def writeOperations(catalogItem: dict, discountItem: dict):
 
     thread_identity = threading.get_ident()
 
+    logging.info('Executing write operations with thread: ' + str(thread_identity))
+
     # Check if the thread has already a pair price and discount already assigned in the dicionary of key/value: thread_id/(price, discount)
     if thread_identity not in thread_price_discount:
             # Pick a random price and discount from the predefined list and remove it from the list of predefined prices and discounts
@@ -175,6 +177,8 @@ def writeOperations(catalogItem: dict, discountItem: dict):
             # Add the price and discount to the dictionary of key/value: thread_id/(price, discount)
             thread_price_discount[thread_identity] = (price, discount)
     else:
+        # Update the price and discount in the dictionary of key/value: thread_id/(price, discount)
+        thread_price_discount[thread_identity] = (price + 1, discount + 1)
         # Get the price and discount already assigned to the thread
         price, discount = thread_price_discount[thread_identity]
 
@@ -197,7 +201,7 @@ def updatePriceOnCatalog(catalogItem: dict, price: int, funcID: str):
      # Get current time in nano seconds precision
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
-    address = 'http://host.docker.internal:' + catalogServicePort + '/catalog-api/api/v1/Catalog/items?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=50'
+    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/items?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=50'
 
     # Measure time taken to send request with nano seconds precision
     start = perf_counter_ns()
@@ -237,7 +241,7 @@ def updateDiscount(discountItem: dict, discount: int, funcID: str):
      # Get current time in nano seconds precision
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
-    address = 'http://host.docker.internal:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=50'
+    address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=50'
 
     # Measure time taken to send request with nano seconds precision
     start = perf_counter_ns()
@@ -292,7 +296,7 @@ read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
 read_write_list = [1 for _ in range(read_write_ratio)] + [0 for _ in range(10 - read_write_ratio)]
 
 # Create predefined list of prices and discounts to be used in tests equal to the number of threads
-prices = [10 * (i+1) for i in range(numThreads)]
+prices = [10000 * (i+1) for i in range(numThreads)]
 discounts = [prices[i] // 10 for i in range(numThreads)]
 thread_price_discount = {}
 

@@ -70,7 +70,7 @@ public class CoordinatorController : ControllerBase {
                                     .Select(t => t.Item1)
                                     .Distinct()
                                     .ToList();
-        
+        _logger.LogInformation($"Commit Func:<{funcID}> - Addresses:<{string.Join(",", addresses)}>");
         foreach (string address in addresses) {
             switch(address) {
                 case "CatalogService":

@@ -968,7 +968,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 return;
             } 
             else {
-                Console.WriteLine($"Possible Cases:<{possibleCases}>. Will sleep...");
+                Console.WriteLine($"Possible Cases:<{possibleCases}>. Reader has TS=<{readerTimestamp}>,  Will sleep...");
             }
 
             // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.

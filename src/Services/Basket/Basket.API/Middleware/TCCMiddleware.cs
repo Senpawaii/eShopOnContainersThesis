@@ -34,13 +34,13 @@ public class TCCMiddleware {
                     svc.ScopedMetadataLowInterval.Value = interval_low;
                 }
                 else {
-                    _logger.LogInformation("Failed to parse Low Interval.");
+                    // _logger.LogInformation("Failed to parse Low Interval.");
                 }
                 if (int.TryParse(interval_highStr, out var interval_high)) {
                     svc.ScopedMetadataHighInterval.Value = interval_high;
                 }
                 else {
-                    _logger.LogInformation("Failed to parse High Interval.");
+                    // _logger.LogInformation("Failed to parse High Interval.");
                 }
             }
 
