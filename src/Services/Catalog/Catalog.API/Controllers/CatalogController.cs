@@ -187,6 +187,9 @@ public class CatalogController : ControllerBase {
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     [ProducesResponseType((int)HttpStatusCode.Created)]
     public async Task<ActionResult> UpdateProductPriceAsync([FromBody] CatalogItem productToUpdate) {
+        // Log all updated catalog item paramaters
+        _logger.LogInformation($"Body Catalog Item: {productToUpdate.Id} with the following parameters: {productToUpdate.Name}, {productToUpdate.Description}, {productToUpdate.Price}, {productToUpdate.PictureFileName}, {productToUpdate.PictureUri}, {productToUpdate.CatalogBrandId}, {productToUpdate.CatalogTypeId}");
+
         //var items = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
         //items = items.Where(ci => ci.Name == name && ci.CatalogBrandId == brandId && ci.CatalogTypeId == typeId);
@@ -215,6 +218,8 @@ public class CatalogController : ControllerBase {
 
         // Update current product
         catalogItem = productToUpdate;
+
+       
         _catalogContext.CatalogItems.Update(catalogItem);
 
         if (raiseProductPriceChangedEvent) // Save product's data and publish integration event through the Event Bus if price has changed

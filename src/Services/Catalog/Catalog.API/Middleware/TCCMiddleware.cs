@@ -28,13 +28,32 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
+                    wrapperSvc.SingletonWrappedCatalogItems.TryGetValue(functionality_ID, out ConcurrentBag<object[]> catalog_objects_to_remove);
+                    wrapperSvc.SingletonWrappedCatalogBrands.TryGetValue(functionality_ID,out ConcurrentBag<object[]> catalog_brands_to_remove);
+                    wrapperSvc.SingletonWrappedCatalogTypes.TryGetValue(functionality_ID, out ConcurrentBag<object[]> catalog_types_to_remove);
+
+                    //_logger.LogInformation($"Committing {catalog_objects_to_remove.Count} items, {catalog_brands_to_remove.Count} brands, {catalog_types_to_remove.Count} types, for functionality {functionality_ID}.");
+
                     // Flush the Wrapper Data into the Database
                     await FlushWrapper(functionality_ID, wrapperSvc, ticks, scpMetadata, catalogContext);
-                    
+
+                    DateTime proposedTS = new DateTime(ticks);
+
+                    // Remove the wrapped items from the proposed set
+                    if (catalog_objects_to_remove != null) { 
+                        wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(functionality_ID, catalog_objects_to_remove, "Catalog");
+                    }
+                    if (catalog_brands_to_remove != null) {
+                        wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(functionality_ID, catalog_brands_to_remove, "CatalogBrand");
+                    }
+                    if (catalog_types_to_remove != null) {
+                        wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(functionality_ID, catalog_types_to_remove, "CatalogType");
+                    }
+
                     // Remove the functionality from the proposed state
                     wrapperSvc.SingletonRemoveProposedFunctionality(functionality_ID);
-                    // Remove the wrapped items from the proposed set
-                    wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(functionality_ID);
+
+                    //_logger.LogInformation($"Cleared {catalog_objects_to_remove.Count} items, {catalog_brands_to_remove.Count} brands, {catalog_types_to_remove.Count} types, for functionality {functionality_ID}.");
 
                     await _next.Invoke(ctx);
                     return;

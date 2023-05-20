@@ -7,9 +7,9 @@ namespace Catalog.API.DependencyServices {
         ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogTypes { get; }
         ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogBrands { get; }
 
-        ConcurrentDictionary<string, ConcurrentBag<object[]>> Proposed_catalog_items { get; }
-        ConcurrentDictionary<string, ConcurrentBag<object[]>> Proposed_catalog_types { get; } 
-        ConcurrentDictionary<string, ConcurrentBag<object[]>> Proposed_catalog_brands { get; }
+        ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_catalog_items { get; }
+        ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_catalog_types { get; } 
+        ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_catalog_brands { get; }
         ConcurrentDictionary<string, long> Proposed_functionalities { get; }
         ConcurrentDictionary<string, bool> SingletonTransactionState { get; }
 
@@ -25,7 +25,7 @@ namespace Catalog.API.DependencyServices {
 
         public void SingletonRemoveFunctionalityObjects(string funcID);
         public void SingletonAddWrappedItemsToProposedSet(string functionality_ID, long proposedTS);
-        public void SingletonRemoveWrappedItemsFromProposedSet(string functionality_ID);
+        public void SingletonRemoveWrappedItemsFromProposedSet(string functionality_ID, ConcurrentBag<object[]> wrapped_objects, string target_table);
 
         public void SingletonAddProposedFunctionality(string funcID, long proposedTS);
         public void SingletonRemoveProposedFunctionality(string funcID);

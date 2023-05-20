@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import random
+import re
 import string
 import time
 import requests
@@ -7,6 +8,7 @@ import threading
 import logging
 import os
 import datetime
+import copy
 from time import perf_counter_ns
 
 """	This script is used to test the Catalog.API service. 
@@ -14,6 +16,8 @@ from time import perf_counter_ns
     The script will log the response from the Catalog.API service and the Discount.API service.
     The script will also log the response from the Basket.API service.
 """
+numThreads = 30 # Number of threads to be used in the test
+secondsToRun = 30 # Number of seconds to run the test
 
 catalogServicePort = "5101"
 discountServicePort = "5140"
@@ -21,13 +25,14 @@ basketServicePort = "5103"
 webaggregatorServicePort = "5121"
 current_directory = os.getcwd()
 
+logging_path = os.path.join(current_directory, 'testing_scripts', 'logs')
+timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
+log_file_name = f"UpdatePriceAndDiscount_{timestamp}.log"
+log_file_path = os.path.join(logging_path, log_file_name)
+
 def ConfigureLoggingSettings():
     # Configure logging settings
-    logging_path = os.path.join(current_directory, 'testing_scripts', 'logs')
     os.makedirs(logging_path, exist_ok=True)  # Create the log directory if it doesn't exist
-    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
-    log_file_name = f"UpdatePriceAndDiscount_{timestamp}.log"
-    log_file_path = os.path.join(logging_path, log_file_name)
 
     logging.basicConfig(
         level=logging.INFO, 
@@ -155,7 +160,7 @@ def readBasket():
     basketItemDiscount = basketItems[0]["discount"]
 
     #Log response
-    logging.info('Thread <' + str(identity) + '> FuncID: <' + funcID + '> ' + 'Read Basket: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Time taken: ' + str(timeTaken) + 'ns')
+    logging.info('Thread <' + str(identity) + '> FuncID: <' + funcID + '> ' + 'Read Basket: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Timestamp: ' + timestamp)
     return
 
 
@@ -168,8 +173,6 @@ def writeOperations(catalogItem: dict, discountItem: dict):
 
     thread_identity = threading.get_ident()
 
-    logging.info('Executing write operations with thread: ' + str(thread_identity))
-
     # Check if the thread has already a pair price and discount already assigned in the dicionary of key/value: thread_id/(price, discount)
     if thread_identity not in thread_price_discount:
             # Pick a random price and discount from the predefined list and remove it from the list of predefined prices and discounts
@@ -178,9 +181,12 @@ def writeOperations(catalogItem: dict, discountItem: dict):
             thread_price_discount[thread_identity] = (price, discount)
     else:
         # Update the price and discount in the dictionary of key/value: thread_id/(price, discount)
-        thread_price_discount[thread_identity] = (price + 1, discount + 1)
+        price, discount = thread_price_discount[thread_identity]
+        thread_price_discount[thread_identity] = (price + 10, discount + 1)
         # Get the price and discount already assigned to the thread
         price, discount = thread_price_discount[thread_identity]
+
+    logging.info('Executing write operations with thread: ' + str(thread_identity) + ' and price/discount: ' + str(price) + '/' + str(discount))
 
     # Update price on catalog item
     updatePriceOnCatalog(catalogItem, price, funcID)
@@ -227,7 +233,7 @@ def updatePriceOnCatalog(catalogItem: dict, price: int, funcID: str):
         else:
             successCount[identity] += 1
     #Log response
-    logging.info("Thread <" + str(identity) + "> FuncID: <" + funcID + "> " + "PriceUpdate: " + str(price) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
+    logging.info("Thread <" + str(identity) + "> FuncID: <" + funcID + "> " + "PriceUpdate: " + str(catalogItem[0]["price"]) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
 
 
 # Update Discount on Item with ID 1
@@ -267,30 +273,52 @@ def updateDiscount(discountItem: dict, discount: int, funcID: str):
         else:
             successCount[identity] += 1
     #Log response
-    logging.info("Thread <" + str(identity) + "> DiscountUpdate: " + str(discount) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
+    logging.info("Thread <" + str(identity) + "> FuncID: <" + funcID + "> " + "DiscountUpdate: " + str(discountItem["discountValue"]) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
 
 
 
 def assign_operations(catalogItem: dict, discountItem: dict):
     start_time = time.time()
-    while time.time() - start_time < 30:
+    while time.time() - start_time < secondsToRun:
         # Assign read/write operations to thread based on read_write_ratio
         if random.choice(read_write_list) == 0:
             # Read operation
             future = executor.submit(readBasket)
         else:
             # Write operation
-            future = executor.submit(writeOperations, catalogItem, discountItem)
+            future = executor.submit(writeOperations, copy.deepcopy(catalogItem), copy.deepcopy(discountItem))
 
 
-numThreads = 10 # Number of threads to be used in the test
+def check_discount_from_log_file(file_path):
+    pattern = r'Read Basket: Price {([\d.]+)}, Discount: {([\d.]+)}'
+    results = {'OK': 0, 'anomalies': 0}
+    anomaly_line_presence = []
+
+    with open(file_path, 'r') as file:
+        for line in file:
+            # Using regex, check if the line matches the pattern
+            match = re.search(pattern, line)
+
+            # If the line matches the pattern, check if the discount is 10% of the price
+            if match:
+                price = float(match.group(1))
+                discount = float(match.group(2))
+                if discount == price * 0.1:
+                    results['OK'] += 1
+                else:
+                    results['anomalies'] += 1
+                    anomaly_line_presence.append(line)
+
+    return results, anomaly_line_presence
+
+
 # Create a thread pool with numThreads threads
 executor = ThreadPoolExecutor(max_workers=numThreads)  
 
 # Create a single dictionary with an entry for each thread. Each thread is assigned a list of time taken and success count
 timeTakenList = {}
 successCount = {}
-read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
+read_write_ratio = 4 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
 
 # Create a list for chances of read/write operations
 read_write_list = [1 for _ in range(read_write_ratio)] + [0 for _ in range(10 - read_write_ratio)]
@@ -338,6 +366,16 @@ def main():
     # Get the average requests per second
     requestsPerSecond = totalRequests / totalTimeTaken
     logging.info("Requests per second: " + str(requestsPerSecond))
+
+    results, anomaly_line_presence = check_discount_from_log_file(log_file_path)
+    print(f"OK: {results['OK']}")
+    print(f"Anomalies: {results['anomalies']}")
+    if results['anomalies'] > 0:
+        for line in anomaly_line_presence:
+            print(line, end='')
+
+    # Output ratio of Anomalies to total in percentage
+    print(f"Anomalies ratio: {results['anomalies'] / (results['OK'] + results['anomalies']) * 100}%")
 
 if __name__ == "__main__":
     # Call main function

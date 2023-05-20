@@ -23,7 +23,7 @@ def check_discount_from_log_file(file_path):
     return results, anomaly_line_presence
 
 # Example usage
-log_file_path = "testing_scripts/logs/UpdatePriceAndDiscount_2023-05-19_14-11-37.log"
+log_file_path = "testing_scripts\\logs\\UpdatePriceAndDiscount_2023-05-20_16-38-06.log"
 results, anomaly_line_presence = check_discount_from_log_file(log_file_path)
 
 print(f"OK: {results['OK']}")

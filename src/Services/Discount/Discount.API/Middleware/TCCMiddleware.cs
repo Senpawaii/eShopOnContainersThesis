@@ -34,7 +34,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                     wrapperSvc.SingletonWrappedDiscountItems.TryGetValue(functionality_ID, out ConcurrentBag<object[]> objects_to_remove);
 
-                    _logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {functionality_ID}.");
+                    //_logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {functionality_ID}.");
 
                     // Flush the Wrapper Data into the Database
                     FlushWrapper(functionality_ID, wrapperSvc, ticks, scpMetadata, discountContext);
@@ -46,7 +46,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     // Remove the functionality from the proposed state
                     wrapperSvc.SingletonRemoveProposedFunctionality(functionality_ID);
 
-                    _logger.LogInformation($"Cleared {objects_to_remove.Count} items for functionality {functionality_ID}.");
+                    //_logger.LogInformation($"Cleared {objects_to_remove.Count} items for functionality {functionality_ID}.");
 
                     await _next.Invoke(ctx);
                     return;
@@ -62,7 +62,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 if (ctx.Request.Query.TryGetValue("interval_low", out var interval_lowStr) &&
                     ctx.Request.Query.TryGetValue("interval_high", out var interval_highStr)) {
 
-                    _logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
+                    // _logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
 
                     if (int.TryParse(interval_lowStr, out var interval_low)) {
                         svc.ScopedMetadataIntervalLow = interval_low;
@@ -79,12 +79,12 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
-                    _logger.LogInformation($"Registered timestamp: {timestamp}");
+                    // _logger.LogInformation($"Registered timestamp: {timestamp}");
                     svc.ScopedMetadataTimestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
                 }
 
                 if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
-                    _logger.LogInformation($"Registered tokens: {tokens}");
+                    // _logger.LogInformation($"Registered tokens: {tokens}");
                     Double.TryParse(tokens, out double numTokens);
                     svc.ScopedMetadataTokens = numTokens;
                 }

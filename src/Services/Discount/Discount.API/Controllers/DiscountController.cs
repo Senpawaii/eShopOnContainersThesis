@@ -69,6 +69,9 @@ public class DiscountController : ControllerBase {
             DiscountValue = discount
         };
 
+        // Log the discount item creation
+        _logger.LogInformation($"Controller: Creating Discount Item with Name: {discountItem.ItemName}, Brand: {discountItem.ItemBrand}, Type: {discountItem.ItemType}, and Discount Value: {discountItem.DiscountValue}");
+
         _discountContext.Discount.Add(discountItem);
         await _discountContext.SaveChangesAsync();
 
@@ -97,6 +100,10 @@ public class DiscountController : ControllerBase {
 
         // Update current product
         discountItem = discountToUpdate;
+
+        // Log the discount item update
+        _logger.LogInformation($"Controller: Body Discount Item with Name: {discountToUpdate.ItemName}, Brand: {discountToUpdate.ItemBrand}, Type: {discountToUpdate.ItemType}, and Discount Value: {discountToUpdate.DiscountValue}");
+
         _discountContext.Discount.Update(discountItem);
         await _discountContext.SaveChangesAsync();
 

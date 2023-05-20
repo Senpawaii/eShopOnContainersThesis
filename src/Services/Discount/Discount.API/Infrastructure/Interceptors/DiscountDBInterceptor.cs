@@ -206,6 +206,14 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         int numberRows = command.Parameters.Count / columns.Count;
         var rowsAffected = 0;
 
+        // Log the paramters values being inserted
+        string values = "";
+        for(int i = 0; i < command.Parameters.Count; i++) {
+            var param = command.Parameters[i].Value;
+            values += param.ToString() + ", ";
+        }
+        _logger.LogInformation("Values being inserted: {0}", values);
+
         var rows = new List<object[]>();
         for (int i = 0; i < numberRows; i += 1) {
             var row = new object[columns.Count + 1]; // Added Timestamp at the end
@@ -218,6 +226,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             // Define the uncommitted timestamp as the current time
             row[^1] = DateTime.UtcNow;
             rows.Add(row);
+            // Log each element of the row being added to the wrapper
+            _logger.LogInformation("Adding row to wrapper: {0}", string.Join(", ", row));
+
             rowsAffected++;
         }
 
@@ -339,6 +350,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // Assign new Parameters and Command text to database command
         command.Parameters.Clear();
         command.Parameters.AddRange(newParameters.ToArray());
+        // Log the parameters values being added to the command
+        _logger.LogInformation("UpdateInsertCommand: {0}", string.Join(", ", newParameters.Select(p => p.Value)));
         command.CommandText = commandWithTimestamp;
     }
 

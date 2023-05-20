@@ -362,11 +362,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // Replace Command Text to account for new filter
         if (command.CommandText.Contains("WHERE")) {
             // Command already has at least 1 filter
-            command.CommandText += $" AND [c].[Timestamp] <= '{functionalityTimestamp}'"; 
+            command.CommandText += $" AND [c].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'"; 
         }
         else {
             // Command has no filters yet
-            command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp}'");
+            command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
         }
     }
 
@@ -697,6 +697,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     }
                 }
 
+                // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
+                newData = GroupVersionedObjects(newData, targetTable);
+
                 (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
                 if (hasOrderBy) {
                     // The select query has an ORDER BY clause
@@ -827,6 +830,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         }
                     }
                 }
+
+                // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
+                newData = GroupVersionedObjects(newData, targetTable);
 
                 (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
                 if(hasOrderBy) {
@@ -971,7 +977,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Store the column name associated with the respective value for comparison
         Dictionary<string, object> parametersFilter = new Dictionary<string, object>();
-        Regex regex = new Regex(@"\.*\[[a-zA-Z]\].\[(?<columnName>\S*)\]\s*=\s*(?<paramValue>\S*)");
+        //Regex regex = new Regex(@"\.*\[[a-zA-Z]\].\[(?<columnName>\S*)\]\s*=\s*(?<paramValue>\S*)");
+        Regex regex = new Regex(@"\.*\[[a-zA-Z]\].\[(?<columnName>\S*)\]\s*=\s*N?'(?<paramValue>.*?)'");
         MatchCollection matches = regex.Matches(command.CommandText);
 
         if(matches.Count == 0) {
@@ -983,8 +990,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         for (int i = 0; i < matches.Count; i++) {
             string columnName = matches[i].Groups[1].Value;
             string parameterParametrization = matches[i].Groups[2].Value;
-            DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
-            parametersFilter[columnName] = parameter.Value;
+
+            // Check if the first index of the string is a "@" symbol
+            if (parameterParametrization[0] == '@') {
+                DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
+                parametersFilter[columnName] = parameter.Value;
+            }
+            else {
+                parametersFilter[columnName] = parameterParametrization;
+            }
         }
 
         // Get the default indexes for the columns of the Catalog Database
@@ -1135,49 +1149,155 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
 
-        if (!_wrapper.Proposed_functionalities.ContainsKey(funcID)) {
-            // No proposed items for this functionality
-            return;
-        }
-        
         // Get the timestamp of the command from string to DateTime
-        DateTime readerTimestamp = DateTime.Parse(command.Parameters[^1].Value.ToString());
-        DateTime proposedTimestamp = new DateTime(_wrapper.Proposed_functionalities[funcID]);
+        Regex regex = new Regex(@"\[Timestamp\] <= '(?<Timestamp>[^']*)'");
+        MatchCollection matches = regex.Matches(command.CommandText);
+        DateTime readerTimestamp = DateTime.Parse(matches[0].Groups["Timestamp"].Value.ToString());
+        string targetTable = GetTargetTable(command.CommandText);
 
-        if(proposedTimestamp > readerTimestamp) {
-            // The reader will not observe the new version.
-            return;
-        }
-
-        if(!HasFilterCondition(command.CommandText)) {
+        if (!HasFilterCondition(command.CommandText)) {
             // The reader is trying to read all items. Wait for the proposed items to be committed.
-            while (_wrapper.Proposed_functionalities.ContainsKey(funcID)) {
+            while (true) {
+                ConcurrentDictionary<object[], ConcurrentDictionary < DateTime, int >> proposedItems = null;
+                switch(targetTable) {
+                    case "Catalog":
+                        proposedItems = _wrapper.Proposed_catalog_items;
+                        break;
+                    case "CatalogBrand":
+                        proposedItems = _wrapper.Proposed_catalog_brands;
+                        break;
+                    case "CatalogType":
+                        proposedItems = _wrapper.Proposed_catalog_types;
+                        break;
+                }
+                
+                // Get all proposed timestamps
+                List<DateTime> proposedTimestamps = new List<DateTime>();
+                foreach (KeyValuePair<object[], ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
+                    foreach (DateTime proposalTS in pair.Value.Keys) {
+                        if (proposalTS <= readerTimestamp) {
+                            proposedTimestamps.Add(proposalTS);
+                        }
+                    }
+                }
+                if (proposedTimestamps.Count == 0) {
+                    // All items have been flushed to the Database
+                    return;
+                }
                 Thread.Sleep(100);
             }
-            return;
         }
 
-        // Obtain key(s) for read set
-        string targetTable = GetTargetTable(command.CommandText);
-        List<object[]> dataToQuery = null;
+        // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
+        while (true) {
+            // Get list
+            List<object[]> totalData = null;
+            switch (targetTable) {
+                case "Catalog":
+                    totalData = new List<object[]>(_wrapper.Proposed_catalog_items.Keys);
+                    break;
+                case "CatalogBrand":
+                    totalData = new List<object[]>(_wrapper.Proposed_catalog_brands.Keys);
+                    break;
+                case "CatalogType":
+                    totalData = new List<object[]>(_wrapper.Proposed_catalog_types.Keys);
+                    break;
+            }
+            var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
 
-        switch(targetTable) {
+            int possibleCases = 0;
+            foreach (object[] identifier in rowsToQuery) {
+                ConcurrentDictionary<DateTime, int> timestamps = null;
+                // Get the timestamps associated with the identifier
+
+                switch (targetTable) {
+                    case "Catalog":
+                        timestamps = _wrapper.Proposed_catalog_items[identifier];
+                        break;
+                    case "CatalogBrand":
+                        timestamps = _wrapper.Proposed_catalog_brands[identifier];
+                        break;
+                    case "CatalogType":
+                        timestamps = _wrapper.Proposed_catalog_types[identifier];
+                        break;
+                }
+
+                // Check if there is at least one timestamp that is less than the reader timestamp, and so that will require the reader to wait
+                foreach (DateTime proposalTS in timestamps.Keys) {
+                    if (proposalTS <= readerTimestamp) {
+                        possibleCases++;
+                    }
+                }
+            }
+
+            if (possibleCases == 0) {
+                // No need to wait for any versions
+                return;
+            }
+            else {
+                Console.WriteLine($"Possible Cases:<{possibleCases}>. Reader has TS=<{readerTimestamp}>,  Will sleep...");
+            }
+
+            // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
+            Thread.Sleep(100);
+        }
+    }
+
+    private List<object[]> ApplyFilterToProposedSet(List<object[]> proposedSet, DbCommand command) {
+        List<object[]> filteredData = new List<object[]>();
+        string targetTable = GetTargetTable(command.CommandText);
+
+        // Store the column name associated with the respective value for comparison
+        Dictionary<string, object> parametersFilter = new Dictionary<string, object>();
+        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
+        MatchCollection matches = regex.Matches(command.CommandText);
+
+        if (matches.Count == 0) {
+            // No Where filters exist
+            return new List<object[]>();
+        }
+
+        // Extract parameter names from the matches
+        for (int i = 0; i < matches.Count; i++) {
+            string columnName = matches[i].Groups[1].Value;
+
+            // Get the parameter value: either matched again paramValue1 or paramValue2
+            string parameterParametrization = matches[i].Groups[2].Value.IsNullOrEmpty() ? matches[i].Groups[3].Value : matches[i].Groups[2].Value;
+
+            // Check if the first index of the string is a "@" symbol
+            if (parameterParametrization[0] == '@') {
+                DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == parameterParametrization);
+                parametersFilter[columnName] = parameter.Value;
+            }
+            else {
+                parametersFilter[columnName] = parameterParametrization;
+            }
+        }
+
+        // Get the default indexes for the columns identifiers of the Target Catalog Database
+        Dictionary<string, int> columnIndexes = new Dictionary<string, int>();
+        switch (targetTable) {
             case "Catalog":
-                dataToQuery = _wrapper.Proposed_catalog_items[funcID].ToList();
+                columnIndexes.Add("CatalogBrandId", 0);
+                columnIndexes.Add("CatalogTypeId", 1);
+                columnIndexes.Add("Name", 2);
                 break;
             case "CatalogBrand":
-                dataToQuery = _wrapper.Proposed_catalog_brands[funcID].ToList();
+                columnIndexes.Add("Brand", 0);
                 break;
             case "CatalogType":
-                dataToQuery = _wrapper.Proposed_catalog_types[funcID].ToList();
+                columnIndexes.Add("Type", 0);
                 break;
         }
-        if(ApplyWhereFilterIfExist(dataToQuery, command).ToList().Count > 0) {
-            // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
-            while(_wrapper.Proposed_functionalities.ContainsKey(funcID)) {
-                Thread.Sleep(100);
+        
+        foreach (KeyValuePair<string, object> parameter in parametersFilter) {
+            if (columnIndexes.TryGetValue(parameter.Key, out int columnIndex)) {
+                // The column exists in the proposed set. Filter the proposed set by the parameter value
+                filteredData = proposedSet
+                        .Where(row => row[columnIndex] != null && row[columnIndex].ToString() == parameter.Value.ToString())
+                        .ToList();
             }
-            return;
         }
+        return filteredData;
     }
 }
