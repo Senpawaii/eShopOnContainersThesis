@@ -16,16 +16,18 @@ from time import perf_counter_ns
     The script will log the response from the Catalog.API service and the Discount.API service.
     The script will also log the response from the Basket.API service.
 """
-numThreads = 12 # Number of threads to be used in the test
+numThreads = 32 # Number of threads to be used in the test
 secondsToRun = 10 # Number of seconds to run the test
 read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
-throughputList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] # Number of functionalities per second 
+throughput_step = 1
+min_throughput = 10
+max_throughput = 150
 
 catalogServicePort = "5101"
 discountServicePort = "5140"
 basketServicePort = "5103"
 webaggregatorServicePort = "5121"
-current_directory = os.getcwd()
+current_directory = os.path.dirname(os.path.abspath(__file__))
 
  # Store the number of write operations
 writeOperationsCount = 0
@@ -35,7 +37,7 @@ readOperationsCount = 0
 # Configure root logger
 base_logging_path = os.path.join(current_directory, 'logs')
 os.makedirs(base_logging_path, exist_ok=True)  # Create the log directory if it doesn't exist
-test_logging_path = os.path.join(base_logging_path, "UpdatePriceAndDiscount_Inconsistencies_VS_Throughput")
+test_logging_path = os.path.join(base_logging_path, "NoWrapper_UpdatePriceAndDiscount_Inconsistencies_VS_Throughput")
 os.makedirs(test_logging_path, exist_ok=True)  # Create the test directory if it doesn't exist
 timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
 log_file_name = f"{timestamp}.log" # root log file name
@@ -73,6 +75,8 @@ def QueryCatalogItemById(id: int) -> dict:
 
     # Log response
     logging.info('Response from Catalog Service: ' + str(response.status_code) + ' ' + str(response.reason))
+    # Log found object
+    logging.info("Object queried:" + str(response.json()))
     return response.json()
 
 
@@ -84,6 +88,10 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
 
     # Get the brand name that matches the brand ID
     address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+
+    # Log request address
+    logging.info("Sending request to address: " + address)
+
     response = requests.get(address)
 
     brandName = ""
@@ -93,6 +101,10 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
 
     # Get the type name that matches the type ID
     address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogTypes?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    
+    # Log request address
+    logging.info("Sending request to address: " + address)
+
     response = requests.get(address)
 
     typeName = ""
@@ -103,6 +115,10 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
     itemName = catalogItem[0]["name"]
     # Get the discount item that matches the brand name and type name
     address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName + '&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    
+    # Log request address
+    logging.info("Sending request to address: " + address)
+
     response = requests.get(address)
 
     # Extract the first (and only) discount item from the response list of discounts
@@ -346,7 +362,7 @@ def check_discount_from_log_file(file_path):
 
 
 # Create predefined list of prices and discounts to be used in tests equal to the number of threads
-prices = [10000 * (i+1) for i in range(numThreads)]
+prices = [10000000 * (i+1) for i in range(numThreads)]
 discounts = [prices[i] // 10 for i in range(numThreads)]
 thread_price_discount = {}
 
@@ -386,7 +402,10 @@ def main():
     anomalyLinePresenceList = []
     
     executor = ThreadPoolExecutor(max_workers=numThreads)  
-    for throughput in throughputList:
+    
+    # while the throughput is less than 130
+    throughput = min_throughput
+    while throughput <= max_throughput:
         # Create a thread pool with numThreads threads
         
         # Configure logging settings for each read/write ratio test
@@ -460,12 +479,14 @@ def main():
         resultsList.append(results)
         anomalyLinePresenceList.append(anomaly_line_presence)
         # Log the results
-        logger.info("Results: " + str(results['OK']) + " Read operations, " + str(results['anomalies']) + " anomalies")
+        logger.info("Results: " + str(results['OK']) + " OK Reads, " + str(results['anomalies']) + " Anomalies")
         if results['anomalies'] > 0:
             for line in anomaly_line_presence:
-                logger.info(line, end='')
-        logger.info("Anomalies ratio: " + str(results['anomalies'] / readOperationsCount) + "% (" + str(results['anomalies']) + "/" + str(readOperationsCount) + ")")
+                logger.info(line)
+        logger.info("Anomalies ratio: " + str((results['anomalies'] / readOperationsCount) * 100) + "% (" + str(results['anomalies']) + "/" + str(readOperationsCount) + ")")
         logger.info("=========================================")
+
+        throughput += throughput_step
 
     # Shutdown executor
     executor.shutdown(wait=True)

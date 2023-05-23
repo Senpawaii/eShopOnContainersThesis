@@ -30,7 +30,7 @@ services:
 
   basketdata:
     ports:
-      - "6379:6379"
+      - "6380:6380"
     volumes:
       - eshop-basketdata:/data
   rabbitmq:

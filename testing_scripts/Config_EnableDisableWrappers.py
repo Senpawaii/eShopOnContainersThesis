@@ -30,7 +30,7 @@ logging.basicConfig(
     ]
 )
 
-file_path = [os.path.join(current_directory, 'src\\Services\\Catalog\\Catalog.API\\appsettings.json'), os.path.join(current_directory, 'src\\Services\\Discount\\Discount.API\\appsettings.json'), os.path.join(current_directory, 'src\\Web\\WebMVC\\appsettings.json'), os.path.join(current_directory, 'src\\Services\\Basket\\Basket.API\\appsettings.json')]
+file_path = [os.path.join(current_directory, 'src/Services/Catalog/Catalog.API/appsettings.json'), os.path.join(current_directory, 'src/Services/Discount/Discount.API/appsettings.json'), os.path.join(current_directory, 'src/Web/WebMVC/appsettings.json'), os.path.join(current_directory, 'src/Services/Basket/Basket.API/appsettings.json')]
 services = ['Catalog', 'Discount', 'WebMVC', 'Basket']
 # Read appsettings for each service and change ThesisWrapperEnabled to True/False'
 for index, file_path in enumerate(file_path):

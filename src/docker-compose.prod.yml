@@ -218,7 +218,7 @@ services:
 
   basket.data:
     ports:
-      - "6379:6379"    # Important: In a production environment your should remove the external port
+      - "6380:6380"    # Important: In a production environment your should remove the external port
 
   rabbitmq:
     ports:

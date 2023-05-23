@@ -7,7 +7,7 @@ image:
 
 service:
   type: ClusterIP
-  port: 6379
+  port: 6380
 
 
 resources: {}
