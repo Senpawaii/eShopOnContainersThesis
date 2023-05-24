@@ -282,3 +282,7 @@ src/**/app.yaml
 src/**/inf.yaml
 
 .angular/
+
+# ignore all pending benchmark testing scrips
+*.lua
+*wrk2.py

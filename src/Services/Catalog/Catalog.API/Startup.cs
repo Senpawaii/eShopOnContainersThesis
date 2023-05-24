@@ -45,6 +45,7 @@ public class Startup
                 .AddScoped<IScopedMetadata, ScopedMetadata>()
                 .AddSingleton<ISingletonWrapper, SingletonWrapper>()
                 .AddHttpClient<ICoordinatorService, CoordinatorService>();
+                .AddGarbageCollectionWorker<IGarbageCollectionWorker, GarbageCollectionWorker>();
         }
 
         var container = new ContainerBuilder();

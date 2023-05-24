@@ -13,6 +13,8 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
         public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next) {
             _logger = logger;
             _next = next;
+            // _garbageCollectorThread = new Thread(new ThreadStart(GarbageCollection));
+            // _garbageCollectorThread.Start();
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
@@ -20,6 +22,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
             // To differentiate from a regular call, check for the functionality ID
             if (ctx.Request.Query.TryGetValue("functionality_ID", out var functionality_ID)) {
+                // Log the current timestamp
+                _logger.LogInformation($"Checkpoint 1: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
                 svc.ScopedMetadataFunctionalityID = functionality_ID;
 
                 string currentUri = ctx.Request.GetUri().ToString();
@@ -143,6 +148,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     // Propose Timestamp with Tokens to the Coordinator
                     await coordinatorSvc.SendTokens();
                 }
+
+                _logger.LogInformation($"Checkpoint 4: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
             }
             else {
                 // This is not an HTTP request that requires change
@@ -211,6 +219,16 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             // Clear the stored objects in the wrapper with this functionality ID
             wrapperSvc.SingletonRemoveFunctionalityObjects(funcID);
         }
+    
+        // // Define task that is run in the background for the entire lifetime of the application to perform garbage collection of the database context(s)
+        // private async Task BackgroundGarbageCollection() {
+        //     while (true) {
+        //         await Task.Delay(1000);
+        //         // Perform garbage collection of the database context(s)
+        //         _catalogContext.Dispose();
+        //     }
+        // } 
+
     }
 
     public static class TCCMiddlewareExtension {

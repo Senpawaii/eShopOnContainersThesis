@@ -27,6 +27,8 @@ public class CatalogController : ControllerBase {
     [ProducesResponseType(typeof(IEnumerable<CatalogItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     public async Task<IActionResult> ItemsAsync([FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0, string ids = null) {
+        _logger.LogInformation($"Checkpoint 2: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        
         if (!string.IsNullOrEmpty(ids)) {
             var items = await GetItemsByIdsAsync(ids);
 
@@ -41,6 +43,8 @@ public class CatalogController : ControllerBase {
         var totalItems = await _catalogContext.CatalogItems
             .LongCountAsync();
 
+        _logger.LogInformation($"Checkpoint 2.1: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
         var itemsOnPage = await _catalogContext.CatalogItems
             .OrderBy(c => c.Name)
             .Skip(pageSize * pageIndex)
@@ -50,6 +54,8 @@ public class CatalogController : ControllerBase {
         itemsOnPage = ChangeUriPlaceholder(itemsOnPage);
 
         var model = new PaginatedItemsViewModel<CatalogItem>(pageIndex, pageSize, totalItems, itemsOnPage);
+
+        _logger.LogInformation($"Checkpoint 3: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         return Ok(model);
     }

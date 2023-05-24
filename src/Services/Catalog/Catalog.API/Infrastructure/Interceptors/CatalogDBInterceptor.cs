@@ -55,6 +55,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
+        _logger.LogInformation($"Checkpoint 2_a_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
         _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
@@ -140,6 +142,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 break;
         }
 
+        _logger.LogInformation($"Checkpoint 2_b_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         return result;
     }
 
@@ -148,6 +151,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
+        _logger.LogInformation($"Checkpoint 2_a_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         _originalCommandText = new string(command.CommandText);
 
@@ -227,6 +231,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
                 break;
         }
+
+
+        _logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
     }
@@ -743,6 +750,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
+        _logger.LogInformation($"Checkpoint 2_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+        
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
         
         if(funcId == null) {
@@ -796,6 +806,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
             newData.Add(rowValues.ToArray());
         }
+
+        // Log the number of read rows
+        _logger.LogInformation($"Checkpoint 2_c_1: Read {newData.Count} rows from the database");
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
@@ -865,6 +878,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 object[] data = new object[] { newData.Count + wrapperData.Count };
                 countedData.Add(data);
 
+                _logger.LogInformation($"Checkpoint 2_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 return new WrapperDbDataReader(countedData, result, targetTable);
             }
 
@@ -875,6 +889,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
 
         }
+        _logger.LogInformation($"Checkpoint 2_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
