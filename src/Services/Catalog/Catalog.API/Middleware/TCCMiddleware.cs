@@ -3,6 +3,7 @@ using Microsoft.ApplicationInsights.AspNetCore.Extensions;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using System.Collections.Concurrent;
+using System.Threading;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
@@ -13,8 +14,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
         public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next) {
             _logger = logger;
             _next = next;
-            // _garbageCollectorThread = new Thread(new ThreadStart(GarbageCollection));
-            // _garbageCollectorThread.Start();
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
