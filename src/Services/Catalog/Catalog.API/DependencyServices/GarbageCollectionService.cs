@@ -7,7 +7,7 @@ public class GarbageCollectionService : BackgroundService {
     private readonly ILogger<GarbageCollectionService> _logger;
     private int _executionCount = 0;
     private readonly int MAX_VERSIONS = 60;
-    private readonly int TIMER = 8000;
+    private readonly int TIMER = 8;
 
     public GarbageCollectionService(IServiceScopeFactory scopeFactory, ILogger<GarbageCollectionService> logger) {
         _scopeFactory = scopeFactory; 
@@ -54,8 +54,8 @@ public class GarbageCollectionService : BackgroundService {
                 // Sort the product rows by timestamp
                 productRows.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
 
-                // Remove the oldest versions - MAX_VERSIONS versions
-                var oldestVersions = productRows.GetRange(0, versions - MAX_VERSIONS);
+                // Remove the oldest versions - MAX_VERSIONS versions, do not remove the first version (the seed version)
+                var oldestVersions = productRows.GetRange(1, versions - MAX_VERSIONS);
 
                 // Remove the oldest versions
                 dbContext.CatalogItems.RemoveRange(oldestVersions);
@@ -75,8 +75,8 @@ public class GarbageCollectionService : BackgroundService {
                 var brandRows = dbContext.CatalogBrands.Where(p => p.Brand == brand.Brand).ToList();
                 // Sort the brand rows by timestamp
                 brandRows.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-                // Remove the oldest versions - MAX_VERSIONS versions
-                var oldestVersions = brandRows.GetRange(0, versions - MAX_VERSIONS);
+                // Remove the oldest versions - MAX_VERSIONS versions do not remove the first version (the seed version)
+                var oldestVersions = brandRows.GetRange(1, versions - MAX_VERSIONS);
                 // Remove the oldest versions
                 dbContext.CatalogBrands.RemoveRange(oldestVersions);
                 dbContext.SaveChanges();
@@ -94,8 +94,8 @@ public class GarbageCollectionService : BackgroundService {
                 var typeRows = dbContext.CatalogTypes.Where(p => p.Type == type.Type).ToList();
                 // Sort the type rows by timestamp
                 typeRows.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-                // Remove the oldest versions - MAX_VERSIONS versions
-                var oldestVersions = typeRows.GetRange(0, versions - MAX_VERSIONS);
+                // Remove the oldest versions - MAX_VERSIONS versions do not remove the first version (the seed version)
+                var oldestVersions = typeRows.GetRange(1, versions - MAX_VERSIONS);
                 // Remove the oldest versions
                 dbContext.CatalogTypes.RemoveRange(oldestVersions);
                 dbContext.SaveChanges();

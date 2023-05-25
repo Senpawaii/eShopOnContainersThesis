@@ -8,7 +8,7 @@ public class GarbageCollectionService : BackgroundService {
     private readonly ILogger<GarbageCollectionService> _logger;
     private int _executionCount = 0;
     private readonly int MAX_VERSIONS = 60;
-    private readonly int TIMER = 8000;
+    private readonly int TIMER = 8;
 
     public GarbageCollectionService(IServiceScopeFactory scopeFactory, ILogger<GarbageCollectionService> logger) {
         _scopeFactory = scopeFactory; 

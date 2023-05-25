@@ -78,7 +78,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return result;
             case SELECT_COMMAND:
-                UpdateSelectCommand(command);
+                UpdateSelectCommand(command, targetTable);
                 WaitForProposedItemsIfNecessary(command, funcID);
                 break;
             case INSERT_COMMAND:
@@ -169,7 +169,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
-                UpdateSelectCommand(command);
+                UpdateSelectCommand(command, targetTable);
                 WaitForProposedItemsIfNecessary(command, funcID);
                 break;
             case INSERT_COMMAND:
@@ -234,7 +234,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
 
         _logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
+        // Log the command text
+        //_logger.LogInformation($"Command Text: {command.CommandText}");
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
     }
 
@@ -351,7 +352,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     /// "SELECT COUNT_BIG(*) ..."; "SELECT ... FROM [CatalogBrand] ..."; "SELECT ... FROM [CatalogType] ..."
     /// </summary>
     /// <param name="command"></param>
-    private void UpdateSelectCommand(DbCommand command) {
+    private void UpdateSelectCommand(DbCommand command, string targetTable) {
+        // Log the command text
+        _logger.LogInformation($"Command Text: {command.CommandText}");
+
         // Get the current functionality-set timeestamp
         DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
 
@@ -366,15 +370,87 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             command.CommandText = RemoveCountSelection(command.CommandText);
         }
 
-        // Replace Command Text to account for new filter
+        (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
+        
+        (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
+
+        // Remove the ORDER BY clause and everything after it
+        if (hasOrderBy) {
+            string orderByPattern = @"ORDER\s+BY(.|\n)*";
+            command.CommandText = Regex.Replace(command.CommandText, orderByPattern, "");
+        }
+
+        string whereCondition = "";
         if (command.CommandText.Contains("WHERE")) {
-            // Command already has at least 1 filter
-            command.CommandText += $" AND [c].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'"; 
+            // Extract where condition
+            string regex_pattern = @"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)";
+            Match match = Regex.Match(command.CommandText, regex_pattern);
+            
+            whereCondition = match.Groups[1].Value;
+            // Remove the where condition from the command
+            command.CommandText = command.CommandText.Replace(whereCondition, "");
+            whereCondition = whereCondition.Replace("[c]", $"[{targetTable}]");
+            whereCondition += $" AND [{targetTable}].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+        
+        } else {
+            whereCondition = $" WHERE [{targetTable}].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
         }
-        else {
-            // Command has no filters yet
-            command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
+
+        switch (targetTable) {
+            case "CatalogBrand":
+                command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
+                command.CommandText += whereCondition;
+                command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
+                break;
+            case "CatalogType":
+                command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogType.Type, max(CatalogType.Timestamp) as max_timestamp FROM CatalogType");
+                command.CommandText += whereCondition;
+                command.CommandText += "GROUP BY CatalogType.Type) d on c.Type = d.Type AND c.Timestamp = d.max_timestamp";
+                break;
+            case "Catalog":
+                command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId, max(Catalog.Timestamp) as max_timestamp FROM Catalog");
+                command.CommandText += whereCondition;
+                command.CommandText += "GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp";
+                break;
         }
+
+        // TODO: Add the order by and offset conditions to the command text if they are not null
+        //if (hasOrderBy) {
+        //    command.CommandText += $" ORDER BY {orderByColumn} {typeOrder}";
+        //}
+        //if (hasOffset) {
+        //    command.CommandText += $" OFFSET {offsetParam}";
+        //}
+        // Check Notes for example
+
+
+        // GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId
+
+        // Replace Command Text to account for new filter
+        //if (command.CommandText.Contains("WHERE")) {
+        //    // Command already has at least 1 filter
+        //    command.CommandText += $" AND [c].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'"; 
+        //}
+        //else {
+        //    // Command has no filters yet
+        //    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
+        //}
+
+        // Append to Command Text the functionality timestamp group by clause
+        //switch (targetTable) {
+        //    case "CatalogBrand":
+        //        command.CommandText += $" AND Timestamp in (SELECT MAX(timestamp) from {targetTable} group by {targetTable}.Brand);";
+        //        break;
+        //    case "CatalogType":
+        //        command.CommandText += $" AND Timestamp in (SELECT MAX(timestamp) from {targetTable} group by {targetTable}.Type);";
+        //        break;
+        //    case "Catalog":
+        //        command.CommandText += $" AND Timestamp in (SELECT MAX(timestamp) from {targetTable} group by {targetTable}.Name, {targetTable}.CatalogBrandId, {targetTable}.CatalogTypeId);";
+        //        break;
+        //}
+
+        _logger.LogInformation($"Updated Command Text: {command.CommandText}");
+
     }
 
     private string RemovePartialRowSelection(string commandText) {
@@ -685,7 +761,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
-            newData = GroupVersionedObjects(newData, targetTable);
+            //newData = GroupVersionedObjects(newData, targetTable);
             wrapperData = GroupVersionedObjects(wrapperData, targetTable);
 
             if (wrapperData != null) {
@@ -696,6 +772,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     if (!HasCountClause(command.CommandText)) {
                         // Only add the rows if the data from the DB is not a single count product
                         foreach (var wrapperRow in wrapperData) {
+                            // TODO: Replace the data in the newData with the data from the Wrapper if the identifier matches - this avoids us having to group the data again
+
                             newData.Add(wrapperRow);
                         }
                     } else {
@@ -812,7 +890,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
-            targetTable = GetTargetTable(command.CommandText);
             List<object[]> wrapperData = null;
 
             switch (targetTable) {
@@ -826,10 +903,14 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     wrapperData = _wrapper.SingletonGetCatalogITems(funcId).ToList();
                     break;
             }
+            _logger.LogInformation($"Checkpoint 2_c_2: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
-            newData = GroupVersionedObjects(newData, targetTable);
+            //newData = GroupVersionedObjects(newData, targetTable);
+            _logger.LogInformation($"Checkpoint 2_c_3: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
             wrapperData = GroupVersionedObjects(wrapperData, targetTable);
+            _logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             if (wrapperData.Count > 0) {
                 if (HasFilterCondition(command.CommandText)) {
@@ -839,13 +920,17 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     if(!HasCountClause(command.CommandText)) {
                         // Only add the rows if the data from the DB is not a single count product
                         foreach(var wrapperRow in wrapperData) {
+                            // TODO: Replace the existing row with the same identifier in the newData for the one present in the wrapper
                             newData.Add(wrapperRow);
                         }
                     }
                 }
+                _logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
 
                 // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
                 newData = GroupVersionedObjects(newData, targetTable);
+                _logger.LogInformation($"Checkpoint 2_c_5: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
                 if(hasOrderBy) {
@@ -871,6 +956,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     // The select query has a fetch next limit
                     newData = FetchNext(command, newData, fetchRowsParam);
                 }
+                _logger.LogInformation($"Checkpoint 2_c_6: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
             }
 
             if (HasCountClause(_originalCommandText)) {
@@ -881,6 +968,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 _logger.LogInformation($"Checkpoint 2_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 return new WrapperDbDataReader(countedData, result, targetTable);
             }
+            _logger.LogInformation($"Checkpoint 2_c_7: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             // Search for partial SELECTION on the original unaltered commandText
             (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);

@@ -17,21 +17,11 @@ class CatalogItemWithTimestampEntityTypeConfiguration
             .IsRequired(true)
             .HasMaxLength(50);
 
-        builder.Property(ci => ci.Price)
+        builder.Property(ci => ci.CatalogBrandId)
             .IsRequired(true);
 
-        builder.Property(ci => ci.PictureFileName)
-            .IsRequired(false);
-
-        builder.Ignore(ci => ci.PictureUri);
-
-        builder.HasOne(ci => ci.CatalogBrand)
-            .WithMany()
-            .HasForeignKey(ci => ci.CatalogBrandId);
-
-        builder.HasOne(ci => ci.CatalogType)
-            .WithMany()
-            .HasForeignKey(ci => ci.CatalogTypeId);
+        builder.Property(ci => ci.CatalogTypeId)
+            .IsRequired(true);
 
         builder.Property(ci => ci.Timestamp)
             .IsRequired(true);
