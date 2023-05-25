@@ -40,6 +40,7 @@ public class Startup {
             services
                 .AddScoped<IScopedMetadata, ScopedMetadata>()
                 .AddSingleton<ISingletonWrapper, SingletonWrapper>()
+                .AddHostedService<GarbageCollectionService>()
                 .AddHttpClient<ICoordinatorService, CoordinatorService>();
 
         }
@@ -186,8 +187,6 @@ public static class CustomExtensionMethods {
     }
 
     public static IServiceCollection AddCustomDbContext(this IServiceCollection services, IConfiguration configuration) {
-        bool thesis = Convert.ToBoolean(configuration["ThesisWrappers"]);
-
         services.AddEntityFrameworkSqlServer()
             .AddDbContext<DiscountContext>(options => {
                 options.UseSqlServer(configuration["ConnectionString"],
@@ -207,6 +206,20 @@ public static class CustomExtensionMethods {
                                         sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
                                     });
         });
+
+        // Get the Catalog Settings service
+        var thesis = configuration.GetValue<bool>("ThesisWrapperEnabled");
+
+        if (thesis) {
+            services.AddDbContext<GarbageContext>(options => {
+                options.UseSqlServer(configuration["ConnectionString"],
+                                                           sqlServerOptionsAction: sqlOptions => {
+                                                               sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+                                                               //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+                                                               sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+                                                           });
+            });
+        }
 
         return services;
     }
