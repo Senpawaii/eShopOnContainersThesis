@@ -57,14 +57,14 @@ public class Startup {
 
             endpoints.MapControllers();
 
-            endpoints.MapHealthChecks("/hc", new HealthCheckOptions() {
-                Predicate = _ => true,
-                ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
-            });
+            //endpoints.MapHealthChecks("/hc", new HealthCheckOptions() {
+            //    Predicate = _ => true,
+            //    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+            //});
 
-            endpoints.MapHealthChecks("/liveness", new HealthCheckOptions {
-                Predicate = r => r.Name.Contains("self")
-            });
+            //endpoints.MapHealthChecks("/liveness", new HealthCheckOptions {
+            //    Predicate = r => r.Name.Contains("self")
+            //});
         });
 
         //app.UseRouter(buildRouter(app));
@@ -102,10 +102,10 @@ public static class CustomExtensionMethods {
         var accountName = configuration.GetValue<string>("AzureStorageAccountName");
         var accountKey = configuration.GetValue<string>("AzureStorageAccountKey");
 
-        var hcBuilder = services.AddHealthChecks();
+        //var hcBuilder = services.AddHealthChecks();
 
-        hcBuilder
-            .AddCheck("self", () => HealthCheckResult.Healthy());
+        //hcBuilder
+        //    .AddCheck("self", () => HealthCheckResult.Healthy());
 
         return services;
     }
