@@ -65,6 +65,9 @@ public class CoordinatorController : ControllerBase {
     }
 
     private async void BeginCommitProcess(string funcID, long maxTS) {
+        // Log the number of functionalities received up to this point
+        _logger.LogInformation("Number of functionalities received: " + _functionalityService.Proposals.Count);
+
         // Get all services' addresses involved in the functionality
         List<string> addresses = _functionalityService.Proposals[funcID]
                                     .Select(t => t.Item1)
