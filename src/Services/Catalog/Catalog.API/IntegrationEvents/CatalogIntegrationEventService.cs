@@ -49,7 +49,7 @@ public class CatalogIntegrationEventService : ICatalogIntegrationEventService, I
         {
             // Achieving atomicity between original catalog database operation and the IntegrationEventLog thanks to a local transaction
             await _catalogContext.SaveChangesAsync();
-            await _eventLogService.SaveEventAsync(evt, _catalogContext.Database.CurrentTransaction);
+            //await _eventLogService.SaveEventAsync(evt, _catalogContext.Database.CurrentTransaction); // Disabled to simplify the sample
         });
     }
 
