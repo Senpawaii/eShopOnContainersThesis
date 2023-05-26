@@ -83,7 +83,7 @@ public class DiscountController : ControllerBase {
     [HttpPut]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     [ProducesResponseType((int)HttpStatusCode.Created)]
-    public async Task<ActionResult> UpdateProductPriceAsync([FromBody] DiscountItem discountToUpdate) {
+    public async Task<ActionResult> UpdateProductDiscountAsync([FromBody] DiscountItem discountToUpdate) {
         // Extract the item name, brand, and type from the discount item
         var itemName = discountToUpdate.ItemName;
         var itemBrand = discountToUpdate.ItemBrand;
