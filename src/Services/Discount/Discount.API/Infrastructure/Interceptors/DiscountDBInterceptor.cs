@@ -292,6 +292,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     /// </summary>
     /// <param name="command"></param>
     private void UpdateSelectCommand(DbCommand command) {
+        // Log the command text
+        _logger.LogInformation($"Command Text: {command.CommandText}");
+
         // Get the current functionality-set timeestamp
         DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
 
@@ -306,15 +309,48 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             command.CommandText = RemoveCountSelection(command.CommandText);
         }
 
-        // Replace Command Text to account for new filter
+        (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
+
+        (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
+
+        // Remove the ORDER BY clause and everything after it
+        if (hasOrderBy) {
+            string orderByPattern = @"ORDER\s+BY(.|\n)*";
+            command.CommandText = Regex.Replace(command.CommandText, orderByPattern, "");
+        }
+
+        string whereCondition = "";
         if (command.CommandText.Contains("WHERE")) {
-            // Command already has at least 1 filter
-            command.CommandText += $" AND [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'";
+            // Extract where condition
+            string regex_pattern = @"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)";
+            Match match = Regex.Match(command.CommandText, regex_pattern);
+
+            whereCondition = match.Groups[1].Value;
+            // Remove the where condition from the command
+            command.CommandText = command.CommandText.Replace(whereCondition, "");
+            whereCondition = whereCondition.Replace("[d]", $"[Discount]");
+            whereCondition += $" AND [Discount].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+
         }
         else {
-            // Command has no filters yet
-            command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] WHERE [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
+            whereCondition = $" WHERE [Discount].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
         }
+
+        command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] JOIN (SELECT Discount.ItemName, Discount.ItemBrand, Discount.ItemType, max(Discount.Timestamp) as max_timestamp FROM Discount");
+        command.CommandText += whereCondition;
+        command.CommandText += "GROUP BY Discount.ItemName, Discount.ItemBrand, Discount.ItemType) e on d.ItemName = e.ItemName AND d.ItemBrand = e.ItemBrand AND d.ItemType = e.ItemType AND d.Timestamp = e.max_timestamp";
+
+        //// Replace Command Text to account for new filter
+        //if (command.CommandText.Contains("WHERE")) {
+        //    // Command already has at least 1 filter
+        //    command.CommandText += $" AND [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'";
+        //}
+        //else {
+        //    // Command has no filters yet
+        //    command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] WHERE [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
+        //}
+
+        _logger.LogInformation($"Updated Command Text: {command.CommandText}");
     }
 
     private string RemovePartialRowSelection(string commandText) {
@@ -510,7 +546,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
-            newData = GroupVersionedObjects(newData, targetTable);
+            //newData = GroupVersionedObjects(newData, targetTable);
             wrapperData = GroupVersionedObjects(wrapperData, targetTable);
 
             if (wrapperData != null) {
@@ -642,7 +678,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
-            newData = GroupVersionedObjects(newData, targetTable);
+            //newData = GroupVersionedObjects(newData, targetTable);
             wrapperData = GroupVersionedObjects(wrapperData, targetTable);
 
             if (wrapperData.Count > 0) {

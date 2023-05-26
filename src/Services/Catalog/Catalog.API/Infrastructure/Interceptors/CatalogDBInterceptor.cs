@@ -423,34 +423,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //}
         // Check Notes for example
 
-
-        // GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId
-
-        // Replace Command Text to account for new filter
-        //if (command.CommandText.Contains("WHERE")) {
-        //    // Command already has at least 1 filter
-        //    command.CommandText += $" AND [c].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'"; 
-        //}
-        //else {
-        //    // Command has no filters yet
-        //    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] WHERE [c].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
-        //}
-
-        // Append to Command Text the functionality timestamp group by clause
-        //switch (targetTable) {
-        //    case "CatalogBrand":
-        //        command.CommandText += $" AND Timestamp in (SELECT MAX(timestamp) from {targetTable} group by {targetTable}.Brand);";
-        //        break;
-        //    case "CatalogType":
-        //        command.CommandText += $" AND Timestamp in (SELECT MAX(timestamp) from {targetTable} group by {targetTable}.Type);";
-        //        break;
-        //    case "Catalog":
-        //        command.CommandText += $" AND Timestamp in (SELECT MAX(timestamp) from {targetTable} group by {targetTable}.Name, {targetTable}.CatalogBrandId, {targetTable}.CatalogTypeId);";
-        //        break;
-        //}
-
         _logger.LogInformation($"Updated Command Text: {command.CommandText}");
-
     }
 
     private string RemovePartialRowSelection(string commandText) {
