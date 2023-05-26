@@ -10,5 +10,6 @@ public interface IFunctionalityService {
     public void IncreaseTokens(string funcID, double tokens);
     public Boolean HasCollectedAllTokens(string funcID);
     public void AddNewServiceSentTokens(string funcID, string service);
+    public void ClearFunctionality(string funcID);
 
 }

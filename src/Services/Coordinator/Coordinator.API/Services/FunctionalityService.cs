@@ -62,4 +62,13 @@ public class FunctionalityService : IFunctionalityService {
         // Return true if the functionality has ended => the max number of tokens have been reached
         return _tokens[funcID] == 100;
     }
+
+    public void ClearFunctionality(string funcID) {
+        // Remove the functionality from the proposals
+        _proposals.TryRemove(funcID, out _);
+        // Remove the functionality from the tokens
+        _tokens.TryRemove(funcID, out _);
+        // Remove the functionality from the services sent tokens
+        _servicesSentTokens.TryRemove(funcID, out _);
+    }
 }

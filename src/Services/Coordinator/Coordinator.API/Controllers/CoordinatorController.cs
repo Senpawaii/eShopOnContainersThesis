@@ -84,6 +84,9 @@ public class CoordinatorController : ControllerBase {
                     break;
             }
         }
+
+        // Clear all the data structures from the functionality
+        _functionalityService.ClearFunctionality(funcID);
     }
 
     private async Task ReceiveProposals(string funcID) {
