@@ -82,7 +82,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     // Transaction is in commit state, update the command to store in the database
 
                     // Log timestamp of the transaction to be committed
-                    _logger.LogInformation($"FuncID:<{funcID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
+                    //_logger.LogInformation($"FuncID:<{funcID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
 
                     UpdateInsertCommand(command, targetTable);
                 }
@@ -212,7 +212,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             var param = command.Parameters[i].Value;
             values += param.ToString() + ", ";
         }
-        _logger.LogInformation("Values being inserted: {0}", values);
+        //_logger.LogInformation("Values being inserted: {0}", values);
 
         var rows = new List<object[]>();
         for (int i = 0; i < numberRows; i += 1) {
@@ -227,7 +227,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             row[^1] = DateTime.UtcNow;
             rows.Add(row);
             // Log each element of the row being added to the wrapper
-            _logger.LogInformation("Adding row to wrapper: {0}", string.Join(", ", row));
+            //_logger.LogInformation("Adding row to wrapper: {0}", string.Join(", ", row));
 
             rowsAffected++;
         }
@@ -293,7 +293,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     /// <param name="command"></param>
     private void UpdateSelectCommand(DbCommand command) {
         // Log the command text
-        _logger.LogInformation($"Command Text: {command.CommandText}");
+        //_logger.LogInformation($"Command Text: {command.CommandText}");
 
         // Get the current functionality-set timeestamp
         DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
@@ -350,7 +350,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         //    command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] WHERE [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
         //}
 
-        _logger.LogInformation($"Updated Command Text: {command.CommandText}");
+        //_logger.LogInformation($"Updated Command Text: {command.CommandText}");
     }
 
     private string RemovePartialRowSelection(string commandText) {
@@ -387,7 +387,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         command.Parameters.Clear();
         command.Parameters.AddRange(newParameters.ToArray());
         // Log the parameters values being added to the command
-        _logger.LogInformation("UpdateInsertCommand: {0}", string.Join(", ", newParameters.Select(p => p.Value)));
+        //_logger.LogInformation("UpdateInsertCommand: {0}", string.Join(", ", newParameters.Select(p => p.Value)));
         command.CommandText = commandWithTimestamp;
     }
 

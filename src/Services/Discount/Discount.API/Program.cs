@@ -68,11 +68,11 @@ Serilog.ILogger CreateSerilogLogger(IConfiguration configuration) {
     var logstashUrl = configuration["Serilog:LogstashUrl"];
     return new LoggerConfiguration()
         .MinimumLevel.Verbose()
-        .Enrich.WithProperty("ApplicationContext", Program.AppName)
-        .Enrich.FromLogContext()
+        //.Enrich.WithProperty("ApplicationContext", Program.AppName)
+        //.Enrich.FromLogContext()
         .WriteTo.Console()
-        .WriteTo.Seq(string.IsNullOrWhiteSpace(seqServerUrl) ? "http://seq" : seqServerUrl)
-        .WriteTo.Http(string.IsNullOrWhiteSpace(logstashUrl) ? "http://logstash:8080" : logstashUrl, null)
+        //.WriteTo.Seq(string.IsNullOrWhiteSpace(seqServerUrl) ? "http://seq" : seqServerUrl)
+        //.WriteTo.Http(string.IsNullOrWhiteSpace(logstashUrl) ? "http://logstash:8080" : logstashUrl, null)
         .ReadFrom.Configuration(configuration)
         .CreateLogger();
 }

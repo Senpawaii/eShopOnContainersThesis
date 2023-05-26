@@ -22,15 +22,15 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             // To differentiate from a regular call, check for the functionality ID
             if (ctx.Request.Query.TryGetValue("functionality_ID", out var functionality_ID)) {
                 // Log the current timestamp
-                _logger.LogInformation($"Checkpoint 1: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 svc.ScopedMetadataFunctionalityID = functionality_ID;
 
-                _logger.LogInformation($"Checkpoint 1_a: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_a: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 string currentUri = ctx.Request.GetUri().ToString();
 
-                _logger.LogInformation($"Checkpoint 1_b: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_b: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 if (currentUri.Contains("commit")) {
                     // Start flushing the Wrapper Data into the Database associated with the functionality
@@ -74,7 +74,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     wrapperSvc.SingletonAddWrappedItemsToProposedSet(functionality_ID, currentTS);
                 }
 
-                _logger.LogInformation($"Checkpoint 1_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 // Check for the other parameters and remove them as needed
                 //if (ctx.Request.Query.TryGetValue("interval_low", out var interval_lowStr) &&
@@ -101,7 +101,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     svc.ScopedMetadataTimestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
                 }
 
-                _logger.LogInformation($"Checkpoint 1_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
 
                 if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
@@ -110,31 +110,31 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     svc.ScopedMetadataTokens = numTokens;
                 }
 
-                _logger.LogInformation($"Checkpoint 1_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 var removeTheseParams = new List<string> { "interval_low", "interval_high", "functionality_ID", "timestamp", "tokens" }.AsReadOnly();
 
-                _logger.LogInformation($"Checkpoint 1_f: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_f: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 var filteredQueryParams = ctx.Request.Query.ToList().Where(filterKvp => !removeTheseParams.Contains(filterKvp.Key));
-                _logger.LogInformation($"Checkpoint 1_g: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_g: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 var filteredQueryString = QueryString.Create(filteredQueryParams);
 
-                _logger.LogInformation($"Checkpoint 1_h: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_h: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 ctx.Request.QueryString = filteredQueryString;
-                _logger.LogInformation($"Checkpoint 1_i: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_i: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 // Store the original body stream for restoring the response body back its original stream
                 Stream originalResponseBody = ctx.Response.Body;
-                _logger.LogInformation($"Checkpoint 1_j: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_j: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 // Create a new memory stream for reading the response; Response body streams are write-only, therefore memory stream is needed here to read
                 await using var memStream = new MemoryStream();
-                _logger.LogInformation($"Checkpoint 1_k: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_k: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 ctx.Response.Body = memStream;
-                _logger.LogInformation($"Checkpoint 1_l: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_l: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 ctx.Response.OnStarting(() => {
                     ctx.Response.Headers["interval_low"] = svc.ScopedMetadataIntervalLow.ToString();
@@ -144,7 +144,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     ctx.Response.Headers["tokens"] = svc.ScopedMetadataTokens.ToString();
                     return Task.CompletedTask;
                 });
-                _logger.LogInformation($"Checkpoint 1_m: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 1_m: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 // Call the next middleware
                 await _next.Invoke(ctx);
@@ -172,7 +172,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     await coordinatorSvc.SendTokens();
                 }
 
-                _logger.LogInformation($"Checkpoint 4: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 4: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             }
             else {

@@ -55,7 +55,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
-        _logger.LogInformation($"Checkpoint 2_a_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        //_logger.LogInformation($"Checkpoint 2_a_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         _originalCommandText = new string(command.CommandText);
 
@@ -92,7 +92,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     // Transaction is in commit state, update the command to store in the database
 
                     // Log timestamp of the transaction to be committed
-                    _logger.LogInformation($"FuncID:<{funcID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
+                    //_logger.LogInformation($"FuncID:<{funcID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
 
                     UpdateInsertCommand(command, targetTable);
                 }
@@ -142,7 +142,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 break;
         }
 
-        _logger.LogInformation($"Checkpoint 2_b_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        //_logger.LogInformation($"Checkpoint 2_b_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         return result;
     }
 
@@ -151,7 +151,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
-        _logger.LogInformation($"Checkpoint 2_a_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        //_logger.LogInformation($"Checkpoint 2_a_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         _originalCommandText = new string(command.CommandText);
 
@@ -233,7 +233,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
 
 
-        _logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        //_logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         // Log the command text
         //_logger.LogInformation($"Command Text: {command.CommandText}");
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
@@ -354,7 +354,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     /// <param name="command"></param>
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
         // Log the command text
-        _logger.LogInformation($"Command Text: {command.CommandText}");
+        //_logger.LogInformation($"Command Text: {command.CommandText}");
 
         // Get the current functionality-set timeestamp
         DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
@@ -423,7 +423,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //}
         // Check Notes for example
 
-        _logger.LogInformation($"Updated Command Text: {command.CommandText}");
+        //_logger.LogInformation($"Updated Command Text: {command.CommandText}");
     }
 
     private string RemovePartialRowSelection(string commandText) {
@@ -801,7 +801,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
-        _logger.LogInformation($"Checkpoint 2_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        //_logger.LogInformation($"Checkpoint 2_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
@@ -859,7 +859,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
 
         // Log the number of read rows
-        _logger.LogInformation($"Checkpoint 2_c_1: Read {newData.Count} rows from the database");
+        //_logger.LogInformation($"Checkpoint 2_c_1: Read {newData.Count} rows from the database");
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
@@ -876,14 +876,14 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     wrapperData = _wrapper.SingletonGetCatalogITems(funcId).ToList();
                     break;
             }
-            _logger.LogInformation($"Checkpoint 2_c_2: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            //_logger.LogInformation($"Checkpoint 2_c_2: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
             //newData = GroupVersionedObjects(newData, targetTable);
-            _logger.LogInformation($"Checkpoint 2_c_3: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            //_logger.LogInformation($"Checkpoint 2_c_3: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             wrapperData = GroupVersionedObjects(wrapperData, targetTable);
-            _logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            //_logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             if (wrapperData.Count > 0) {
                 if (HasFilterCondition(command.CommandText)) {
@@ -898,12 +898,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         }
                     }
                 }
-                _logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
 
                 // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
                 newData = GroupVersionedObjects(newData, targetTable);
-                _logger.LogInformation($"Checkpoint 2_c_5: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 2_c_5: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
                 if(hasOrderBy) {
@@ -929,7 +929,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     // The select query has a fetch next limit
                     newData = FetchNext(command, newData, fetchRowsParam);
                 }
-                _logger.LogInformation($"Checkpoint 2_c_6: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 2_c_6: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             }
 
@@ -938,10 +938,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 object[] data = new object[] { newData.Count + wrapperData.Count };
                 countedData.Add(data);
 
-                _logger.LogInformation($"Checkpoint 2_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                //_logger.LogInformation($"Checkpoint 2_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 return new WrapperDbDataReader(countedData, result, targetTable);
             }
-            _logger.LogInformation($"Checkpoint 2_c_7: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            //_logger.LogInformation($"Checkpoint 2_c_7: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             // Search for partial SELECTION on the original unaltered commandText
             (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
@@ -950,7 +950,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
 
         }
-        _logger.LogInformation($"Checkpoint 2_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        //_logger.LogInformation($"Checkpoint 2_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
