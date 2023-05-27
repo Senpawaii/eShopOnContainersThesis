@@ -60,7 +60,7 @@ public class Startup {
         var pathBase = Configuration["PATH_BASE"];
 
         if (!string.IsNullOrEmpty(pathBase)) {
-            loggerFactory.CreateLogger<Startup>().LogDebug("Using PATH BASE '{pathBase}'", pathBase);
+            //loggerFactory.CreateLogger<Startup>().LogDebug("Using PATH BASE '{pathBase}'", pathBase);
             app.UsePathBase(pathBase);
         }
 

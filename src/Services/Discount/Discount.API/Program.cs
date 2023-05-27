@@ -6,7 +6,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 
 var configuration = GetConfiguration();
 
-Log.Logger = CreateSerilogLogger(configuration);
+//Log.Logger = CreateSerilogLogger(configuration);
 
 try {
     Log.Information($"Configuring web host ({Program.AppName})...");
@@ -63,19 +63,19 @@ IWebHost CreateHostBuilder(IConfiguration configuration, string[] args) =>
 
 
 
-Serilog.ILogger CreateSerilogLogger(IConfiguration configuration) {
-    var seqServerUrl = configuration["Serilog:SeqServerUrl"];
-    var logstashUrl = configuration["Serilog:LogstashUrl"];
-    return new LoggerConfiguration()
-        .MinimumLevel.Verbose()
-        //.Enrich.WithProperty("ApplicationContext", Program.AppName)
-        //.Enrich.FromLogContext()
-        .WriteTo.Console()
-        //.WriteTo.Seq(string.IsNullOrWhiteSpace(seqServerUrl) ? "http://seq" : seqServerUrl)
-        //.WriteTo.Http(string.IsNullOrWhiteSpace(logstashUrl) ? "http://logstash:8080" : logstashUrl, null)
-        .ReadFrom.Configuration(configuration)
-        .CreateLogger();
-}
+//Serilog.ILogger CreateSerilogLogger(IConfiguration configuration) {
+//    var seqServerUrl = configuration["Serilog:SeqServerUrl"];
+//    var logstashUrl = configuration["Serilog:LogstashUrl"];
+//    return new LoggerConfiguration()
+//        .MinimumLevel.Verbose()
+//        //.Enrich.WithProperty("ApplicationContext", Program.AppName)
+//        //.Enrich.FromLogContext()
+//        .WriteTo.Console()
+//        //.WriteTo.Seq(string.IsNullOrWhiteSpace(seqServerUrl) ? "http://seq" : seqServerUrl)
+//        //.WriteTo.Http(string.IsNullOrWhiteSpace(logstashUrl) ? "http://logstash:8080" : logstashUrl, null)
+//        .ReadFrom.Configuration(configuration)
+//        .CreateLogger();
+//}
 
 IConfiguration GetConfiguration() {
 
