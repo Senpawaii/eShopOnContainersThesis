@@ -52,9 +52,12 @@ services:
 
   discount-api:
     image: ${REGISTRY:-eshop}/discount.api:${PLATFORM:-linux}-${TAG:-latest}
+    privileged: true
     build:
       context: .
       dockerfile: Services/Discount/Discount.API/Dockerfile
+    cap_add:
+      - SYS_ADMIN
     depends_on:
       - sqldata
       - rabbitmq

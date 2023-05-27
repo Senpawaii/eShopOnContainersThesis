@@ -16,8 +16,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API;
 
 public class Startup
 {
-    public Startup(IConfiguration configuration)
-    {
+    public Startup(IConfiguration configuration) {
         Configuration = configuration;
     }
 

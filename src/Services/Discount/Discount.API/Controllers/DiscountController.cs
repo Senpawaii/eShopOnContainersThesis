@@ -105,7 +105,12 @@ public class DiscountController : ControllerBase {
         _logger.LogInformation($"Controller: Body Discount Item with Name: {discountToUpdate.ItemName}, Brand: {discountToUpdate.ItemBrand}, Type: {discountToUpdate.ItemType}, and Discount Value: {discountToUpdate.DiscountValue}");
 
         _discountContext.Discount.Update(discountItem);
+
+        _logger.LogInformation($"Checkpoint Update: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
         await _discountContext.SaveChangesAsync();
+
+        _logger.LogInformation($"Checkpoint Saved Changes: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         // Return the updated discount item
         return CreatedAtAction(nameof(DiscountsAsync), new { itemName = discountItem.ItemName, itemBrand = discountItem.ItemBrand, itemType = discountItem.ItemType }, null);

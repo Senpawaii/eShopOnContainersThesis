@@ -47,6 +47,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
+        _logger.LogInformation($"Checkpoint 2_a_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
         _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
@@ -104,12 +106,14 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         break;
                 }
                 _discountContext.SaveChanges();
-                var testMock = new List<object[]> {
-                    new object[] { 1 }
-                };
+                var testMock = new List<object[]>();
+                testMock.Add(new object[] { 1 });
                 result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
                 break;
         }
+
+        _logger.LogInformation($"Checkpoint 2_b_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
 
         return result;
     }
@@ -119,6 +123,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
+
+        _logger.LogInformation($"Checkpoint 2_a_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         _originalCommandText = new string(command.CommandText);
 
@@ -168,12 +174,12 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         break;
                 }
                 _discountContext.SaveChanges();
-                var testMock = new List<object[]> {
-                    new object[] { 1 }
-                };
+                var testMock = new List<object[]>();
+                testMock.Add(new object[] { 1 });
                 result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
                 break;
         }
+        _logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
     }
@@ -207,11 +213,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         var rowsAffected = 0;
 
         // Log the paramters values being inserted
-        string values = "";
-        for(int i = 0; i < command.Parameters.Count; i++) {
-            var param = command.Parameters[i].Value;
-            values += param.ToString() + ", ";
-        }
+        // string values = "";
+        // for(int i = 0; i < command.Parameters.Count; i++) {
+        //     var param = command.Parameters[i].Value;
+        //     values += param.ToString() + ", ";
+        // }
         //_logger.LogInformation("Values being inserted: {0}", values);
 
         var rows = new List<object[]>();
@@ -612,6 +618,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     }
 
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
+        _logger.LogInformation($"Checkpoint 2_c_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
 
         if (funcId == null) {
@@ -668,14 +676,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
-            targetTable = GetTargetTable(command.CommandText);
             List<object[]> wrapperData = null;
 
-            switch (targetTable) {
-                case "Discount":
-                    wrapperData = _wrapper.SingletonGetDiscountItems(funcId).ToList();
-                    break;
-            }
+            wrapperData = _wrapper.SingletonGetDiscountItems(funcId).ToList();
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
             //newData = GroupVersionedObjects(newData, targetTable);
@@ -738,6 +741,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
 
         }
+
+        _logger.LogInformation($"Checkpoint 2_d_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
@@ -975,9 +981,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         if (!HasFilterCondition(command.CommandText)) {
             // The reader is trying to read all items. Wait for the proposed items to be committed.
             while (true) {
+                ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> proposedItems = _wrapper.Proposed_discount_items;
                 // Get all proposed timestamps
                 List<DateTime> proposedTimestamps = new List<DateTime>();
-                foreach (KeyValuePair<object[], ConcurrentDictionary<DateTime, int>> pair in _wrapper.Proposed_discount_items) {
+                foreach (KeyValuePair<object[], ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
                     foreach (DateTime proposalTS in pair.Value.Keys) {
                         if (proposalTS <= readerTimestamp) {
                             proposedTimestamps.Add(proposalTS);

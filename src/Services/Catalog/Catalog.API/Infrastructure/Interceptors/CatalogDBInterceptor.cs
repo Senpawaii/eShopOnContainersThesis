@@ -135,7 +135,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         break;
                 }
                 _catalogContext.SaveChanges();
-                var mockRows = new List<object[]>();
                 var testMock = new List<object[]>();
                 testMock.Add(new object[] { 1 });
                 result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
