@@ -29,26 +29,26 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
 
-    public CatalogDBInterceptor(CatalogContext catalogContext, IOptions<CatalogSettings> settings) {
-        var builder = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddEnvironmentVariables();
-        var config = builder.Build();
-        var connectionString = config["ConnectionString"];
-        var contextOptions = new DbContextOptionsBuilder<CatalogContext>()
-            .UseSqlServer(connectionString)
-            .Options;
+    public CatalogDBInterceptor(IScopedMetadata scopedMetadata, ISingletonWrapper wrapper, ILogger<CatalogContext> logger) {
+        //var builder = new ConfigurationBuilder()
+        //    .SetBasePath(Directory.GetCurrentDirectory())
+        //    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+        //    .AddEnvironmentVariables();
+        //var config = builder.Build();
+        //var connectionString = config["ConnectionString"];
+        //var contextOptions = new DbContextOptionsBuilder<CatalogContext>()
+        //    .UseSqlServer(connectionString)
+        //    .Options;
 
-        _scopedMetadata = catalogContext._scopedMetadata;
-        _wrapper = catalogContext._wrapper;
-        _logger = catalogContext._logger;
-        _catalogContext = new CatalogContext(contextOptions, _scopedMetadata, _wrapper, settings, catalogContext._logger);
+        _scopedMetadata = scopedMetadata;
+        _wrapper = wrapper;
+        _logger = logger;
+        //_catalogContext = new CatalogContext(contextOptions, _scopedMetadata, _wrapper, settings, catalogContext._logger);
     }
 
     public IScopedMetadata _scopedMetadata;
     public ISingletonWrapper _wrapper;
-    public CatalogContext _catalogContext;
+    //public CatalogContext _catalogContext;
     private string _originalCommandText;
     public ILogger<CatalogContext> _logger;
 
@@ -101,43 +101,69 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
 
-                // Add the new object to the catalog context
-                switch (targetTable) {
-                    case "CatalogBrand":
-                        var newBrand = new CatalogBrand() {
-                            //Id = (int)columnsToInsert["Id"],
-                            Brand = (string)columnsToInsert["Brand"]
-                        };
-                        _catalogContext.CatalogBrands.Add(newBrand);
-                        break;
-                    case "Catalog":
-                        var newItem = new CatalogItem() {
-                            //Id = (int)columnsToInsert["Id"],
-                            CatalogBrandId = (int)columnsToInsert["CatalogBrandId"],
-                            CatalogTypeId = (int)columnsToInsert["CatalogTypeId"],
-                            Description = (string)columnsToInsert["Description"],
-                            Name = (string)columnsToInsert["Name"],
-                            PictureFileName = (string)columnsToInsert["PictureFileName"],
-                            Price = (decimal)columnsToInsert["Price"],
-                            AvailableStock = (int)columnsToInsert["AvailableStock"],
-                            MaxStockThreshold = (int)columnsToInsert["MaxStockThreshold"],
-                            OnReorder = (bool)columnsToInsert["OnReorder"],
-                            RestockThreshold = (int)columnsToInsert["RestockThreshold"]
-                        };
-                        _catalogContext.CatalogItems.Add(newItem);
-                        break;
-                    case "CatalogType":
-                        var item = new CatalogType() {
-                            //Id = (int)columnsToInsert["Id"],
-                            Type = (string)columnsToInsert["Type"]
-                        };
-                        _catalogContext.CatalogTypes.Add(item);
-                        break;
+                // Create a new INSERT command
+                string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
+
+                // Add the columns incased in squared brackets
+                insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
+
+                // Add the values
+                insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
+
+                if (columnsToInsert != null) {
+                    command.CommandText = insertCommand;
+                    // Clear the existing parameters
+                    command.Parameters.Clear();
+                    foreach (var column in columnsToInsert) {
+                        // Add the new parameter to the command
+                        DbParameter newParameter = command.CreateParameter();
+                        newParameter.ParameterName = column.Key;
+                        newParameter.Value = column.Value;
+                        command.Parameters.Add(newParameter);
+                    }
                 }
-                _catalogContext.SaveChanges();
-                var testMock = new List<object[]>();
-                testMock.Add(new object[] { 1 });
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
+
+                // If the Transaction is not in commit state, store data in wrapper
+                var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+
+                // Add the new object to the catalog context
+                //switch (targetTable) {
+                //    case "CatalogBrand":
+                //        var newBrand = new CatalogBrand() {
+                //            //Id = (int)columnsToInsert["Id"],
+                //            Brand = (string)columnsToInsert["Brand"]
+                //        };
+                //        _catalogContext.CatalogBrands.Add(newBrand);
+                //        break;
+                //    case "Catalog":
+                //        var newItem = new CatalogItem() {
+                //            //Id = (int)columnsToInsert["Id"],
+                //            CatalogBrandId = (int)columnsToInsert["CatalogBrandId"],
+                //            CatalogTypeId = (int)columnsToInsert["CatalogTypeId"],
+                //            Description = (string)columnsToInsert["Description"],
+                //            Name = (string)columnsToInsert["Name"],
+                //            PictureFileName = (string)columnsToInsert["PictureFileName"],
+                //            Price = (decimal)columnsToInsert["Price"],
+                //            AvailableStock = (int)columnsToInsert["AvailableStock"],
+                //            MaxStockThreshold = (int)columnsToInsert["MaxStockThreshold"],
+                //            OnReorder = (bool)columnsToInsert["OnReorder"],
+                //            RestockThreshold = (int)columnsToInsert["RestockThreshold"]
+                //        };
+                //        _catalogContext.CatalogItems.Add(newItem);
+                //        break;
+                //    case "CatalogType":
+                //        var item = new CatalogType() {
+                //            //Id = (int)columnsToInsert["Id"],
+                //            Type = (string)columnsToInsert["Type"]
+                //        };
+                //        _catalogContext.CatalogTypes.Add(item);
+                //        break;
+                //}
+                //_catalogContext.SaveChanges();
+                //var testMock = new List<object[]>();
+                //testMock.Add(new object[] { 1 });
+                //result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
                 break;
         }
 
@@ -186,48 +212,74 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case UPDATE_COMMAND:
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
-                var mockRows = new List<object[]>();
-                // Add the new object to the catalog context
-                switch (targetTable) {
-                    case "CatalogBrand":
-                        var newBrand = new CatalogBrand() {
-                            //Id = (int)columnsToInsert["Id"],
-                            Brand = (string)columnsToInsert["Brand"]
-                        };
-                        _catalogContext.CatalogBrands.Add(newBrand);
-                        mockRows.Add(new object[] { newBrand.Id, newBrand.Brand });
-                        break;
-                    case "Catalog":
-                        var newItem = new CatalogItem() {
-                            //Id = (int)columnsToInsert["Id"],
-                            CatalogBrandId = (int)columnsToInsert["CatalogBrandId"],
-                            CatalogTypeId = (int)columnsToInsert["CatalogTypeId"],
-                            Description = (string)columnsToInsert["Description"],
-                            Name = (string)columnsToInsert["Name"],
-                            PictureFileName = (string)columnsToInsert["PictureFileName"],
-                            Price = (decimal)columnsToInsert["Price"],
-                            AvailableStock = (int)columnsToInsert["AvailableStock"],
-                            MaxStockThreshold = (int)columnsToInsert["MaxStockThreshold"],
-                            OnReorder = (bool)columnsToInsert["OnReorder"],
-                            RestockThreshold = (int)columnsToInsert["RestockThreshold"]
-                        };
-                        _catalogContext.CatalogItems.Add(newItem);
-                        mockRows.Add(new object[] { newItem.Id, newItem.CatalogBrandId, newItem.CatalogTypeId, newItem.Description, newItem.Name, newItem.PictureFileName, newItem.Price, newItem.AvailableStock, newItem.MaxStockThreshold, newItem.OnReorder, newItem.RestockThreshold });
-                        break;
-                    case "CatalogType":
-                        var item = new CatalogType() {
-                            //Id = (int)columnsToInsert["Id"],
-                            Type = (string)columnsToInsert["Type"]
-                        };
-                        _catalogContext.CatalogTypes.Add(item);
-                        mockRows.Add(new object[] { item.Id, item.Type });
-                        break;
+                //var mockRows = new List<object[]>();
+                //// Add the new object to the catalog context
+                //switch (targetTable) {
+                //    case "CatalogBrand":
+                //        var newBrand = new CatalogBrand() {
+                //            //Id = (int)columnsToInsert["Id"],
+                //            Brand = (string)columnsToInsert["Brand"]
+                //        };
+                //        _catalogContext.CatalogBrands.Add(newBrand);
+                //        mockRows.Add(new object[] { newBrand.Id, newBrand.Brand });
+                //        break;
+                //    case "Catalog":
+                //        var newItem = new CatalogItem() {
+                //            //Id = (int)columnsToInsert["Id"],
+                //            CatalogBrandId = (int)columnsToInsert["CatalogBrandId"],
+                //            CatalogTypeId = (int)columnsToInsert["CatalogTypeId"],
+                //            Description = (string)columnsToInsert["Description"],
+                //            Name = (string)columnsToInsert["Name"],
+                //            PictureFileName = (string)columnsToInsert["PictureFileName"],
+                //            Price = (decimal)columnsToInsert["Price"],
+                //            AvailableStock = (int)columnsToInsert["AvailableStock"],
+                //            MaxStockThreshold = (int)columnsToInsert["MaxStockThreshold"],
+                //            OnReorder = (bool)columnsToInsert["OnReorder"],
+                //            RestockThreshold = (int)columnsToInsert["RestockThreshold"]
+                //        };
+                //        _catalogContext.CatalogItems.Add(newItem);
+                //        mockRows.Add(new object[] { newItem.Id, newItem.CatalogBrandId, newItem.CatalogTypeId, newItem.Description, newItem.Name, newItem.PictureFileName, newItem.Price, newItem.AvailableStock, newItem.MaxStockThreshold, newItem.OnReorder, newItem.RestockThreshold });
+                //        break;
+                //    case "CatalogType":
+                //        var item = new CatalogType() {
+                //            //Id = (int)columnsToInsert["Id"],
+                //            Type = (string)columnsToInsert["Type"]
+                //        };
+                //        _catalogContext.CatalogTypes.Add(item);
+                //        mockRows.Add(new object[] { item.Id, item.Type });
+                //        break;
+                //}
+
+                //_catalogContext.SaveChanges();
+                //var testMock = new List<object[]>();
+                //testMock.Add(new object[] { 1 });
+                //result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
+
+                // Create a new INSERT command
+                string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
+
+                // Add the columns incased in squared brackets
+                insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
+
+                // Add the values
+                insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
+
+                if (columnsToInsert != null) {
+                    command.CommandText = insertCommand;
+                    // Clear the existing parameters
+                    command.Parameters.Clear();
+                    foreach (var column in columnsToInsert) {
+                        // Add the new parameter to the command
+                        DbParameter newParameter = command.CreateParameter();
+                        newParameter.ParameterName = column.Key;
+                        newParameter.Value = column.Value;
+                        command.Parameters.Add(newParameter);
+                    }
                 }
 
-                _catalogContext.SaveChanges();
-                var testMock = new List<object[]>();
-                testMock.Add(new object[] { 1 });
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
+                // If the Transaction is not in commit state, store data in wrapper
+                var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
                 break;
         }
 
@@ -668,18 +720,25 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             return result;
         }
 
+        string targetTable = GetTargetTable(command.CommandText);
+        if (targetTable.IsNullOrEmpty()) {
+            // Unsupported Table (Migration for example)
+            return result;
+        }
+
+        // Check if the command was originally an update command
+        if (_originalCommandText.Contains("UPDATE")) {
+            var newUpdatedData = new List<object[]>();
+            newUpdatedData.Add(new object[] { 1 });
+            return new WrapperDbDataReader(newUpdatedData, result, targetTable);
+        }
+
         // Check if the command is an INSERT command and has yet to be committed
         if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
             return result;
         }
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
-
-        string targetTable = GetTargetTable(command.CommandText);
-        if (targetTable.IsNullOrEmpty()) {
-            // Unsupported Table (Migration for example)
-            return result;
-        }
 
         var newData = new List<object[]>();
 
@@ -810,18 +869,25 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             return result;
         }
 
-        // Check if the command is an INSERT command and has yet to be committed
-        if(command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
-            return result;
-        }
-
-        // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
-
         string targetTable = GetTargetTable(command.CommandText);
         if (targetTable.IsNullOrEmpty()) {
             // Unsupported Table (Migration for example)
             return result;
         }
+
+        // Check if the command was originally an update command
+        if (_originalCommandText.Contains("UPDATE")) {
+            var newUpdatedData = new List<object[]>();
+            newUpdatedData.Add(new object[] { 1 });
+            return new WrapperDbDataReader(newUpdatedData, result, targetTable);
+        }
+
+        // Check if the command is an INSERT command and has yet to be committed
+        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
+            return result;
+        }
+
+        // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
         
         var newData = new List<object[]>();
 

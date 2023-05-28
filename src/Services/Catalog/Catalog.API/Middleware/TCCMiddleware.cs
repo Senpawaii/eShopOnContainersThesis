@@ -197,7 +197,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             if (catalogWrapperBrands != null && catalogWrapperBrands.Count > 0) {
                 foreach (object[] brand in catalogWrapperBrands) {
                     CatalogBrand newBrand = new CatalogBrand {
-                        Id = Convert.ToInt32(brand[0]),
+                        //Id = Convert.ToInt32(brand[0]),
                         Brand = Convert.ToString(brand[1]),
                     };
                     catalogContext.CatalogBrands.Add(newBrand);
@@ -209,7 +209,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 foreach (object[] type in catalogWrapperTypes) {
                     CatalogType newType = new CatalogType {
 
-                        Id = Convert.ToInt32(type[0]),
+                        //Id = Convert.ToInt32(type[0]),
                         Type = Convert.ToString(type[1]),
                     };
                     catalogContext.CatalogTypes.Add(newType);
@@ -219,7 +219,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             if (catalogWrapperItems != null && catalogWrapperItems.Count > 0) {
                 foreach (object[] item in catalogWrapperItems) {
                     CatalogItem newItem = new CatalogItem {
-                        Id = Convert.ToInt32(item[0]),
+                        //Id = Convert.ToInt32(item[0]),
                         CatalogBrandId = Convert.ToInt32(item[1]),
                         CatalogTypeId = Convert.ToInt32(item[2]),
                         Description = Convert.ToString(item[3]),
