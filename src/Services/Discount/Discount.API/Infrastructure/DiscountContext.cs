@@ -33,7 +33,7 @@ public class DiscountContext : DbContext {
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) {
         // Add here the DB Interceptor as needed
         if (_wrapperThesis) {
-            optionsBuilder.AddInterceptors(new DiscountDBInterceptor(this, _settings));
+            optionsBuilder.AddInterceptors(new DiscountDBInterceptor(_scopedMetadata, _wrapper, _logger));
         }
     }
 }

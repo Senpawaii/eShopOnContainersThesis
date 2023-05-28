@@ -21,26 +21,26 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
 
-    public DiscountDBInterceptor(DiscountContext discountContext, IOptions<DiscountSettings> settings) {
-        var builder = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddEnvironmentVariables();
-        var config = builder.Build();
-        var connectionString = config["ConnectionString"];
-        var contextOptions = new DbContextOptionsBuilder<DiscountContext>()
-            .UseSqlServer(connectionString)
-            .Options;
+    public DiscountDBInterceptor(IScopedMetadata scopedMetadata, ISingletonWrapper wrapper, ILogger<DiscountContext> logger) {
+        //var builder = new ConfigurationBuilder()
+        //    .SetBasePath(Directory.GetCurrentDirectory())
+        //    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+        //    .AddEnvironmentVariables();
+        //var config = builder.Build();
+        //var connectionString = config["ConnectionString"];
+        //var contextOptions = new DbContextOptionsBuilder<DiscountContext>()
+        //    .UseSqlServer(connectionString)
+        //    .Options;
 
-        _scopedMetadata = discountContext._scopedMetadata;
-        _wrapper = discountContext._wrapper;
-        _logger = discountContext._logger;
-        _discountContext = new DiscountContext(contextOptions, _scopedMetadata, _wrapper, settings, discountContext._logger);
+        _scopedMetadata = scopedMetadata;
+        _wrapper =wrapper;
+        _logger = logger;
+        //_discountContext = new DiscountContext(contextOptions, _scopedMetadata, _wrapper, settings, discountContext._logger);
     }
 
     public IScopedMetadata _scopedMetadata;
     public ISingletonWrapper _wrapper;
-    public DiscountContext _discountContext;
+    //public DiscountContext _discountContext;
     private string _originalCommandText;
     public ILogger<DiscountContext> _logger;
 
@@ -90,25 +90,53 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 }
                 break;
             case UPDATE_COMMAND:
+                // Log the update command
+                _logger.LogInformation(" UPDATE COMMAND: " + command.CommandText);
+
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
+                // Create a new INSERT COMMAND
+                string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
+                // Add the columns incased in squared brackets
+                insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
+
+                // Add the values
+                insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
+
+                if (columnsToInsert != null) {
+                    command.CommandText = insertCommand;
+                    // Clear the existing parameters
+                    command.Parameters.Clear();
+                    foreach (var column in columnsToInsert) {
+                        // Add the new parameter to the command
+                        DbParameter newParameter = command.CreateParameter();
+                        newParameter.ParameterName = column.Key;
+                        newParameter.Value = column.Value;
+                        command.Parameters.Add(newParameter);
+                    }
+                }
+
+                // If the Transaction is not in commit state, store data in wrapper
+                var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
 
                 // Add the new object to the Discount context
-                switch (targetTable) {
-                    case "Discount":
-                        var newDiscount = new DiscountItem() {
-                            ItemName = (string)columnsToInsert["ItemName"],
-                            ItemBrand = (string)columnsToInsert["ItemBrand"],
-                            ItemType = (string)columnsToInsert["ItemType"],
-                            DiscountValue = (int)columnsToInsert["DiscountValue"]
-                        };
-                        _discountContext.Discount.Add(newDiscount);
-                        break;
-                }
-                _discountContext.SaveChanges();
-                var testMock = new List<object[]>();
-                testMock.Add(new object[] { 1 });
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
+                //switch (targetTable) {
+                //    case "Discount":
+                //        var newDiscount = new DiscountItem() {
+                //            ItemName = (string)columnsToInsert["ItemName"],
+                //            ItemBrand = (string)columnsToInsert["ItemBrand"],
+                //            ItemType = (string)columnsToInsert["ItemType"],
+                //            DiscountValue = (int)columnsToInsert["DiscountValue"]
+                //        };
+                //        _discountContext.Discount.Add(newDiscount);
+                //        break;
+                //}
+                //_discountContext.SaveChanges();
+
+                //var testMock = new List<object[]>();
+                //testMock.Add(new object[] { 1 });
+
                 break;
         }
 
@@ -158,25 +186,53 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 }
                 break;
             case UPDATE_COMMAND:
+                _logger.LogInformation(" UPDATE COMMAND: " + command.CommandText);
+
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
-                var mockRows = new List<object[]>();
-                // Add the new object to the Discount context
-                switch (targetTable) {
-                    case "Discount":
-                        var newDiscount = new DiscountItem() {
-                            ItemName = (string)columnsToInsert["ItemName"],
-                            ItemBrand = (string)columnsToInsert["ItemBrand"],
-                            ItemType = (string)columnsToInsert["ItemType"],
-                            DiscountValue = (int)columnsToInsert["DiscountValue"]
-                        };
-                        _discountContext.Discount.Add(newDiscount);
-                        break;
+
+                // Create a new INSERT COMMAND
+                string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
+                // Add the columns incased in squared brackets
+                insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
+
+                // Add the values
+                insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
+                
+                if (columnsToInsert != null) {
+                    command.CommandText = insertCommand;
+                    // Clear the existing parameters
+                    command.Parameters.Clear();
+                    foreach (var column in columnsToInsert) {
+                        // Add the new parameter to the command
+                        DbParameter newParameter = command.CreateParameter();
+                        newParameter.ParameterName = column.Key;
+                        newParameter.Value = column.Value;
+                        command.Parameters.Add(newParameter);
+                    }
                 }
-                _discountContext.SaveChanges();
-                var testMock = new List<object[]>();
-                testMock.Add(new object[] { 1 });
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
+
+                // If the Transaction is not in commit state, store data in wrapper
+                var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+
+                //var mockRows = new List<object[]>();
+                //// Add the new object to the Discount context
+                //switch (targetTable) {
+                //    case "Discount":
+                //        var newDiscount = new DiscountItem() {
+                //            ItemName = (string)columnsToInsert["ItemName"],
+                //            ItemBrand = (string)columnsToInsert["ItemBrand"],
+                //            ItemType = (string)columnsToInsert["ItemType"],
+                //            DiscountValue = (int)columnsToInsert["DiscountValue"]
+                //        };
+                //        _discountContext.Discount.Add(newDiscount);
+                //        break;
+                //}
+                //_discountContext.SaveChanges();
+                //var testMock = new List<object[]>();
+                //testMock.Add(new object[] { 1 });
+                //result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
                 break;
         }
         _logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
@@ -487,6 +543,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
 
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
+        _logger.LogInformation("Command executed: " + command.CommandText);
+
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
 
         if (funcId == null) {
@@ -494,15 +552,22 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             return result;
         }
 
-        // Check if the command is an INSERT command and has yet to be committed
-        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
-            return result;
-        }
-
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
         string targetTable = GetTargetTable(command.CommandText);
         if (targetTable.IsNullOrEmpty()) {
             // Unsupported Table (Migration for example)
+            return result;
+        }
+
+        // Check if the command was originally an update command
+        if (_originalCommandText.Contains("UPDATE")) {
+            var newUpdatedData = new List<object[]>();
+            newUpdatedData.Add(new object[] { 1 });
+            return new WrapperDbDataReader(newUpdatedData, result, targetTable);
+        }
+
+        // Check if the command is an INSERT command and has yet to be committed
+        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
             return result;
         }
 
@@ -619,12 +684,26 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
         _logger.LogInformation($"Checkpoint 2_c_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-        
+        _logger.LogInformation("Command executed: " + command.CommandText);
+
+        string targetTable = GetTargetTable(command.CommandText);
+        if (targetTable.IsNullOrEmpty()) {
+            // Unsupported Table (Migration for example)
+            return result;
+        }
+
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
 
         if (funcId == null) {
             // This is a system transaction or a database initial population
             return result;
+        }
+
+        // Check if the command was originally an update command
+        if(_originalCommandText.Contains("UPDATE")) {
+            var newUpdatedData = new List<object[]>();
+            newUpdatedData.Add(new object[] { 1 });
+            return new WrapperDbDataReader(newUpdatedData, result, targetTable);
         }
 
         // Check if the command is an INSERT command and has yet to be committed
@@ -633,12 +712,6 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
-
-        string targetTable = GetTargetTable(command.CommandText);
-        if (targetTable.IsNullOrEmpty()) {
-            // Unsupported Table (Migration for example)
-            return result;
-        }
 
         var newData = new List<object[]>();
 
