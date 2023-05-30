@@ -38,6 +38,7 @@ public class DiscountContextSeed
         string csvFileDiscountItems = Path.Combine(contentRootPath, "Setup", "DiscountItems.csv");
 
         if (!File.Exists(csvFileDiscountItems)) {
+            Console.WriteLine($"File '{csvFileDiscountItems}' does not exist.");
             return GetPreconfiguredDiscountItems();
         }
 

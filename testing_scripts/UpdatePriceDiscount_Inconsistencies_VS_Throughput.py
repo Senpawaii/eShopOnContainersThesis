@@ -10,8 +10,7 @@ import os
 import datetime
 import copy
 from time import perf_counter_ns
-import timeit
-# from ratelimiter import RateLimiter, sleep_and_retry, limits
+import sys
 
 """	This script is used to test the Catalog.API service. 
     It will update the price on a catalog item with ID 1, while concurrently, Read the contents and Discount of the basket items.
@@ -21,38 +20,41 @@ import timeit
 numThreads = 32 # Number of threads to be used in the test
 secondsToRun = 60 # Number of seconds to run the test
 read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
-throughput_step = 5
-throughput = 40 # requests per second
-max_throughput = 150
-wrappers = True # True if the test is being run with wrappers, False if the test is being run without wrappers
+throughput_step = 5 # Number of requests per second to increase throughput by
+throughput = 10 # requests per second
+max_throughput = 200
+contention_rows = 6 # Number of rows to be used in the test
+# wrappers = True # True if the test is being run with wrappers, False if the test is being run without wrappers
 
 catalogServicePort = "5101"
 discountServicePort = "5140"
 basketServicePort = "5103"
 webaggregatorServicePort = "5121"
-current_directory = os.path.dirname(os.path.abspath(__file__))
 
 # Store the number of write operations
-writeLock = threading.Lock()
 writeOperationsCount = 0
 # Store the number of read operations
-readLock = threading.Lock()
 readOperationsCount = 0
 
-# Configure root logger
-base_logging_path = os.path.join(current_directory, 'logs')
-os.makedirs(base_logging_path, exist_ok=True)  # Create the log directory if it doesn't exist
-timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
-if wrappers:
-    test_logging_path = os.path.join(base_logging_path, "Wrapper_UpdatePriceAndDiscount_Inconsistencies_VS_Throughput_" + timestamp)
-else:
-    test_logging_path = os.path.join(base_logging_path, "NoWrapper_UpdatePriceAndDiscount_Inconsistencies_VS_Throughput_" + timestamp)
-os.makedirs(test_logging_path, exist_ok=True)  # Create the test directory if it doesn't exist
-log_file_name = f"{timestamp}.log" # root log file name
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', filename=os.path.join(test_logging_path, log_file_name), filemode='w')
+def configureRootLogger(contention: str, wrappers: str) -> str:
+    # Configure root logger
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    base_logging_path = os.path.join(current_directory, 'logs')
+    os.makedirs(base_logging_path, exist_ok=True)  # Create the log directory if it doesn't exist
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
+
+    if wrappers == "1":
+        test_logging_path = os.path.join(base_logging_path, f"Wrap_UpdPriceDiscount_Lat_v_Thrghpt_{contention}_Cont_" + timestamp)
+    else:
+        test_logging_path = os.path.join(base_logging_path, f"NoWrap_UpdPriceDiscount_Lat_v_Thrghpt_{contention}_Cont_" + timestamp)
+
+    os.makedirs(test_logging_path, exist_ok=True)  # Create the test directory if it doesn't exist
+    log_file_name = f"{timestamp}.log" # root log file name
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', filename=os.path.join(test_logging_path, log_file_name), filemode='w')
+    return test_logging_path
 
 
-def ConfigureLoggingSettings(throughput: int) -> str:
+def ConfigureLoggingSettings(throughput: int, test_logging_path: str) -> str:
     # Configure logging settings
     log_file_name = f"Throughput-{throughput}.log"
     logger_name = f"Throughput-{throughput}"
@@ -73,69 +75,75 @@ def ConfigureLoggingSettings(throughput: int) -> str:
     return logger, log_file_path
 
 
-def QueryCatalogItemById(id: int) -> dict:
-    address = "http://localhost:" + catalogServicePort + "/catalog-api/api/v1/Catalog/items?ids=" + str(id) + "&interval_low=0&interval_high=0&functionality_ID=func1&timestamp=2025-05-30T14:00:00.0000000Z&tokens=0"
+def QueryCatalogItemById(ids: list[id]) -> dict:
+    catalogItems = []
+    for id in ids:
+        address = "http://localhost:" + catalogServicePort + "/catalog-api/api/v1/Catalog/items?ids=" + str(id) + "&interval_low=0&interval_high=0&functionality_ID=func1&timestamp=2025-05-30T14:00:00.0000000Z&tokens=0"
     
-    # Log request address
-    logging.info("Sending request to address: " + address)
+        # Log request address
+        logging.info("Sending request to address: " + address)
 
-    response = requests.get(address)
+        response = requests.get(address)
 
-    # Log response
-    logging.info('Response from Catalog Service: ' + str(response.status_code) + ' ' + str(response.reason))
-    # Log found object
-    logging.info("Object queried:" + str(response.json()))
-    return response.json()
+        # Log response
+        logging.info('Response from Catalog Service: ' + str(response.status_code) + ' ' + str(response.reason))
+        # Log found object
+        logging.info("Object queried:" + str(response.json()))
+
+        catalogItems.append(response.json())
+    return catalogItems
 
 
-def QueryDiscountItemById(catalogItem: dict) -> dict:
+def QueryDiscountItemById(catalogItems: list[dict]) -> dict:
     identity = threading.get_ident()
 
     # Access catalog Service to get the brand name and type name
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
-    # Get the brand name that matches the brand ID
-    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    discountItems = []
+    for item in catalogItems:
+        # Get the brand name that matches the brand ID
+        address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
 
-    # Log request address
-    logging.info("Sending request to address: " + address)
+        # Log request address
+        logging.info("Sending request to address: " + address)
 
-    response = requests.get(address)
+        response = requests.get(address)
 
-    brandName = ""
-    for brand in response.json():
-        if brand["id"] == catalogItem[0]["catalogBrandId"]:
-            brandName = brand["brand"]
+        brandName = ""
+        for brand in response.json():
+            if brand["id"] == item[0]["catalogBrandId"]:
+                brandName = brand["brand"]
 
-    # Get the type name that matches the type ID
-    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogTypes?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
-    
-    # Log request address
-    logging.info("Sending request to address: " + address)
+        # Get the type name that matches the type ID
+        address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogTypes?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+        
+        # Log request address
+        logging.info("Sending request to address: " + address)
 
-    response = requests.get(address)
+        response = requests.get(address)
 
-    typeName = ""
-    for type in response.json():
-        if type["id"] == catalogItem[0]["catalogTypeId"]:
-            typeName = type["type"]
+        typeName = ""
+        for type in response.json():
+            if type["id"] == item[0]["catalogTypeId"]:
+                typeName = type["type"]
 
-    itemName = catalogItem[0]["name"]
-    # Get the discount item that matches the brand name and type name
-    address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName + '&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
-    
-    # Log request address
-    logging.info("Sending request to address: " + address)
+        itemName = item[0]["name"].replace("&", "%26")
+        # Get the discount item that matches the brand name and type name
+        address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName + '&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+        
+        # Log request address
+        logging.info("Sending request to address: " + address)
 
-    response = requests.get(address)
+        response = requests.get(address)
 
-    # Extract the first (and only) discount item from the response list of discounts
-    discountItem = response.json()[0]
+        # Extract the first (and only) discount item from the response list of discounts
+        discountItem = response.json()[0]
+        discountItems.append(discountItem)
+    return discountItems
 
-    return discountItem
 
-
-def AddCatalogItemToBasket(catalogItem: dict, discountItem: dict):
+def AddCatalogItemToBasket(catalogItem: dict, discountItem: dict, basketID: str):
     # Get the CatalogItemId from the catalogItem
     catalogItemId = catalogItem[0]["id"]
     catalogItemName = catalogItem[0]["name"]
@@ -145,7 +153,7 @@ def AddCatalogItemToBasket(catalogItem: dict, discountItem: dict):
     itemType = discountItem["itemType"]
 
     # Create the json body for the request
-    body = { "catalogItemId": catalogItemId, "basketId": "e5d06a2d-fc81-4051-8f30-0a85836eac70", "quantity": 1, "CatalogItemName": catalogItemName, "CatalogItemBrandName": itemBrand, "CatalogItemTypeName": itemType }
+    body = { "catalogItemId": catalogItemId, "basketId": basketID, "quantity": 1, "CatalogItemName": catalogItemName, "CatalogItemBrandName": itemBrand, "CatalogItemTypeName": itemType }
 
     address = 'http://localhost:' + webaggregatorServicePort + '/api/v1/Basket/items'
 
@@ -158,11 +166,20 @@ def AddCatalogItemToBasket(catalogItem: dict, discountItem: dict):
     return
 
 
-def readBasket(timeTakenList: dict, successCount: dict, logger: logging.Logger):
-    basketID = "e5d06a2d-fc81-4051-8f30-0a85836eac70"
-
+def readBasket(timeTakenList: dict, successCount: dict, logger: logging.Logger, basketID: str, contention: str):
     # Get the thread identity
     identity = threading.get_ident()
+
+    # Try to get the basket ID assigned to the thread
+    # if(contention == "1"):
+    #     basketID = basket_IDs[0]
+    # else:
+    #     try:
+    #         basketID = basket_IDs_assigned[identity]
+    #     except KeyError:
+    #         # Assign the basket ID to the thread
+    #         basketID = basket_IDs.pop()
+    #         basket_IDs_assigned[identity] = basketID
 
     funcID = ''.join(random.choices(string.ascii_lowercase, k=10))
 
@@ -194,6 +211,9 @@ def readBasket(timeTakenList: dict, successCount: dict, logger: logging.Logger):
             successCount[identity] = 1
         else:
             successCount[identity] += 1
+    else:
+        logger.error("Error reading basket. Response from Basket.API: " + str(response.status_code))
+        return
     
     # Extract the basket items from the response
     basketItems = response.json()["items"]
@@ -203,7 +223,7 @@ def readBasket(timeTakenList: dict, successCount: dict, logger: logging.Logger):
     basketItemDiscount = basketItems[0]["discount"]
 
     #Log response
-    logger.info('Thread <' + str(identity) + '> FuncID: <' + funcID + '> ' + 'Read Basket: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Timestamp: ' + timestamp)
+    logger.info('Thread <' + str(identity) + '> FuncID: <' + funcID + '> ' + 'Read Basket <' + basketID + '>: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Timestamp: ' + timestamp)
     return
 
 
@@ -275,6 +295,9 @@ def updatePriceOnCatalog(catalogItem: dict, price: int, funcID: str, timeTakenLi
             successCount[identity] = 1
         else:
             successCount[identity] += 1
+    else:
+        logger.error("Error updating price on catalog item. Response from Catalog.API: " + str(response.status_code))
+        return
     #Log response
     # logger.info("Thread <" + str(identity) + "> FuncID: <" + funcID + "> " + "PriceUpdate: " + str(catalogItem[0]["price"]) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
 
@@ -315,25 +338,32 @@ def updateDiscount(discountItem: dict, discount: int, funcID: str, timeTakenList
             successCount[identity] = 1
         else:
             successCount[identity] += 1
+    else:
+        logger.error("Error updating discount on discount item. Response from Discount.API: " + str(response.status_code))
+        return
     #Log response
     # logger.info("Thread <" + str(identity) + "> FuncID: <" + funcID + "> " + "DiscountUpdate: " + str(discountItem["discountValue"]) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
 
 
 
-def assign_operations(executor: ThreadPoolExecutor, futuresThreads: list, catalogItem: dict, discountItem: dict, read_write_list: list, timeTakenList: dict, successCount: dict, secondsToRun: int, logger: logging.Logger, throughput: int):
+def assign_operations(executor: ThreadPoolExecutor, futuresThreads: list, catalogItems: list[dict], discountItems: list[dict], read_write_list: list, timeTakenList: dict, successCount: dict, secondsToRun: int, logger: logging.Logger, throughput: int, basket_IDs_assigned: dict, contention: str):
     request_interval = 1 / throughput
     global readOperationsCount
     global writeOperationsCount
     total_active_time = 0
     # nanossecs_to_run = secondsToRun * 1000000000
     start_test_time = time.time()
-
+    
     while time.time() < start_test_time + secondsToRun:
+        # Get a random index from the list of catalog items and discount items
+        index = random.randint(0, len(catalogItems) - 1)
+
         # Assign read/write operations to thread based on read_write_ratio
-        if random.choice(read_write_list) == 0:
+        random_choice = random.choice(read_write_list)
+        if random_choice == 0:
             # Read operation
             readOperationsCount += 1
-            future = executor.submit(readBasket, timeTakenList, successCount, logger)
+            future = executor.submit(readBasket, timeTakenList, successCount, logger, f"basket{index}", contention)
             
             futuresThreads.append(future)
             # Limit the throughput to throughtput request per second
@@ -341,31 +371,16 @@ def assign_operations(executor: ThreadPoolExecutor, futuresThreads: list, catalo
         else:
             # Write operation
             writeOperationsCount += 1
-            future = executor.submit(writeOperations, copy.deepcopy(catalogItem), copy.deepcopy(discountItem), timeTakenList, successCount, logger)
+            future = executor.submit(writeOperations, copy.deepcopy(catalogItems[index]), copy.deepcopy(discountItems[index]), timeTakenList, successCount, logger)
             futuresThreads.append(future)
             # Limit the throughput to 2 * throughtput request per second: 1 for catalogpPriceUpdate and 1 for discountUpdate
             time.sleep(2 * request_interval)
+        # future = executor.submit(microDiscountTest)
+        # time.sleep(request_interval)
 
     for future in futuresThreads:
         future.cancel()
     wait(futuresThreads, return_when=ALL_COMPLETED)
-
-
-# @sleep_and_retry
-# @limits(calls=50, period=1)
-# def operations_balancer(read_write_list: list, timeTakenList: dict, successCount: dict, logger: logging.Logger):
-#     if random.choice(read_write_list) == 0:
-#         # Read operation
-#         readBasket(timeTakenList, successCount, logger)
-
-#         global readOperationsCount
-#         readLock.acquire()
-#         try:
-#             # Read operation
-#             readOperationsCount += 1
-#         finally:
-#             readLock.release()
-
 
 
 def check_discount_from_log_file(file_path):
@@ -397,18 +412,55 @@ def check_discount_from_log_file(file_path):
 # Create predefined list of prices and discounts to be used in tests equal to the number of threads
 prices = [10000000 * (i+1) for i in range(numThreads)]
 discounts = [prices[i] // 10 for i in range(numThreads)]
+basket_IDs = ["basket" + str(i) for i in range(numThreads)]
+
 thread_price_discount = {}
 
+def microDiscountTest():
+    
+    # time.sleep(1/90)
+    identity = threading.get_ident()
+
+    # Access catalog Service to get the brand name and type name
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+
+    # Get the discount item that matches the brand name and type name
+    address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + ".NET Bot Black Hoodie"  + '&itemBrands=' + ".NET" + '&itemTypes=' + "T-Shirt" + '&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    
+    # Log request address
+    logging.info("Sending request to address: " + address)
+
+    response = requests.get(address)
+    
+    # log response
+    logging.info('Response from Discount Service: ' + timestamp + ' with ' + str(response.status_code))
+
+
+
 def main():
+    contention = sys.argv[1] # 0 for low contention, 1 high contention
+    wrappers = sys.argv[2] # 0 for no wrappers, 1 for wrappers
+    test_logging_path = configureRootLogger(contention, wrappers)
+    # microDiscountTest()
     # Define Global HTTP Client
     http = requests.Session()
 
     # Define Global Catalog Item to be used in tests, necessary to fetch Catalog Item Name, Brand ID and Type ID
-    catalogItem = QueryCatalogItemById(1)
-    discountItem = QueryDiscountItemById(catalogItem)
+    if(contention == "0"):
+        # low contention
+        catalogItemIDs = [i for i in range(1, contention_rows + 1)]
+    else:
+        # high contention
+        catalogItemIDs = [1]
     
-    # Add the catalog Item to the Basket to be used in tests
-    AddCatalogItemToBasket(catalogItem, discountItem)
+    # Get the catalog items with the IDs defined above
+    catalogItems = QueryCatalogItemById(catalogItemIDs)
+    # Get the discount items that match the catalog items
+    discountItems = QueryDiscountItemById(catalogItems)
+    
+    # Add each pair of catalog item and discount item to the basket
+    for index, (catalogItem, discountItem) in enumerate(zip(catalogItems, discountItems)):
+        AddCatalogItemToBasket(catalogItem, discountItem, basket_IDs[index])
 
     # Store the results of the tests for each read/write ratio
     resultsList = []
@@ -424,7 +476,7 @@ def main():
         # Create a thread pool with numThreads threads
         
         # Configure logging settings for each read/write ratio test
-        logger, log_file = ConfigureLoggingSettings(throughput)
+        logger, log_file = ConfigureLoggingSettings(throughput, test_logging_path)
         
         read_ratio = (10 - read_write_ratio) * 10
         write_ratio = 100 - read_ratio 
@@ -437,6 +489,9 @@ def main():
         timeTakenList = {}
         successCount = {}
 
+        # Create a dictionary of basket ID assigned to each thread
+        basket_IDs_assigned = {}
+
         global readOperationsCount
         global writeOperationsCount
         readOperationsCount = 0
@@ -446,7 +501,7 @@ def main():
         futuresThreads = []
 
         # Create new Thread for assigning operations
-        assign_operations_thread = threading.Thread(target=assign_operations, args=(executor, futuresThreads, catalogItem, discountItem, read_write_list, timeTakenList, successCount, secondsToRun, logger, throughput))
+        assign_operations_thread = threading.Thread(target=assign_operations, args=(executor, futuresThreads, catalogItems, discountItems, read_write_list, timeTakenList, successCount, secondsToRun, logger, throughput, basket_IDs_assigned, contention))
         # Start thread
         assign_operations_thread.start()
         # Wait for thread to finish

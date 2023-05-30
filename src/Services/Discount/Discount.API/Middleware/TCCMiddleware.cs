@@ -19,7 +19,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
         public async Task Invoke(HttpContext ctx, IScopedMetadata svc, ICoordinatorService coordinatorSvc, ISingletonWrapper wrapperSvc, IScopedMetadata scpMetadata, DiscountContext discountContext) {
-            Console.WriteLine("Request:" + ctx.Request.Query);
+            // Console.WriteLine("Request:" + ctx.Request.Query);
             // To differentiate from a regular call, check for the functionality ID
             if (ctx.Request.Query.TryGetValue("functionality_ID", out var functionality_ID)) {
                 svc.ScopedMetadataFunctionalityID = functionality_ID;

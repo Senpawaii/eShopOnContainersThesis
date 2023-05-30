@@ -58,7 +58,7 @@ public class CoordinatorController : ControllerBase {
                 long maxTS = _functionalityService.Proposals[funcID].Max(t => t.Item2);
 
                 // Call Services to commit with the MAX TS
-                _logger.LogInformation($"Func:<{funcID}> - TS:<{new DateTime(maxTS)}>");
+                // _logger.LogInformation($"Func:<{funcID}> - TS:<{new DateTime(maxTS)}>");
                 BeginCommitProcess(funcID, maxTS);
             }
         });
@@ -66,14 +66,14 @@ public class CoordinatorController : ControllerBase {
 
     private async void BeginCommitProcess(string funcID, long maxTS) {
         // Log the number of functionalities received up to this point
-        _logger.LogInformation("Number of functionalities received: " + _functionalityService.Proposals.Count);
+        // _logger.LogInformation("Number of functionalities received: " + _functionalityService.Proposals.Count);
 
         // Get all services' addresses involved in the functionality
         List<string> addresses = _functionalityService.Proposals[funcID]
                                     .Select(t => t.Item1)
                                     .Distinct()
                                     .ToList();
-        _logger.LogInformation($"Commit Func:<{funcID}> - Addresses:<{string.Join(",", addresses)}>");
+        // _logger.LogInformation($"Commit Func:<{funcID}> - Addresses:<{string.Join(",", addresses)}>");
         foreach (string address in addresses) {
             switch(address) {
                 case "CatalogService":

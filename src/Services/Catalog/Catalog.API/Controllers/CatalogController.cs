@@ -27,7 +27,7 @@ public class CatalogController : ControllerBase {
     [ProducesResponseType(typeof(IEnumerable<CatalogItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     public async Task<IActionResult> ItemsAsync([FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0, string ids = null) {
-        _logger.LogInformation($"Checkpoint 2: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"Checkpoint 2: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         
         if (!string.IsNullOrEmpty(ids)) {
             var items = await GetItemsByIdsAsync(ids);
@@ -43,7 +43,7 @@ public class CatalogController : ControllerBase {
         var totalItems = await _catalogContext.CatalogItems
             .LongCountAsync();
 
-        _logger.LogInformation($"Checkpoint 2.1: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"Checkpoint 2.1: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         var itemsOnPage = await _catalogContext.CatalogItems
             .OrderBy(c => c.Name)
@@ -55,7 +55,7 @@ public class CatalogController : ControllerBase {
 
         var model = new PaginatedItemsViewModel<CatalogItem>(pageIndex, pageSize, totalItems, itemsOnPage);
 
-        _logger.LogInformation($"Checkpoint 3: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"Checkpoint 3: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         return Ok(model);
     }
@@ -194,7 +194,7 @@ public class CatalogController : ControllerBase {
     [ProducesResponseType((int)HttpStatusCode.Created)]
     public async Task<ActionResult> UpdateProductPriceAsync([FromBody] CatalogItem productToUpdate) {
         // Log all updated catalog item paramaters
-        _logger.LogInformation($"Body Catalog Item: {productToUpdate.Id} with the following parameters: {productToUpdate.Name}, {productToUpdate.Description}, {productToUpdate.Price}, {productToUpdate.PictureFileName}, {productToUpdate.PictureUri}, {productToUpdate.CatalogBrandId}, {productToUpdate.CatalogTypeId}");
+        // _logger.LogInformation($"Body Catalog Item: {productToUpdate.Id} with the following parameters: {productToUpdate.Name}, {productToUpdate.Description}, {productToUpdate.Price}, {productToUpdate.PictureFileName}, {productToUpdate.PictureUri}, {productToUpdate.CatalogBrandId}, {productToUpdate.CatalogTypeId}");
 
         //var items = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
@@ -372,7 +372,7 @@ public class CatalogController : ControllerBase {
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     public async Task<ActionResult<int>> ItemIdByNameAndTypeIdAndBrandIdAsync(string name, string catalogBrand, string catalogType) {
-        _logger.LogInformation("Executing ItemIdByNameAndTypeIdAndBrandId request...");
+        // _logger.LogInformation("Executing ItemIdByNameAndTypeIdAndBrandId request...");
         var items = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
         var brands = (IQueryable<CatalogBrand>)_catalogContext.CatalogBrands;
         var types = (IQueryable<CatalogType>)_catalogContext.CatalogTypes;
@@ -397,7 +397,7 @@ public class CatalogController : ControllerBase {
         if (totalItems == 0) { return NotFound(); }
         var itemId = items.Select(a => a.Id).First();
 
-        _logger.LogInformation("Finished ItemIdByNameAndTypeIdAndBrandId request!");
+        // _logger.LogInformation("Finished ItemIdByNameAndTypeIdAndBrandId request!");
 
         return itemId;
     }

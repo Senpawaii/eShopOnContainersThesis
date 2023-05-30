@@ -20,6 +20,8 @@ public class DiscountService : IDiscountService {
     }
 
     public async Task<decimal> GetDiscountValueAsync(string itemName, string brandName, string typeName) {
+        // Replace the "&" with "%26" to avoid the error: "The request URI is invalid because it contains invalid characters."
+        itemName = itemName.Replace("&", "%26");
         string uri = $"{_remoteServiceBaseUrl}discounts?itemNames={itemName}&itemBrands={brandName}&itemTypes={typeName}";
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();

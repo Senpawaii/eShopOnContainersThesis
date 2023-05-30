@@ -47,7 +47,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
-        _logger.LogInformation($"Checkpoint 2_a_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"Checkpoint 2_a_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         _originalCommandText = new string(command.CommandText);
 
@@ -91,7 +91,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
             case UPDATE_COMMAND:
                 // Log the update command
-                _logger.LogInformation(" UPDATE COMMAND: " + command.CommandText);
+                // _logger.LogInformation(" UPDATE COMMAND: " + command.CommandText);
 
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
@@ -140,7 +140,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
         }
 
-        _logger.LogInformation($"Checkpoint 2_b_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"Checkpoint 2_b_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
 
         return result;
@@ -152,7 +152,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
 
-        _logger.LogInformation($"Checkpoint 2_a_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"Checkpoint 2_a_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         _originalCommandText = new string(command.CommandText);
 
@@ -186,7 +186,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 }
                 break;
             case UPDATE_COMMAND:
-                _logger.LogInformation(" UPDATE COMMAND: " + command.CommandText);
+                // _logger.LogInformation(" UPDATE COMMAND: " + command.CommandText);
 
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
@@ -235,7 +235,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 //result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
                 break;
         }
-        _logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
     }
@@ -543,7 +543,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
 
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
-        _logger.LogInformation("Command executed: " + command.CommandText);
+        // _logger.LogInformation("Command executed: " + command.CommandText);
 
         var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
 
@@ -683,8 +683,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     }
 
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
-        _logger.LogInformation($"Checkpoint 2_c_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-        _logger.LogInformation("Command executed: " + command.CommandText);
+        // _logger.LogInformation($"Checkpoint 2_c_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation("Command executed: " + command.CommandText);
 
         string targetTable = GetTargetTable(command.CommandText);
         if (targetTable.IsNullOrEmpty()) {
@@ -815,7 +815,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         }
 
-        _logger.LogInformation($"Checkpoint 2_d_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"Checkpoint 2_d_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         return new WrapperDbDataReader(newData, result, targetTable);
     }

@@ -76,7 +76,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Setup\" />
+    <None Update="Setup\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
 	</ItemGroup>
 	
 </Project>

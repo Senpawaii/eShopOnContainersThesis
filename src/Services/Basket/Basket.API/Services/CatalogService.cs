@@ -64,6 +64,8 @@ public class CatalogService : ICatalogService {
         //var type = types.Where(t => ((Dictionary<object, object>)t)["id"].ToString() == typeId.ToString()).FirstOrDefault();
         //var typeName = ((Dictionary<object, object>)type)["type"];
 
+        // Replace the "&" with "%26" to avoid the error: "The request URI is invalid because it contains invalid characters."
+        productName = productName.Replace("&", "%26");
 
         // Get Item Price
         var uri = $"{_remoteCatalogServiceBaseUrl}items/name/{productName}/brand/{productBrand}/type/{productType}/price";

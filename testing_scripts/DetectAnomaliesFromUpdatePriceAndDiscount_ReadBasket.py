@@ -1,7 +1,7 @@
 import re
 
 def check_discount_from_log_file(file_path):
-    pattern = r'Read Basket: Price {([\d.]+)}, Discount: {([\d.]+)}'
+    pattern = r'Price {([\d.]+)}, Discount: {([\d.]+)}'
     results = {'OK': 0, 'anomalies': 0}
     anomaly_line_presence = []
 

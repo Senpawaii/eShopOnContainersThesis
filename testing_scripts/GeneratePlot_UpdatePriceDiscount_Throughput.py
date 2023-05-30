@@ -126,21 +126,32 @@ def plot_latency_vs_throughput(tests_data: list):
     plt.ylabel("Latency (ms)")
     
     # Increase the granularity of the x axis
-    plt.xticks(np.arange(0, max([test.throughput for test in tests_data]), 5.0))
+    # plt.xticks(np.arange(0, max([test.throughput for test in tests_data[0]]), 5.0))
+    plt.xticks(np.arange(0, 140, 5.0))
+    
+    # Define colors to use for each test
+    colors = ["-b", "-r"]
+    
+    # Define legend labels
+    legend_labels = ["Original", "µTCC"]
 
+    for index, test_data in enumerate(tests_data):
+        # Plot the average latency by request vs throughput for each test, each with a different color
 
-    x_values = [test.throughput for test in tests_data]
-    y_values = [test.average_latency_by_request for test in tests_data]
-    # Sort the test data based on the x_values
-    x_values, y_values = zip(*sorted(zip(x_values, y_values)))
+        # Get the throughput and average latency by request values for each test
+        x_values = [test.throughput for test in test_data]
+        y_values = [test.average_latency_by_request for test in test_data]
+        # Sort the test data based on the x_values
+        x_values, y_values = zip(*sorted(zip(x_values, y_values)))
 
+        line_color_format = colors[index]
 
-    # Plot the average latency by request vs throughput for each test
-    line = plt.plot(x_values, y_values, "-b")
-    line_color = line[0].get_color()
+        # Plot the average latency by request vs throughput for each test
+        line = plt.plot(x_values, y_values, line_color_format)
+        legend = legend_labels[index]
 
-    # Add a legend for the line
-    plt.legend([f"Original"], loc="upper left")
+        # Add a legend for the line
+    plt.legend(legend_labels, loc="upper left")
     
     # Get the current path and create a folder named "plots" if it doesn't exist
     current_path = os.path.dirname(os.path.realpath(__file__))
@@ -149,72 +160,83 @@ def plot_latency_vs_throughput(tests_data: list):
         os.makedirs(plots_folder)
     
     # Save the plot as a png file
-    log_name = tests_data[0].file_path.split("/")[-1].split("\\")[0]
+    log_name = tests_data[0][0].file_path.split("/")[-2].split("\\")[0]
     plot_name = log_name
+    # Log plot_name
+    print(tests_data[0][0].file_path)
     plt.savefig(os.path.join(plots_folder, plot_name))
 
 
 
-def clean_data(logs_folder: str):
+def clean_data(logs_folders: str):
     global wrapper
     
-    # Read all log files that include "Throughput" in their name
-    throughput_logs = []
-    
-    # Check if the logs folder contains "NoWrapper"
-    if "NoWrapper" in logs_folder:
-        wrapper = False
+    all_tests_data = []
 
-    for file in os.listdir(logs_folder):
-        if "Throughput" in file:
-            throughput_logs.append(file)
-    
-    # Store the data of each test case in a list of Test_data objects
-    tests_data = []
-    for test_case in throughput_logs:
-        test_log_path = os.path.join(logs_folder, test_case)
-        with open(test_log_path, "r") as f:
-            file_data = f.read()
-            throughput = get_throughput(file_data)
-            read_ratio = get_read_write_ratio(file_data)
-            total_test_time = get_total_test_time(file_data) # in seconds
-            average_latency_by_functionality = get_average_latency_by_functionality(file_data)
-            average_latency_by_req = get_average_latency_by_req(file_data) # in milliseconds
-            total_requests = get_total_requests(file_data)
-            total_read_requests = get_total_read_requests(file_data)
-            total_write_requests = get_total_write_requests(file_data)
-            anomalies_detected = get_anomalies_detected(file_data)
-            anomalies_ratio = get_anomalies_ratio(file_data) # percentage of anomalies vs read requests
-            success_rate = get_success_rate(file_data) # percentage of successful requests vs error requests (not anomalies)
-            file_path = test_log_path
+    # Read all log files in the logs folder
+    for logs_folder in logs_folders:
+        # Read all log files that include "Throughput" in their name
+        throughput_log = []
+        
+        # Check if the logs folder contains "NoWrapper"
+        if "NoWrapper" in logs_folder:
+            wrapper = False
 
-            # Create a Test_data object
-            test = Test_data(file_path, throughput, read_ratio, total_test_time, average_latency_by_functionality, average_latency_by_req, total_requests, total_read_requests, total_write_requests, anomalies_detected, anomalies_ratio, success_rate)
-            
-            # Check if there is already a test with the same throughput value
-            # throughput_exists = False
-            # for t in tests_data:
-            #     if t.throughput == test.throughput:
-            #         throughput_exists = True
-            #         break
-            # if not throughput_exists:
-            #     tests_data.append(test)
-            tests_data.append(test)
+        for file in os.listdir(logs_folder):
+            if "Throughput" in file:
+                throughput_log.append(file)
+        
+        # Store the data of each test case in a list of Test_data objects
+        tests_data = []
+        for test_case in throughput_log:
+            test_log_path = os.path.join(logs_folder, test_case)
+            with open(test_log_path, "r") as f:
+                file_data = f.read()
+                throughput = get_throughput(file_data)
+                if throughput >= 140:
+                    # Stop reading the file if the throughput is greater than 140
+                    continue
+                read_ratio = get_read_write_ratio(file_data)
+                total_test_time = get_total_test_time(file_data) # in seconds
+                average_latency_by_functionality = get_average_latency_by_functionality(file_data)
+                average_latency_by_req = get_average_latency_by_req(file_data) # in milliseconds
+                total_requests = get_total_requests(file_data)
+                total_read_requests = get_total_read_requests(file_data)
+                total_write_requests = get_total_write_requests(file_data)
+                anomalies_detected = get_anomalies_detected(file_data)
+                anomalies_ratio = get_anomalies_ratio(file_data) # percentage of anomalies vs read requests
+                success_rate = get_success_rate(file_data) # percentage of successful requests vs error requests (not anomalies)
+                file_path = test_log_path
 
+                # Create a Test_data object
+                test = Test_data(file_path, throughput, read_ratio, total_test_time, average_latency_by_functionality, average_latency_by_req, total_requests, total_read_requests, total_write_requests, anomalies_detected, anomalies_ratio, success_rate)
+                
+                # Check if there is already a test with the same throughput value
+                # throughput_exists = False
+                # for t in tests_data:
+                #     if t.throughput == test.throughput:
+                #         throughput_exists = True
+                #         break
+                # if not throughput_exists:
+                #     tests_data.append(test)
+                tests_data.append(test)
+        all_tests_data.append(tests_data)
     
     # Generate plot of latency per request vs throughput
-    plot_latency_vs_throughput(tests_data)
+    plot_latency_vs_throughput(all_tests_data)
 
 
 wrapper = True
 
 def main():
     # Read arguments
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print("Usage: python GeneratePlot_UpdatePriceDiscount_Throughput.py <logs_folder>")
         return
     
-    logs_folder = os.path.join(os.getcwd(), sys.argv[1])
+    # Get the logs folder path(s)
+    logs_folder = [os.path.join(os.getcwd(), sys.argv[i]) for i in range(1, len(sys.argv))]
+    # logs_folder = os.path.join(os.getcwd(), sys.argv[1])
 
     # Clean data
     clean_data(logs_folder)
