@@ -51,20 +51,18 @@ COPY "NuGet.config" "NuGet.config"
 RUN dotnet restore "eShopOnContainers-ServicesAndWebApps.sln"
 
 COPY . .
-WORKDIR /src/Services/Catalog/Catalog.API
+WORKDIR /src/Services/ThesisFrontend/ThesisFrontend.API
 RUN dotnet publish --no-restore -c Release -o /app
 
-FROM build as unittest
-WORKDIR /src/Services/Catalog/Catalog.UnitTests
+#FROM build as unittest
+#WORKDIR /src/Services/ThesisFrontend/ThesisFrontend.UnitTests
 
-FROM build as functionaltest
-WORKDIR /src/Services/Catalog/Catalog.FunctionalTests
+#FROM build as functionaltest
+#WORKDIR /src/Services/ThesisFrontend/ThesisFrontend.FunctionalTests
 
 FROM build AS publish
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app .
-COPY --from=build /src/Services/Catalog/Catalog.API/Proto /app/Proto
-COPY --from=build /src/Services/Catalog/Catalog.API/eshop.pfx .
-ENTRYPOINT ["dotnet", "Catalog.API.dll"]
+ENTRYPOINT ["dotnet", "ThesisFrontend.API.dll"]

@@ -6,7 +6,7 @@
 	<PreserveCompilationContext>true</PreserveCompilationContext>
 	<AssemblyName>Discount.API</AssemblyName>
 	<PackageId>Discount.API</PackageId>
-    <UserSecretsId>4a4707e5-e743-4604-a1a4-c6ce1cac2023</UserSecretsId>
+  <UserSecretsId>4a4707e5-e743-4604-a1a4-c6ce1cac2023</UserSecretsId>
 	<DockerComposeProjectPath>..\..\..\..\docker-compose.dcproj</DockerComposeProjectPath>
 	<GenerateErrorForMissingTargetingPacks>false</GenerateErrorForMissingTargetingPacks>
 	<IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>

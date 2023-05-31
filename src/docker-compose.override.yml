@@ -101,6 +101,19 @@ services:
       - "5101:80"
       - "9101:81"
   
+  thesisFrontend-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - UseCustomizationData=True
+      - AzureServiceBusEnabled=False
+      - AzureStorageEnabled=False
+      - ApplicationInsights__InstrumentationKey=${INSTRUMENTATION_KEY}
+      - OrchestratorType=${ORCHESTRATOR_TYPE}
+      - PORT=80
+      - PATH_BASE=/thesisfrontend-api
+    ports:
+      - "5142:80"
+  
   discount-api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
