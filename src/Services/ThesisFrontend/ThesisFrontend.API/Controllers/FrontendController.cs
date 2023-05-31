@@ -19,7 +19,7 @@ public class FrontendController : ControllerBase {
     }
 
     [HttpGet]
-    [Route("readBasket")]
+    [Route("readbasket")]
     [ProducesResponseType(typeof(string), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     public async Task<IActionResult> ReadBasketAsync([FromQuery] string basketId) {
