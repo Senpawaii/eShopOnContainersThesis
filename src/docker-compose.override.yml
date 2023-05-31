@@ -101,7 +101,7 @@ services:
       - "5101:80"
       - "9101:81"
   
-  thesisFrontend-api:
+  thesisfrontend-api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - UseCustomizationData=True

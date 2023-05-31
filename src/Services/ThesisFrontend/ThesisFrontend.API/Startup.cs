@@ -1,5 +1,6 @@
 ﻿using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Infrastructure.Filters;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Middleware;
+using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API;
 public class Startup {
@@ -20,12 +21,13 @@ public class Startup {
             .AddCustomHealthCheck(Configuration);
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
-            services
-                .AddScoped<IScopedMetadata, ScopedMetadata>()
-                .AddSingleton<ISingletonWrapper, SingletonWrapper>();
-            services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<CustomDelegatingHandler>();
-            services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<CustomDelegatingHandler>();
-            services.AddHttpClient<IBasketService, BasketService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+            //services
+            //    .AddScoped<IScopedMetadata, ScopedMetadata>()
+            //    .AddSingleton<ISingletonWrapper, SingletonWrapper>();
+            //services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+            //services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+            //services.AddHttpClient<IBasketService, BasketService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+            services.AddHttpClient<IBasketService, BasketService>();
 
         }
 

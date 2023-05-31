@@ -2,8 +2,6 @@
 public class ThesisFrontendSettings {
     public bool UseCustomizationData { get; set; }
 
-    public bool AzureStorageEnabled { get; set; }
-
     public bool ThesisWrapperEnabled { get; set; }
 
     public string CatalogUrl { get; set; }

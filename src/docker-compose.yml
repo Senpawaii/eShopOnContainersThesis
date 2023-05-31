@@ -52,8 +52,8 @@ services:
       - sqldata
       - rabbitmq
 
-  thesisFrontend-api:
-    image: ${REGISTRY:-eshop}/thesisFrontend.api:${PLATFORM:-linux}-${TAG:-latest}
+  thesisfrontend-api:
+    image: ${REGISTRY:-eshop}/thesisfrontend.api:${PLATFORM:-linux}-${TAG:-latest}
     build:
       context: .
       dockerfile: Services/ThesisFrontend/ThesisFrontend.API/Dockerfile
