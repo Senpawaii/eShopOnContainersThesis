@@ -1,4 +1,4 @@
-using Microsoft.eShopOnContainers.Services.Basket.API.DependencyServices;
+﻿using Microsoft.eShopOnContainers.Services.Basket.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.HttpHandlers;
 using Microsoft.eShopOnContainers.Services.Basket.API.Middleware;
 
@@ -141,11 +141,12 @@ public class Startup
         services.AddTransient<IIdentityService, IdentityService>();
 
 
-        // Register the HTTP Message Handler
-        services.AddScoped<CustomDelegatingHandler>();
-        // Register the HTTP client for Catalog.API and Discount.API
 
+        // Register the HTTP client for Catalog.API and Discount.API
         if (Configuration["ThesisWrapperEnabled"] == "True") {
+            // Register the HTTP Message Handler
+            services.AddScoped<CustomDelegatingHandler>();
+            
             services.AddSingleton<IScopedMetadata, ScopedMetadata>();
             services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<CustomDelegatingHandler>();
             services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<CustomDelegatingHandler>();

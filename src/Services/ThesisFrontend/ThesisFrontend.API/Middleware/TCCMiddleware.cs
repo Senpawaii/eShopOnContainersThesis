@@ -26,6 +26,10 @@ public class TCCMiddleware {
                 _logger.LogInformation("TCCMiddleware: Invoked Path: {0}", invokedPath);
                 await HandleReadBasketFunctionality(httpctx, metadata);
                 break;
+            case "/api/v1/frontend/updatepricediscount":
+                _logger.LogInformation("TCCMiddleware: Invoked Path: {0}", invokedPath);
+                await HandleUpdatePriceDiscountFunctionality(httpctx, metadata);
+                break;
             default:
                 _logger.LogInformation("TCCMiddleware: Invoked Path: {0}", invokedPath);
                 await _next.Invoke(httpctx);
@@ -56,6 +60,12 @@ public class TCCMiddleware {
     private async Task HandleReadBasketFunctionality(HttpContext httpctx, IScopedMetadata metadata) {
         // Set the number of invocation to the services that are invoked in this graph's path
         metadata.Invocations.Value = 3;
+        await _next.Invoke(httpctx);
+    }
+
+    private async Task HandleUpdatePriceDiscountFunctionality(HttpContext httpctx, IScopedMetadata metadata) {
+        // Set the number of invocation to the services that are invoked in this graph's path
+        metadata.Invocations.Value = 2;
         await _next.Invoke(httpctx);
     }
 }
