@@ -21,7 +21,11 @@ public class TCCHttpInjector : DelegatingHandler {
         var query = HttpUtility.ParseQueryString(uriBuilder.Query);
         query["functionality_ID"] = _metadata.ClientID.Value;
         query["timestamp"] = _metadata.Timestamp.Value;
-        query["tokens"] = _metadata.Tokens.Value.ToString();
+
+        var partialTokensToSend = _metadata.Tokens.Value / 2;
+        _metadata.Tokens.Value = _metadata.Tokens.Value - partialTokensToSend;
+
+        query["tokens"] = partialTokensToSend.ToString();
         uriBuilder.Query = query.ToString();
         request.RequestUri = uriBuilder.Uri;
     

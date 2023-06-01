@@ -8,6 +8,7 @@ public class ScopedMetadata : IScopedMetadata {
     // This is a "hack" to get around the fact that we cannot inject scoped dependencies into HttpHandlers.
 
     private static AsyncLocal<int> tokens = new AsyncLocal<int>();
+    private static AsyncLocal<int> spentTokens = new AsyncLocal<int>();
     private static AsyncLocal<int> invocations = new AsyncLocal<int>();
     
     // The default timestamp should not be used by any functionality. This is used mainly for ContextSeed population.
@@ -19,10 +20,14 @@ public class ScopedMetadata : IScopedMetadata {
         get { return tokens; }
         set { tokens = value; }
     }
-    public AsyncLocal<int> Invocations {
-        get { return invocations; }
-        set { invocations = value; }
-    }
+    //public AsyncLocal<int> SpentTokens {
+    //    get { return spentTokens; }
+    //    set { spentTokens = value; }
+    //}
+    //public AsyncLocal<int> Invocations {
+    //    get { return invocations; }
+    //    set { invocations = value; }
+    //}
     public AsyncLocal<string> Timestamp {
         get { return timestamp; }
         set { timestamp = value; }

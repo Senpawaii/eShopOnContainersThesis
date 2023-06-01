@@ -9,4 +9,6 @@ public class ThesisFrontendSettings {
     public string DiscountUrl { get; set; }
 
     public string BasketUrl { get; set; }
+
+    public string CoordinatorUrl { get; set; }
 }

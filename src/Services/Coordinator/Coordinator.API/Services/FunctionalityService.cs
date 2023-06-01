@@ -60,7 +60,7 @@ public class FunctionalityService : IFunctionalityService {
 
     public Boolean HasCollectedAllTokens(string funcID) {
         // Return true if the functionality has ended => the max number of tokens have been reached
-        return _tokens[funcID] == 100;
+        return _tokens[funcID] == 1000000000;
     }
 
     public void ClearFunctionality(string funcID) {
