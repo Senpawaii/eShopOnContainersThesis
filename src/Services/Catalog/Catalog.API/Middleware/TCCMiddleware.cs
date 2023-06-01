@@ -26,7 +26,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 //_logger.LogInformation($"Checkpoint 1: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 svc.ScopedMetadataFunctionalityID = functionality_ID;
-
+                
                 //_logger.LogInformation($"Checkpoint 1_a: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 string currentUri = ctx.Request.GetUri().ToString();

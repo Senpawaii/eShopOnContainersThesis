@@ -17,45 +17,29 @@ public class TCCMiddleware {
     }
 
     // Middleware has access to Scoped Data, dependency-injected at Startup
-    public async Task Invoke(HttpContext ctx, IScopedMetadata svc) {
+    public async Task Invoke(HttpContext ctx, IScopedMetadata svc, ICoordinatorService coordinatorSvc) {
 
         // To differentiate from a regular call, check for the functionality ID
-        if (ctx.Request.Query.TryGetValue("functionality_ID", out var functionality_ID)) {
+        if (ctx.Request.Query.TryGetValue("functionality_ID", out var clientID)) {
             // Store the functionality ID in the scoped metadata
-            svc.ScopedMetadataFunctionalityID.Value = functionality_ID;
-
-            // Check for the other parameters and remove them as needed
-            if (ctx.Request.Query.TryGetValue("interval_low", out var interval_lowStr) &&
-                ctx.Request.Query.TryGetValue("interval_high", out var interval_highStr)) {
-
-                //_logger.LogInformation($"Registered interval: {interval_lowStr}:{interval_highStr}");
-
-                if (int.TryParse(interval_lowStr, out var interval_low)) {
-                    svc.ScopedMetadataLowInterval.Value = interval_low;
-                }
-                else {
-                    // _logger.LogInformation("Failed to parse Low Interval.");
-                }
-                if (int.TryParse(interval_highStr, out var interval_high)) {
-                    svc.ScopedMetadataHighInterval.Value = interval_high;
-                }
-                else {
-                    // _logger.LogInformation("Failed to parse High Interval.");
-                }
-            }
-
+            svc.ClientID.Value = clientID;
+            
+            // Initially set the read-only flag to true. Update it as write operations are performed.
+            svc.ReadOnly.Value = true;
             if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                 //_logger.LogInformation($"Registered timestamp: {timestamp}");
-                svc.ScopedMetadataTimestamp.Value = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
+                svc.Timestamp.Value = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
             }
 
             if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
                 //_logger.LogInformation($"Registered tokens: {tokens}");
-                Double.TryParse(tokens, out double numTokens);
-                svc.ScopedMetadataTokens.Value = numTokens;
+                if(!int.TryParse(tokens, out int numTokens)) {
+                    _logger.LogError("Couldn't extract the number of tokens from the request query string.");
+                }
+                svc.Tokens.Value = numTokens;
             }
 
-            var removeTheseParams = new List<string> { "interval_low", "interval_high", "functionality_ID", "timestamp", "tokens" }.AsReadOnly();
+            var removeTheseParams = new List<string> { "functionality_ID", "timestamp", "tokens" }.AsReadOnly();
 
             var filteredQueryParams = ctx.Request.Query.ToList().Where(filterKvp => !removeTheseParams.Contains(filterKvp.Key));
             var filteredQueryString = QueryString.Create(filteredQueryParams);
@@ -69,11 +53,9 @@ public class TCCMiddleware {
             ctx.Response.Body = memStream;
 
             ctx.Response.OnStarting(() => {
-                ctx.Response.Headers["interval_low"] = svc.ScopedMetadataLowInterval.ToString();
-                ctx.Response.Headers["interval_high"] = svc.ScopedMetadataHighInterval.ToString();
-                ctx.Response.Headers["functionality_ID"] = svc.ScopedMetadataFunctionalityID.Value;
-                ctx.Response.Headers["timestamp"] = svc.ScopedMetadataTimestamp.Value.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
-                ctx.Response.Headers["tokens"] = svc.ScopedMetadataTokens.ToString();
+                ctx.Response.Headers["functionality_ID"] = svc.ClientID.Value;
+                ctx.Response.Headers["timestamp"] = svc.Timestamp.Value.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
+                ctx.Response.Headers["tokens"] = svc.Tokens.ToString();
                 return Task.CompletedTask;
             });
 
@@ -97,6 +79,11 @@ public class TCCMiddleware {
             // (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
             ctx.Response.Body = originalResponseBody;
             await ctx.Response.Body.WriteAsync(memStream.ToArray());
+
+            if (svc.Tokens.Value > 0) {
+                // send any remaining Tokens to the Coordinator
+                await coordinatorSvc.SendTokens();
+            }
         }
         else {
             // This is not an HTTP request that requires change

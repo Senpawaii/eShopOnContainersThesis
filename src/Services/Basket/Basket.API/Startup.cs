@@ -145,11 +145,11 @@ public class Startup
         // Register the HTTP client for Catalog.API and Discount.API
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             // Register the HTTP Message Handler
-            services.AddScoped<CustomDelegatingHandler>();
+            services.AddScoped<TCCHttpInjector>();
             
             services.AddSingleton<IScopedMetadata, ScopedMetadata>();
-            services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<CustomDelegatingHandler>();
-            services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<CustomDelegatingHandler>();
+            services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<TCCHttpInjector>();
+            services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<TCCHttpInjector>();
         } else {
             services.AddHttpClient<ICatalogService, CatalogService>();
             services.AddHttpClient<IDiscountService, DiscountService>();

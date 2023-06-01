@@ -1,4 +1,4 @@
-﻿namespace Microsoft.eShopOnContainers.Services.Discount.API.Services;
+﻿namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 public interface ICoordinatorService {
     Task SendTokens();
 }
