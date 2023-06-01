@@ -17,7 +17,7 @@ public class CoordinatorService : ICoordinatorService {
     }
 
     public async Task SendTokens() {
-        string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={_metadata.ScopedMetadataTokens}&funcID={_metadata.ScopedMetadataFunctionalityID}&serviceName=DiscountService";
+        string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={_metadata.Tokens}&clientID={_metadata.ClientID}&serviceName=DiscountService&readOnly={_metadata.ReadOnly}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();

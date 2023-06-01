@@ -1,5 +1,6 @@
 ﻿using Catalog.API.DependencyServices;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 using System.Net.Http;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Services;
@@ -18,9 +19,7 @@ public class CoordinatorService : ICoordinatorService {
     }
 
     public async Task SendTokens() {
-        //long ticks = _metadata.ScopedMetadataTimestamp.Ticks;
-        //string uri = $"{_settings.Value.CoordinatorUrl}propose?ticks={ticks}&tokens={_metadata.ScopedMetadataTokens}&funcID={_metadata.ScopedMetadataFunctionalityID}&serviceName=CatalogService";
-        string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={_metadata.ScopedMetadataTokens}&funcID={_metadata.ScopedMetadataFunctionalityID}&serviceName=CatalogService";
+        string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={_metadata.Tokens}&clientID={_metadata.ClientID}&serviceName=CatalogService&readOnly={_metadata.ReadOnly}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();

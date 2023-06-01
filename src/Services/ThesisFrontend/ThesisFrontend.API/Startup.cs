@@ -1,4 +1,5 @@
-﻿using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
+﻿using Catalog.API.DependencyServices;
+using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Infrastructure.Filters;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Infrastructure.HttpHandlers;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Middleware;
@@ -23,9 +24,12 @@ public class Startup {
             .AddCustomHealthCheck(Configuration);
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
-            services.AddScoped<TCCHttpInjector>();
             services.AddScoped<IScopedMetadata, ScopedMetadata>();
-            //    .AddSingleton<ISingletonWrapper, SingletonWrapper>();
+            services.AddScoped<TCCHttpInjector>();
+            
+            services.AddSingleton<ITokensContextSingleton, TokensContextSingleton>();
+            
+            services.AddHttpClient<ICoordinatorService, CoordinatorService>();
             services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<TCCHttpInjector>();
             services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<TCCHttpInjector>();
             services.AddHttpClient<IBasketService, BasketService>().AddHttpMessageHandler<TCCHttpInjector>();

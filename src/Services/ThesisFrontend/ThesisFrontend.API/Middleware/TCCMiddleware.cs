@@ -1,29 +1,36 @@
-﻿using Microsoft.eShopOnContainers.Services.Discount.API.Services;
+﻿using Catalog.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
+using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Middleware;
 public class TCCMiddleware {
     private readonly ILogger<TCCMiddleware> _logger;
     private readonly RequestDelegate _next;
+    private IScopedMetadata _request_metadata;
+    private ITokensContextSingleton _remainingTokens;
     private static Random random = new Random();
 
-    public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next) {
+    public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next, IScopedMetadata metadata, ITokensContextSingleton remainingTokens) {
         _logger = logger;
         _next = next;
+        _request_metadata = metadata;
+        _remainingTokens = remainingTokens;
     }
 
-    public async Task Invoke(HttpContext httpctx, IScopedMetadata metadata, ICoordinatorService coordinatorSvc) {
+    public async Task Invoke(HttpContext httpctx, ICoordinatorService coordinatorSvc) {
         // Initialize the metadata fields
-        SeedMetadata(metadata);
+        SeedMetadata();
 
         await _next.Invoke(httpctx);
 
         // Send the rest of the tokens to the coordinator
-        if(metadata.Tokens.Value > 0) {
+        if(_request_metadata.Tokens.Value > 0) {
             await coordinatorSvc.SendTokens();
         }
+        // Clean the singleton fields for the current session context
+        _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID.Value);
     }
-    private void SeedMetadata(IScopedMetadata metadata) {
+    private void SeedMetadata() {
         // Generate a 32 bit random string for the client ID
         string clientID = GenerateRandomString(32);
 
@@ -32,10 +39,10 @@ public class TCCMiddleware {
 
         // Generate tokens
         int tokens = 1000000000;
-
-        metadata.Tokens.Value = tokens;
-        metadata.Timestamp.Value = timestamp;
-        metadata.ClientID.Value = clientID;
+        _remainingTokens.AddRemainingTokens(clientID, tokens);
+        _request_metadata.Tokens.Value = tokens;
+        _request_metadata.Timestamp.Value = timestamp;
+        _request_metadata.ClientID.Value = clientID;
     }
 
     private string GenerateRandomString(int length) {

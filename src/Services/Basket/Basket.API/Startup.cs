@@ -148,6 +148,7 @@ public class Startup
             services.AddScoped<TCCHttpInjector>();
             
             services.AddSingleton<IScopedMetadata, ScopedMetadata>();
+            services.AddHttpClient<ICoordinatorService, CoordinatorService>();
             services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<TCCHttpInjector>();
             services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<TCCHttpInjector>();
         } else {

@@ -19,9 +19,9 @@ public class TCCMiddleware {
     // Middleware has access to Scoped Data, dependency-injected at Startup
     public async Task Invoke(HttpContext ctx, IScopedMetadata svc, ICoordinatorService coordinatorSvc) {
 
-        // To differentiate from a regular call, check for the functionality ID
-        if (ctx.Request.Query.TryGetValue("functionality_ID", out var clientID)) {
-            // Store the functionality ID in the scoped metadata
+        // To differentiate from a regular call, check for the client ID
+        if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
+            // Store the client ID in the scoped metadata
             svc.ClientID.Value = clientID;
             
             // Initially set the read-only flag to true. Update it as write operations are performed.
@@ -39,7 +39,7 @@ public class TCCMiddleware {
                 svc.Tokens.Value = numTokens;
             }
 
-            var removeTheseParams = new List<string> { "functionality_ID", "timestamp", "tokens" }.AsReadOnly();
+            var removeTheseParams = new List<string> { "clientID", "timestamp", "tokens" }.AsReadOnly();
 
             var filteredQueryParams = ctx.Request.Query.ToList().Where(filterKvp => !removeTheseParams.Contains(filterKvp.Key));
             var filteredQueryString = QueryString.Create(filteredQueryParams);
@@ -53,7 +53,7 @@ public class TCCMiddleware {
             ctx.Response.Body = memStream;
 
             ctx.Response.OnStarting(() => {
-                ctx.Response.Headers["functionality_ID"] = svc.ClientID.Value;
+                ctx.Response.Headers["clientID"] = svc.ClientID.Value;
                 ctx.Response.Headers["timestamp"] = svc.Timestamp.Value.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
                 ctx.Response.Headers["tokens"] = svc.Tokens.ToString();
                 return Task.CompletedTask;

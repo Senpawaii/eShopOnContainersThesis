@@ -16,18 +16,18 @@ namespace Catalog.API.DependencyServices {
         public ConcurrentBag<object[]> SingletonGetCatalogITems(string key);
         public ConcurrentBag<object[]> SingletonGetCatalogTypes(string key);
         public ConcurrentBag<object[]> SingletonGetCatalogBrands(string key);
-        public bool SingletonGetTransactionState(string funcId);
+        public bool SingletonGetTransactionState(string clientID);
 
-        public void SingletonAddCatalogItem(string funcID, IEnumerable<object[]> values);
-        public void SingletonAddCatalogType(string funcID, IEnumerable<object[]> values);
-        public void SingletonAddCatalogBrand(string funcID, IEnumerable<object[]> values);
-        public bool SingletonSetTransactionState(string funcId, bool state);
+        public void SingletonAddCatalogItem(string clientID, IEnumerable<object[]> values);
+        public void SingletonAddCatalogType(string clientID, IEnumerable<object[]> values);
+        public void SingletonAddCatalogBrand(string clientID, IEnumerable<object[]> values);
+        public bool SingletonSetTransactionState(string clientID, bool state);
 
-        public void SingletonRemoveFunctionalityObjects(string funcID);
-        public void SingletonAddWrappedItemsToProposedSet(string functionality_ID, long proposedTS);
-        public void SingletonRemoveWrappedItemsFromProposedSet(string functionality_ID, ConcurrentBag<object[]> wrapped_objects, string target_table);
+        public void SingletonRemoveFunctionalityObjects(string clientID);
+        public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS);
+        public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects, string target_table);
 
-        public void SingletonAddProposedFunctionality(string funcID, long proposedTS);
-        public void SingletonRemoveProposedFunctionality(string funcID);
+        public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
+        public void SingletonRemoveProposedFunctionality(string clientID);
     }
 }

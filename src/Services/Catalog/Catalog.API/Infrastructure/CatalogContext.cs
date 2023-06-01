@@ -1,4 +1,5 @@
 ﻿using Catalog.API.DependencyServices;
+using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;

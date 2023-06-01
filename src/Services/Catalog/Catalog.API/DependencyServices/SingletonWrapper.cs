@@ -61,72 +61,72 @@ namespace Catalog.API.DependencyServices {
             return wrapped_catalog_brands.GetValueOrDefault(key, new ConcurrentBag<object[]>());
         }
 
-        public bool SingletonGetTransactionState(string funcId) {
-            if(!transaction_state.ContainsKey(funcId)) {
+        public bool SingletonGetTransactionState(string clientID) {
+            if(!transaction_state.ContainsKey(clientID)) {
                 // Initialize a new state: uncommitted
-                transaction_state[funcId] = false;
+                transaction_state[clientID] = false;
             }
-            return transaction_state.GetValueOrDefault(funcId);
+            return transaction_state.GetValueOrDefault(clientID);
         }
 
-        public void SingletonAddCatalogItem(string funcID, IEnumerable<object[]> values) {
+        public void SingletonAddCatalogItem(string clientID, IEnumerable<object[]> values) {
             foreach (object[] item in values) {
-                wrapped_catalog_items.AddOrUpdate(funcID, new ConcurrentBag<object[]> { item }, (key, bag) => {
+                wrapped_catalog_items.AddOrUpdate(clientID, new ConcurrentBag<object[]> { item }, (key, bag) => {
                     bag.Add(item);
                     return bag;
                 });
             }
         }
-        public void SingletonAddCatalogType(string funcID, IEnumerable<object[]> values) {
+        public void SingletonAddCatalogType(string clientID, IEnumerable<object[]> values) {
             foreach (object[] type in values) {
-                wrapped_catalog_types.AddOrUpdate(funcID, new ConcurrentBag<object[]> { type }, (key, bag) => {
+                wrapped_catalog_types.AddOrUpdate(clientID, new ConcurrentBag<object[]> { type }, (key, bag) => {
                     bag.Add(type);
                     return bag;
                 });
             }
         }
-        public void SingletonAddCatalogBrand(string funcID, IEnumerable<object[]> values) {
+        public void SingletonAddCatalogBrand(string clientID, IEnumerable<object[]> values) {
             foreach (object[] brand in values) {
-                wrapped_catalog_brands.AddOrUpdate(funcID, new ConcurrentBag<object[]> { brand }, (key, bag) => {
+                wrapped_catalog_brands.AddOrUpdate(clientID, new ConcurrentBag<object[]> { brand }, (key, bag) => {
                     bag.Add(brand);
                     return bag;
                 });
             }
         }
 
-        public bool SingletonSetTransactionState(string funcId, bool state) {
-            return transaction_state[funcId] = state;
+        public bool SingletonSetTransactionState(string clientID, bool state) {
+            return transaction_state[clientID] = state;
         }
 
-        // Remove the objects associated with the funcId
-        public void SingletonRemoveFunctionalityObjects(string funcId) {
-            if(wrapped_catalog_brands.ContainsKey(funcId))
-                wrapped_catalog_brands.TryRemove(funcId, out ConcurrentBag<object[]> _);
-            if(wrapped_catalog_types.ContainsKey(funcId))
-                wrapped_catalog_types.TryRemove(funcId, out ConcurrentBag<object[]> _);
-            if(wrapped_catalog_items.ContainsKey(funcId))
-                wrapped_catalog_items.TryRemove(funcId, out ConcurrentBag<object[]> _);
-            if(transaction_state.ContainsKey(funcId))
-                transaction_state.TryRemove(funcId, out bool _);
+        // Remove the objects associated with the clientID
+        public void SingletonRemoveFunctionalityObjects(string clientID) {
+            if(wrapped_catalog_brands.ContainsKey(clientID))
+                wrapped_catalog_brands.TryRemove(clientID, out ConcurrentBag<object[]> _);
+            if(wrapped_catalog_types.ContainsKey(clientID))
+                wrapped_catalog_types.TryRemove(clientID, out ConcurrentBag<object[]> _);
+            if(wrapped_catalog_items.ContainsKey(clientID))
+                wrapped_catalog_items.TryRemove(clientID, out ConcurrentBag<object[]> _);
+            if(transaction_state.ContainsKey(clientID))
+                transaction_state.TryRemove(clientID, out bool _);
         }
 
-        public void SingletonAddProposedFunctionality(string functionality_ID, long proposedTS) {
-            proposed_functionalities.AddOrUpdate(functionality_ID, proposedTS, (key, value) => {
+        public void SingletonAddProposedFunctionality(string clientID, long proposedTS) {
+            proposed_functionalities.AddOrUpdate(clientID, proposedTS, (key, value) => {
                 value = proposedTS;
                 return value;
             });
         }
 
-        public void SingletonRemoveProposedFunctionality(string functionality_ID) {
-            if(proposed_functionalities.ContainsKey(functionality_ID))
-                proposed_functionalities.TryRemove(functionality_ID, out long _);
+        public void SingletonRemoveProposedFunctionality(string clientID) {
+            if(proposed_functionalities.ContainsKey(clientID))
+                proposed_functionalities.TryRemove(clientID, out long _);
         }
 
-        public void SingletonAddWrappedItemsToProposedSet(string functionality_ID, long proposedTS) {
-            // Gather the objects inside the wrapper with given functionality_ID
-            ConcurrentBag<object[]> catalog_items_to_propose = wrapped_catalog_items.GetValueOrDefault(functionality_ID, new ConcurrentBag<object[]>());
-            ConcurrentBag<object[]> catalog_types_to_propose = wrapped_catalog_types.GetValueOrDefault(functionality_ID, new ConcurrentBag<object[]>());
-            ConcurrentBag<object[]> catalog_brands_to_propose = wrapped_catalog_brands.GetValueOrDefault(functionality_ID, new ConcurrentBag<object[]>());
+        public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS) {
+            // Gather the objects inside the wrapper with given clientID
+            ConcurrentBag<object[]> catalog_items_to_propose = wrapped_catalog_items.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
+            ConcurrentBag<object[]> catalog_types_to_propose = wrapped_catalog_types.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
+            ConcurrentBag<object[]> catalog_brands_to_propose = wrapped_catalog_brands.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
 
             // For each object, add it to the proposed set using its identifiers, adding the proposed timestamp associated
             foreach (object[] catalog_item_to_propose in catalog_items_to_propose) {
@@ -161,14 +161,14 @@ namespace Catalog.API.DependencyServices {
             }
         }
          
-        public void SingletonRemoveWrappedItemsFromProposedSet(string functionality_ID, ConcurrentBag<object[]> wrapped_objects, string targetTable) {
+        public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects, string targetTable) {
             // Remove entries in the proposed set, identified by their table identifiers and the timestamp proposed in the functionality
             switch(targetTable) {
                 case "Catalog":
                     foreach (object[] object_to_remove in wrapped_objects) {
                         // Name: wrapped_object[1], BrandId: wrapped_object[2], TypeId: wrapped_object[4]
                         object[] identifiers = new object[] { object_to_remove[1], object_to_remove[2], object_to_remove[4] };
-                        var original_proposedTS = new DateTime(proposed_functionalities[functionality_ID]);
+                        var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
                         foreach (object[] item in proposed_catalog_items.Keys) {
                             if (item[0].ToString() == identifiers[0].ToString() && item[1].ToString() == identifiers[1].ToString() && item[2].ToString() == identifiers[2].ToString()) {
                                 proposed_catalog_items[item].TryRemove(original_proposedTS, out _);
@@ -180,7 +180,7 @@ namespace Catalog.API.DependencyServices {
                     foreach (object[] object_to_remove in wrapped_objects) {
                         // Brand: wrapped_object[1]
                         object[] identifiers = new object[] { object_to_remove[1] };
-                        var original_proposedTS = new DateTime(proposed_functionalities[functionality_ID]);
+                        var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
                         foreach (object[] brand in proposed_catalog_brands.Keys) {
                             if (brand[0].ToString() == identifiers[0].ToString()) {
                                 proposed_catalog_brands[brand].TryRemove(original_proposedTS, out _);
@@ -192,7 +192,7 @@ namespace Catalog.API.DependencyServices {
                     foreach (object[] object_to_remove in wrapped_objects) {
                         // Type: wrapped_object[1]
                         object[] identifiers = new object[] { object_to_remove[1] };
-                        var original_proposedTS = new DateTime(proposed_functionalities[functionality_ID]);
+                        var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
                         foreach (object[] type in proposed_catalog_types.Keys) {
                             if (type[0].ToString() == identifiers[0].ToString()) {
                                 proposed_catalog_types[type].TryRemove(original_proposedTS, out _);

@@ -1,4 +1,4 @@
-using Catalog.API.DependencyServices;
+﻿using Catalog.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 using Catalog.API.Infrastructure.Migrations;
 using Microsoft.AspNetCore.Builder;
@@ -11,6 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 using CoordinatorAPI;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Config;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
+using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API;
 

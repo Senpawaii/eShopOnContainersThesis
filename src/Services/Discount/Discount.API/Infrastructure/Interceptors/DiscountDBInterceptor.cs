@@ -21,24 +21,13 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
 
-    public DiscountDBInterceptor(IScopedMetadata scopedMetadata, ISingletonWrapper wrapper, ILogger<DiscountContext> logger) {
-        //var builder = new ConfigurationBuilder()
-        //    .SetBasePath(Directory.GetCurrentDirectory())
-        //    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-        //    .AddEnvironmentVariables();
-        //var config = builder.Build();
-        //var connectionString = config["ConnectionString"];
-        //var contextOptions = new DbContextOptionsBuilder<DiscountContext>()
-        //    .UseSqlServer(connectionString)
-        //    .Options;
-
-        _scopedMetadata = scopedMetadata;
+    public DiscountDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<DiscountContext> logger) {
+        _request_metadata = requestMetadata;
         _wrapper =wrapper;
         _logger = logger;
-        //_discountContext = new DiscountContext(contextOptions, _scopedMetadata, _wrapper, settings, discountContext._logger);
     }
 
-    public IScopedMetadata _scopedMetadata;
+    public IScopedMetadata _request_metadata;
     public ISingletonWrapper _wrapper;
     //public DiscountContext _discountContext;
     private string _originalCommandText;
@@ -58,10 +47,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
 
         // Check if the Transaction ID
-        var funcID = _scopedMetadata.ScopedMetadataFunctionalityID;
+        var clientID = _request_metadata.ClientID;
 
-        // Check if is this a functionality context (ID differs from null)
-        if (funcID == null) {
+        // Check if is this a client session context (ID differs from null)
+        if (clientID == null) {
             // This is a system query
             return result;
         }
@@ -71,10 +60,13 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 return result;
             case SELECT_COMMAND:
                 UpdateSelectCommand(command);
-                WaitForProposedItemsIfNecessary(command, funcID);
+                WaitForProposedItemsIfNecessary(command, clientID);
                 break;
             case INSERT_COMMAND:
-                bool funcStateIns = _wrapper.SingletonGetTransactionState(funcID);
+                // Set the request readOnly flag to false
+                _request_metadata.ReadOnly = false;
+
+                bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
                     // If the Transaction is not in commit state, store data in wrapper
                     var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
@@ -84,14 +76,14 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     // Transaction is in commit state, update the command to store in the database
 
                     // Log timestamp of the transaction to be committed
-                    //_logger.LogInformation($"FuncID:<{funcID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
+                    //_logger.LogInformation($"clientID:<{clientID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
 
                     UpdateInsertCommand(command, targetTable);
                 }
                 break;
             case UPDATE_COMMAND:
-                // Log the update command
-                // _logger.LogInformation(" UPDATE COMMAND: " + command.CommandText);
+                // Set the request readOnly flag to false
+                _request_metadata.ReadOnly = false;
 
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
@@ -159,9 +151,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         (var commandType, var targetTable) = GetCommandInfo(command);
 
         // Check if the Transaction ID
-        var funcID = _scopedMetadata.ScopedMetadataFunctionalityID;
+        var clientID = _request_metadata.ClientID;
 
-        if (funcID == null) {
+        if (clientID == null) {
             // This is a system query
             return new ValueTask<InterceptionResult<DbDataReader>>(result);
         }
@@ -171,10 +163,13 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 return new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
                 UpdateSelectCommand(command);
-                WaitForProposedItemsIfNecessary(command, funcID);
+                WaitForProposedItemsIfNecessary(command, clientID);
                 break;
             case INSERT_COMMAND:
-                bool funcStateIns = _wrapper.SingletonGetTransactionState(funcID);
+                // Set the request readOnly flag to false
+                _request_metadata.ReadOnly = false;
+
+                bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
                     // If the Transaction is not in commit state, store data in wrapper
                     var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
@@ -186,7 +181,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 }
                 break;
             case UPDATE_COMMAND:
-                // _logger.LogInformation(" UPDATE COMMAND: " + command.CommandText);
+                // Set the request readOnly flag to false
+                _request_metadata.ReadOnly = false;
 
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
@@ -241,7 +237,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     }
 
     private MockDbDataReader StoreDataInWrapper(DbCommand command, int operation, string targetTable) {
-        var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
+        var clientID = _request_metadata.ClientID;
 
         string regexPattern;
         if (operation == INSERT_COMMAND) {
@@ -298,7 +294,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         switch (targetTable) {
             case "Discount":
-                _wrapper.SingletonAddDiscountItem(funcId, rows.ToArray());
+                _wrapper.SingletonAddDiscountItem(clientID, rows.ToArray());
                 break;
         }
         return mockReader;
@@ -349,7 +345,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     /* ========== UPDATE READ QUERIES ==========*/
     /// <summary>
-    /// Updates the Read queries for Item Count, Brands and Types command, adding a filter for the functionality Timestamp (DateTime). 
+    /// Updates the Read queries for Item Count, Brands and Types command, adding a filter for the client Timestamp (DateTime). 
     /// Applicable to queries that contain either:
     /// </summary>
     /// <param name="command"></param>
@@ -357,8 +353,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // Log the command text
         //_logger.LogInformation($"Command Text: {command.CommandText}");
 
-        // Get the current functionality-set timeestamp
-        DateTime functionalityTimestamp = _scopedMetadata.ScopedMetadataTimestamp;
+        // Get the current client seesion timeestamp
+        DateTime clientTimestamp = _request_metadata.Timestamp;
 
         (bool hasPartialRowSelection, List<string> _) = HasPartialRowSelection(command.CommandText);
         if (hasPartialRowSelection) {
@@ -391,28 +387,16 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             // Remove the where condition from the command
             command.CommandText = command.CommandText.Replace(whereCondition, "");
             whereCondition = whereCondition.Replace("[d]", $"[Discount]");
-            whereCondition += $" AND [Discount].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+            whereCondition += $" AND [Discount].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
 
         }
         else {
-            whereCondition = $" WHERE [Discount].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+            whereCondition = $" WHERE [Discount].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
         }
 
         command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] JOIN (SELECT Discount.ItemName, Discount.ItemBrand, Discount.ItemType, max(Discount.Timestamp) as max_timestamp FROM Discount");
         command.CommandText += whereCondition;
         command.CommandText += "GROUP BY Discount.ItemName, Discount.ItemBrand, Discount.ItemType) e on d.ItemName = e.ItemName AND d.ItemBrand = e.ItemBrand AND d.ItemType = e.ItemType AND d.Timestamp = e.max_timestamp WHERE d.ID = (SELECT TOP 1 ID FROM Discount WHERE ItemName = d.ItemName AND ItemBrand = d.ItemBrand AND ItemType = d.ItemType AND Timestamp = d.Timestamp ORDER BY ID DESC)";
-
-        //// Replace Command Text to account for new filter
-        //if (command.CommandText.Contains("WHERE")) {
-        //    // Command already has at least 1 filter
-        //    command.CommandText += $" AND [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'";
-        //}
-        //else {
-        //    // Command has no filters yet
-        //    command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] WHERE [d].[Timestamp] <= '{functionalityTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}'");
-        //}
-
-        //_logger.LogInformation($"Updated Command Text: {command.CommandText}");
     }
 
     private string RemovePartialRowSelection(string commandText) {
@@ -433,7 +417,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
         // Get the timestamp received from the Coordinator
-        string timestamp = _scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+        string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
         // Replace Command Text to account for new parameter
         string commandWithTimestamp;
@@ -545,9 +529,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
         // _logger.LogInformation("Command executed: " + command.CommandText);
 
-        var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
+        var clientID = _request_metadata.ClientID;
 
-        if (funcId == null) {
+        if (clientID == null) {
             // This is a system transaction
             return result;
         }
@@ -567,7 +551,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
 
         // Check if the command is an INSERT command and has yet to be committed
-        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
+        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
             return result;
         }
 
@@ -612,7 +596,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
             switch (targetTable) {
                 case "Discount":
-                    wrapperData = _wrapper.SingletonGetDiscountItems(funcId).ToList();
+                    wrapperData = _wrapper.SingletonGetDiscountItems(clientID).ToList();
                     break;
             }
 
@@ -692,9 +676,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             return result;
         }
 
-        var funcId = _scopedMetadata.ScopedMetadataFunctionalityID;
+        var clientID = _request_metadata.ClientID;
 
-        if (funcId == null) {
+        if (clientID == null) {
             // This is a system transaction or a database initial population
             return result;
         }
@@ -707,7 +691,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
 
         // Check if the command is an INSERT command and has yet to be committed
-        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(funcId)) {
+        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
             return result;
         }
 
@@ -751,7 +735,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         if (command.CommandText.Contains("SELECT")) {
             List<object[]> wrapperData = null;
 
-            wrapperData = _wrapper.SingletonGetDiscountItems(funcId).ToList();
+            wrapperData = _wrapper.SingletonGetDiscountItems(clientID).ToList();
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
             //newData = GroupVersionedObjects(newData, targetTable);
@@ -1041,7 +1025,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return commandText.Contains("COUNT");
     }
 
-    private void WaitForProposedItemsIfNecessary(DbCommand command, string funcID) {
+    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID) {
         // The cases where this applies are:
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
@@ -1054,7 +1038,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         if (!HasFilterCondition(command.CommandText)) {
             // The reader is trying to read all items. Wait for the proposed items to be committed.
             while (true) {
-                ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> proposedItems = _wrapper.Proposed_discount_items;
+                ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> proposedItems = _wrapper.Proposed_Discount_Items;
                 // Get all proposed timestamps
                 List<DateTime> proposedTimestamps = new List<DateTime>();
                 foreach (KeyValuePair<object[], ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
@@ -1075,14 +1059,14 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
         while(true) {
             // Get list 
-            List<object[]> totalData = new List<object[]>(_wrapper.Proposed_discount_items.Keys);
+            List<object[]> totalData = new List<object[]>(_wrapper.Proposed_Discount_Items.Keys);
 
             var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
 
             int possibleCases = 0;
             foreach (object[] identifier in rowsToQuery) {
                 // Get the timestamps associated with the identifier
-                ConcurrentDictionary<DateTime, int> timestamps = _wrapper.Proposed_discount_items[identifier];
+                ConcurrentDictionary<DateTime, int> timestamps = _wrapper.Proposed_Discount_Items[identifier];
 
                 // Check if there is at least one timestamp that is less than the reader timestamp, and so that will require the reader to wait
                 foreach(DateTime proposalTS in timestamps.Keys) {
