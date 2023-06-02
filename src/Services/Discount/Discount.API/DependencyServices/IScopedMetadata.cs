@@ -1,9 +1,8 @@
 ﻿namespace Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 public interface IScopedMetadata {
-    double ScopedMetadataTokens { get; set; }
-    Tuple<int, int> ScopedMetadataInterval { get; set; }
-    int ScopedMetadataIntervalLow { get; set; }
-    int ScopedMetadataIntervalHigh { get; set; }
-    DateTime ScopedMetadataTimestamp { get; set; }
-    string ScopedMetadataFunctionalityID { get; set; }
+    int Tokens { get; set; }
+    DateTime Timestamp { get; set; }
+    string ClientID { get; set; }
+    bool ReadOnly { get; set; }
+
 }

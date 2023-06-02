@@ -30,11 +30,10 @@ public class CatalogController : Controller
         // Initialize the Metadata Fields if Testing with Wrappers
         if(_options.Value.ThesisWrapperEnabled) {
             metadata = new TCCMetadata {
-                Interval = Tuple.Create(0, 0),
-                FunctionalityID = Guid.NewGuid().ToString(),
+                ClientID = Guid.NewGuid().ToString(),
                 Timestamp = DateTime.Now
             };
-            Console.WriteLine($"Initialized functionality: <{metadata.FunctionalityID}>");
+            Console.WriteLine($"Initialized functionality: <{metadata.ClientID}>");
         }
         
         var itemsPage = 9;

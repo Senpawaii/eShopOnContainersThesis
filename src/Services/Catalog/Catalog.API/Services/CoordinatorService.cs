@@ -1,5 +1,6 @@
 ﻿using Catalog.API.DependencyServices;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 using System.Net.Http;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Services;
@@ -9,21 +10,23 @@ public class CoordinatorService : ICoordinatorService {
     private readonly HttpClient _httpClient;
     private readonly ILogger<CoordinatorService> _logger;
     private readonly IScopedMetadata _metadata;
+    private readonly ITokensContextSingleton _remainingTokens;
 
-    public CoordinatorService(IOptions<CatalogSettings> settings, HttpClient httpClient, ILogger<CoordinatorService> logger, IScopedMetadata scopedMetadata) {
+
+    public CoordinatorService(IOptions<CatalogSettings> settings, HttpClient httpClient, ILogger<CoordinatorService> logger, 
+        IScopedMetadata scopedMetadata, ITokensContextSingleton remainingTokens) {
         _settings = settings;
         _httpClient = httpClient;
         _logger = logger;
         _metadata = scopedMetadata;
+        _remainingTokens = remainingTokens;
     }
 
     public async Task SendTokens() {
-        //long ticks = _metadata.ScopedMetadataTimestamp.Ticks;
-        //string uri = $"{_settings.Value.CoordinatorUrl}propose?ticks={ticks}&tokens={_metadata.ScopedMetadataTokens}&funcID={_metadata.ScopedMetadataFunctionalityID}&serviceName=CatalogService";
-        string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={_metadata.ScopedMetadataTokens}&funcID={_metadata.ScopedMetadataFunctionalityID}&serviceName=CatalogService";
+        int tokensToSend = _remainingTokens.GetRemainingTokens(_metadata.ClientID);
+        string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={tokensToSend}&clientID={_metadata.ClientID}&serviceName=CatalogService&readOnly={_metadata.ReadOnly}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
-        response.EnsureSuccessStatusCode();
 
         var responseString = await response.Content.ReadAsStringAsync();
     }

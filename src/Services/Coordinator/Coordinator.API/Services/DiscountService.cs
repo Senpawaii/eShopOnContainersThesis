@@ -17,8 +17,8 @@ public class DiscountService : IDiscountService {
         _remoteServiceBaseUrl = settings.Value.DiscountUrl;
     }
 
-    public async Task IssueCommit(string maxTS, string funcID) {
-        string uri = $"{_settings.Value.DiscountUrl}commit?timestamp={maxTS}&functionality_ID={funcID}";
+    public async Task IssueCommit(string maxTS, string clientID) {
+        string uri = $"{_settings.Value.DiscountUrl}commit?timestamp={maxTS}&clientID={clientID}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();
@@ -26,8 +26,8 @@ public class DiscountService : IDiscountService {
         var responseString = await response.Content.ReadAsStringAsync();
     }
 
-    public async Task<long> GetProposal(string funcID) {
-        string uri = $"{_settings.Value.DiscountUrl}proposeTS?functionality_ID={funcID}";
+    public async Task<long> GetProposal(string clientID) {
+        string uri = $"{_settings.Value.DiscountUrl}proposeTS?clientID={clientID}";
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();
         var responseString = await response.Content.ReadAsStringAsync();

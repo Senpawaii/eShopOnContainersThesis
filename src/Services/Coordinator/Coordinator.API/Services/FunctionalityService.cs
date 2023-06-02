@@ -23,52 +23,52 @@ public class FunctionalityService : IFunctionalityService {
         get { return _servicesSentTokens; } 
     }
 
-    public void AddNewServiceSentTokens(string funcID, string service) {
-        if(_servicesSentTokens.ContainsKey(funcID)) {
-            _servicesSentTokens[funcID].Add(service);
+    public void AddNewServiceSentTokens(string clientID, string service) {
+        if(_servicesSentTokens.ContainsKey(clientID)) {
+            _servicesSentTokens[clientID].Add(service);
         }
         else {
             // First proposal in the functionality
-            _servicesSentTokens[funcID] = new List<string> {
+            _servicesSentTokens[clientID] = new List<string> {
                 { service }
             };
         }
     }
 
-    public void AddNewProposalGivenService(string funcID, string service, long proposalTicks) {
-        if(_proposals.ContainsKey(funcID)) {
-            _proposals[funcID].Add((service, proposalTicks));
+    public void AddNewProposalGivenService(string clientID, string service, long proposalTicks) {
+        if(_proposals.ContainsKey(clientID)) {
+            _proposals[clientID].Add((service, proposalTicks));
         }
         else {
             // First proposal in the functionality
-            _proposals[funcID] = new List<(string, long)> {
+            _proposals[clientID] = new List<(string, long)> {
                 { (service, proposalTicks) }
             };
         }
     }
 
-    public void IncreaseTokens(string funcID, double tokens) {
-        if(_tokens.ContainsKey(funcID)) {
+    public void IncreaseTokens(string clientID, double tokens) {
+        if(_tokens.ContainsKey(clientID)) {
             // Add the number of tokens
-            _tokens[funcID] += tokens;
+            _tokens[clientID] += tokens;
         } 
         else {
             // First proposal in the functionality
-            _tokens[funcID] = tokens;
+            _tokens[clientID] = tokens;
         }
     }
 
-    public Boolean HasCollectedAllTokens(string funcID) {
+    public Boolean HasCollectedAllTokens(string clientID) {
         // Return true if the functionality has ended => the max number of tokens have been reached
-        return _tokens[funcID] == 100;
+        return _tokens[clientID] == 1000000000;
     }
 
-    public void ClearFunctionality(string funcID) {
+    public void ClearFunctionality(string clientID) {
         // Remove the functionality from the proposals
-        _proposals.TryRemove(funcID, out _);
+        _proposals.TryRemove(clientID, out _);
         // Remove the functionality from the tokens
-        _tokens.TryRemove(funcID, out _);
+        _tokens.TryRemove(clientID, out _);
         // Remove the functionality from the services sent tokens
-        _servicesSentTokens.TryRemove(funcID, out _);
+        _servicesSentTokens.TryRemove(clientID, out _);
     }
 }

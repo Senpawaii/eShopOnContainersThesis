@@ -46,9 +46,17 @@ services:
     build:
       context: .
       dockerfile: Services/Catalog/Catalog.API/Dockerfile
+    cap_add:
+      - SYS_ADMIN
     depends_on:
       - sqldata
       - rabbitmq
+
+  thesisfrontend-api:
+    image: ${REGISTRY:-eshop}/thesisfrontend.api:${PLATFORM:-linux}-${TAG:-latest}
+    build:
+      context: .
+      dockerfile: Services/ThesisFrontend/ThesisFrontend.API/Dockerfile
 
   discount-api:
     image: ${REGISTRY:-eshop}/discount.api:${PLATFORM:-linux}-${TAG:-latest}

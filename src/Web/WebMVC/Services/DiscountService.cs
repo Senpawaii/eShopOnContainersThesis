@@ -42,30 +42,12 @@ public class DiscountService : IDiscountService {
         //// Obtain the header parameters (metadata) from the response
         HttpHeaders headers = response.Headers;
 
-        IEnumerable<string> headerIntervalLow;
-        IEnumerable<string> headerIntervalHigh;
         IEnumerable<string> headerTimestamp;
-        int intervalLow;
-        int intervalHigh;
 
-        if (!headers.TryGetValues(("interval_low"), out headerIntervalLow)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-        if (!headers.TryGetValues(("interval_high"), out headerIntervalHigh)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
         if (!headers.TryGetValues(("timestamp"), out headerTimestamp)) {
             _logger.LogInformation("Couldn't retrieve timestamp information from response header.");
         }
 
-        if (!int.TryParse(headerIntervalLow.FirstOrDefault(), out intervalLow)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-        if (!int.TryParse(headerIntervalHigh.FirstOrDefault(), out intervalHigh)) {
-            _logger.LogInformation("Couldn't retrieve interval information from response header.");
-        }
-
-        metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
         metadata.Timestamp = DateTime.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
     }
 }

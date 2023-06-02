@@ -6,10 +6,10 @@ public interface IFunctionalityService {
     ConcurrentDictionary<string, List<string>> ServicesTokensProposed { get; }
     ConcurrentDictionary<string, double> Tokens { get; }
 
-    public void AddNewProposalGivenService(string funcID, string service, long proposalTicks);
-    public void IncreaseTokens(string funcID, double tokens);
-    public Boolean HasCollectedAllTokens(string funcID);
-    public void AddNewServiceSentTokens(string funcID, string service);
-    public void ClearFunctionality(string funcID);
+    public void AddNewProposalGivenService(string clientID, string service, long proposalTicks);
+    public void IncreaseTokens(string clientID, double tokens);
+    public Boolean HasCollectedAllTokens(string clientID);
+    public void AddNewServiceSentTokens(string clientID, string service);
+    public void ClearFunctionality(string clientID);
 
 }

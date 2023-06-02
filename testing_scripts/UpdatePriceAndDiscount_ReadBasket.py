@@ -3,7 +3,7 @@ import random
 import re
 import string
 import time
-import requests
+import clientIDs
 import threading
 import logging
 import os
@@ -45,12 +45,12 @@ def ConfigureLoggingSettings():
 
 
 def QueryCatalogItemById(id: int) -> dict:
-    address = "http://localhost:" + catalogServicePort + "/catalog-api/api/v1/Catalog/items?ids=" + str(id) + "&interval_low=0&interval_high=0&functionality_ID=func1&timestamp=2025-05-30T14:00:00.0000000Z&tokens=0"
+    address = "http://localhost:" + catalogServicePort + "/catalog-api/api/v1/Catalog/items?ids=" + str(id) + "&clientID=func1&timestamp=2025-05-30T14:00:00.0000000Z&tokens=0"
     
-    # Log request address
-    logging.info("Sending request to address: " + address)
+    # Log clientID address
+    logging.info("Sending clientID to address: " + address)
 
-    response = requests.get(address)
+    response = clientIDs.get(address)
 
     # Log response
     logging.info('Response from Catalog Service: ' + str(response.status_code) + ' ' + str(response.reason))
@@ -64,8 +64,8 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
     # Get the brand name that matches the brand ID
-    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
-    response = requests.get(address)
+    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?clientID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    response = clientIDs.get(address)
 
     brandName = ""
     for brand in response.json():
@@ -73,8 +73,8 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
             brandName = brand["brand"]
 
     # Get the type name that matches the type ID
-    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogTypes?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
-    response = requests.get(address)
+    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogTypes?clientID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    response = clientIDs.get(address)
 
     typeName = ""
     for type in response.json():
@@ -83,8 +83,8 @@ def QueryDiscountItemById(catalogItem: dict) -> dict:
 
     itemName = catalogItem[0]["name"]
     # Get the discount item that matches the brand name and type name
-    address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName + '&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
-    response = requests.get(address)
+    address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName + '&clientID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+    response = clientIDs.get(address)
 
     # Extract the first (and only) discount item from the response list of discounts
     discountItem = response.json()[0]
@@ -101,12 +101,12 @@ def AddCatalogItemToBasket(catalogItem: dict, discountItem: dict):
     itemBrand = discountItem["itemBrand"]
     itemType = discountItem["itemType"]
 
-    # Create the json body for the request
+    # Create the json body for the clientID
     body = { "catalogItemId": catalogItemId, "basketId": "e5d06a2d-fc81-4051-8f30-0a85836eac70", "quantity": 1, "CatalogItemName": catalogItemName, "CatalogItemBrandName": itemBrand, "CatalogItemTypeName": itemType }
 
     address = 'http://localhost:' + webaggregatorServicePort + '/api/v1/Basket/items'
 
-    response = requests.post(address, json=body)
+    response = clientIDs.post(address, json=body)
 
     # Ensure that the response is 200
     if response.status_code != 200:
@@ -121,18 +121,18 @@ def readBasket():
     # Get the thread identity
     identity = threading.get_ident()
 
-    funcID = ''.join(random.choices(string.ascii_lowercase, k=10))
+    clientID = ''.join(random.choices(string.ascii_lowercase, k=10))
 
-    # Get current time in nano seconds precision
+    # Get current time in nano seconds clientID
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
-    address = 'http://localhost:' + basketServicePort + '/api/v1/Basket/' + basketID + '?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=0'
+    address = 'http://localhost:' + basketServicePort + '/api/v1/Basket/' + basketID + '?clientID=func' + clientID + '&timestamp=' + timestamp + '&tokens=0'
 
-    # Measure time taken to send request with nano seconds precision
+    # Measure time taken to send clientID with nano seconds clientID
     start = perf_counter_ns()
 
-    # Send request
-    response = requests.get(address)
+    # Send clientID
+    response = clientIDs.get(address)
 
     # Stop timer
     end = perf_counter_ns()
@@ -160,7 +160,7 @@ def readBasket():
     basketItemDiscount = basketItems[0]["discount"]
 
     #Log response
-    logging.info('Thread <' + str(identity) + '> FuncID: <' + funcID + '> ' + 'Read Basket: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Timestamp: ' + timestamp)
+    logging.info('Thread <' + str(identity) + '> clientID: <' + clientID + '> ' + 'Read Basket: Price {' + str(basketItemPrice) + '}, Discount: {' + str(basketItemDiscount) + '}, Timestamp: ' + timestamp)
     return
 
 
@@ -168,7 +168,7 @@ def writeOperations(catalogItem: dict, discountItem: dict):
     # Execute write operations: update price and discount
 
     # Generate a random 16 bit random string
-    funcID = ''.join(random.choices(string.ascii_lowercase, k=10))
+    clientID = ''.join(random.choices(string.ascii_lowercase, k=10))
 
 
     thread_identity = threading.get_ident()
@@ -189,31 +189,31 @@ def writeOperations(catalogItem: dict, discountItem: dict):
     logging.info('Executing write operations with thread: ' + str(thread_identity) + ' and price/discount: ' + str(price) + '/' + str(discount))
 
     # Update price on catalog item
-    updatePriceOnCatalog(catalogItem, price, funcID)
+    updatePriceOnCatalog(catalogItem, price, clientID)
     
     # Update discount on discount item
-    updateDiscount(discountItem, discount, funcID)
+    updateDiscount(discountItem, discount, clientID)
     return
 
 
 # Update Price on Catalog Item with ID 1
-def updatePriceOnCatalog(catalogItem: dict, price: int, funcID: str):
+def updatePriceOnCatalog(catalogItem: dict, price: int, clientID: str):
     # Get thread ID
     identity = threading.get_ident()
     
     # Update the price on the catalog item
     catalogItem[0]["price"] = price
 
-     # Get current time in nano seconds precision
+     # Get current time in nano seconds clientID
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
-    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/items?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=50'
+    address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/items?clientID=func' + clientID + '&timestamp=' + timestamp + '&tokens=50'
 
-    # Measure time taken to send request with nano seconds precision
+    # Measure time taken to send clientID with nano seconds clientID
     start = perf_counter_ns()
 
-    # Send request
-    response = requests.put(address, json=catalogItem[0])
+    # Send clientID
+    response = clientIDs.put(address, json=catalogItem[0])
 
     # Stop timer
     end = perf_counter_ns()
@@ -233,27 +233,27 @@ def updatePriceOnCatalog(catalogItem: dict, price: int, funcID: str):
         else:
             successCount[identity] += 1
     #Log response
-    logging.info("Thread <" + str(identity) + "> FuncID: <" + funcID + "> " + "PriceUpdate: " + str(catalogItem[0]["price"]) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
+    logging.info("Thread <" + str(identity) + "> clientID: <" + clientID + "> " + "PriceUpdate: " + str(catalogItem[0]["price"]) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
 
 
 # Update Discount on Item with ID 1
-def updateDiscount(discountItem: dict, discount: int, funcID: str):
+def updateDiscount(discountItem: dict, discount: int, clientID: str):
     # Get thread ID
     identity = threading.get_ident()
     
     # Update the discount value on the discount item
     discountItem["discountValue"] = discount
 
-     # Get current time in nano seconds precision
+     # Get current time in nano seconds clientID
     timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
-    address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?interval_low=0&interval_high=0&functionality_ID=func' + funcID + '&timestamp=' + timestamp + '&tokens=50'
+    address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?clientID=func' + clientID + '&timestamp=' + timestamp + '&tokens=50'
 
-    # Measure time taken to send request with nano seconds precision
+    # Measure time taken to send clientID with nano seconds clientID
     start = perf_counter_ns()
 
-    # Send request
-    response = requests.put(address, json=discountItem)
+    # Send clientID
+    response = clientIDs.put(address, json=discountItem)
 
     # Stop timer
     end = perf_counter_ns()
@@ -273,7 +273,7 @@ def updateDiscount(discountItem: dict, discount: int, funcID: str):
         else:
             successCount[identity] += 1
     #Log response
-    logging.info("Thread <" + str(identity) + "> FuncID: <" + funcID + "> " + "DiscountUpdate: " + str(discountItem["discountValue"]) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
+    logging.info("Thread <" + str(identity) + "> clientID: <" + clientID + "> " + "DiscountUpdate: " + str(discountItem["discountValue"]) + ". Time: <" + str(timeTaken) + "> ns. Response: " + str(response.status_code) + " => " + str(response.reason))
 
 
 
@@ -333,7 +333,7 @@ def main():
     ConfigureLoggingSettings()
 
     # Define Global HTTP Client
-    http = requests.Session()
+    http = clientIDs.Session()
 
     # Define Global Catalog Item to be used in tests, necessary to fetch Catalog Item Name, Brand ID and Type ID
     catalogItem = QueryCatalogItemById(1)
@@ -359,13 +359,13 @@ def main():
     logging.info("Average time taken: " + str(averageTimeTaken) + " ns (" + str(averageTimeTaken / 1000000000) + " s)")
 
     # Calculate success rate and total number of operations
-    totalRequests = sum([len(timeTakenList[i]) for i in timeTakenList])
-    successRate = sum([successCount[i] for i in successCount]) / totalRequests
-    logging.info("Success rate: " + str(successRate * 100) + "% (" + str(sum([successCount[i] for i in successCount])) + "/" + str(totalRequests) + ")")
+    totalclientIDs = sum([len(timeTakenList[i]) for i in timeTakenList])
+    successRate = sum([successCount[i] for i in successCount]) / totalclientIDs
+    logging.info("Success rate: " + str(successRate * 100) + "% (" + str(sum([successCount[i] for i in successCount])) + "/" + str(totalclientIDs) + ")")
     
-    # Get the average requests per second
-    requestsPerSecond = totalRequests / totalTimeTaken
-    logging.info("Requests per second: " + str(requestsPerSecond))
+    # Get the average clientIDs per second
+    clientIDsPerSecond = totalclientIDs / totalTimeTaken
+    logging.info("clientIDs per second: " + str(clientIDsPerSecond))
 
     results, anomaly_line_presence = check_discount_from_log_file(log_file_path)
     print(f"OK: {results['OK']}")

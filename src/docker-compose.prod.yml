@@ -65,6 +65,16 @@ services:
     ports:
       - "80"   # The API Gateway redirects and access through the internal port (80).
 
+  thesisfrontend-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - UseCustomizationData=True
+      - ApplicationInsights__InstrumentationKey=${INSTRUMENTATION_KEY}
+      - OrchestratorType=${ORCHESTRATOR_TYPE}
+    ports:
+      - "80"
+
   discount-api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development

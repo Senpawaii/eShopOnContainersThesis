@@ -135,7 +135,6 @@ public class CatalogService : ICatalogService
             _logger.LogInformation("Couldn't retrieve interval information from response header.");
         }
 
-        metadata.Interval = Tuple.Create(intervalLow, intervalHigh);
         metadata.Timestamp = DateTime.ParseExact(headerTimestamp.FirstOrDefault(), "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
     }
 }

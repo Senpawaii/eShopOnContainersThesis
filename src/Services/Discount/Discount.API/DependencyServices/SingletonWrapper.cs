@@ -4,103 +4,103 @@ using System.Collections.Generic;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 public class SingletonWrapper : ISingletonWrapper {
-    ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_discount_items  = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
+    ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_Discount_Items  = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
 
-    ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> proposed_discount_items = new ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>>();
+    ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> proposed_Discount_Items = new ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>>();
 
     // Store the proposed Timestamp for each functionality in Proposed State
-    ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
+    ConcurrentDictionary<string, long> proposed_Client_Sessions = new ConcurrentDictionary<string, long>();
 
     // Dictionary that hold the state of a transaction: PREPARE or COMMITTED
-    ConcurrentDictionary<string, bool> transaction_state = new ConcurrentDictionary<string, bool>();
+    ConcurrentDictionary<string, bool> transaction_State = new ConcurrentDictionary<string, bool>();
 
     public SingletonWrapper() {
     }
 
-    public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedDiscountItems {
-        get { return wrapped_discount_items; }
+    public ConcurrentDictionary<string, ConcurrentBag<object[]>> Singleton_Wrapped_DiscountItems {
+        get { return wrapped_Discount_Items; }
     }
 
-    public ConcurrentDictionary<string, bool> SingletonTransactionState {
-        get { return transaction_state; }
+    public ConcurrentDictionary<string, bool> Singleton_Transaction_State {
+        get { return transaction_State; }
     }
 
-    public ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_discount_items {
-        get { return proposed_discount_items; }
+    public ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_Discount_Items {
+        get { return proposed_Discount_Items; }
     }
 
-    public ConcurrentDictionary<string, long> Proposed_functionalities {
-        get { return proposed_functionalities; }
+    public ConcurrentDictionary<string, long> Proposed_Client_Sessions {
+        get { return proposed_Client_Sessions; }
     }
 
     public ConcurrentBag<object[]> SingletonGetDiscountItems(string key) {
-        return wrapped_discount_items.GetValueOrDefault(key, new ConcurrentBag<object[]>());
+        return wrapped_Discount_Items.GetValueOrDefault(key, new ConcurrentBag<object[]>());
     }
 
-    public bool SingletonGetTransactionState(string funcId) {
-        if (!transaction_state.ContainsKey(funcId)) {
+    public bool SingletonGetTransactionState(string clientID) {
+        if (!transaction_State.ContainsKey(clientID)) {
             // Initialize a new state: uncommitted
-            transaction_state[funcId] = false;
+            transaction_State[clientID] = false;
         }
-        return transaction_state.GetValueOrDefault(funcId);
+        return transaction_State.GetValueOrDefault(clientID);
     }
 
-    public void SingletonAddDiscountItem(string funcID, IEnumerable<object[]> values) {
+    public void SingletonAddDiscountItem(string clientID, IEnumerable<object[]> values) {
         foreach (object[] item in values) {
-            wrapped_discount_items.AddOrUpdate(funcID, new ConcurrentBag<object[]> { item }, (key, bag) => {
+            wrapped_Discount_Items.AddOrUpdate(clientID, new ConcurrentBag<object[]> { item }, (key, bag) => {
                 bag.Add(item);
                 return bag;
             });
         }
     }
 
-    public bool SingletonSetTransactionState(string funcId, bool state) {
-        return transaction_state[funcId] = state;
+    public bool SingletonSetTransactionState(string clientID, bool state) {
+        return transaction_State[clientID] = state;
     }
 
-    public void SingletonRemoveFunctionalityObjects(string funcId) {
-        if (wrapped_discount_items.ContainsKey(funcId))
-            wrapped_discount_items.TryRemove(funcId, out ConcurrentBag<object[]> _);
-        if (transaction_state.ContainsKey(funcId))
-            transaction_state.TryRemove(funcId, out bool _);
+    public void SingletonRemoveFunctionalityObjects(string clientID) {
+        if (wrapped_Discount_Items.ContainsKey(clientID))
+            wrapped_Discount_Items.TryRemove(clientID, out ConcurrentBag<object[]> _);
+        if (transaction_State.ContainsKey(clientID))
+            transaction_State.TryRemove(clientID, out bool _);
     }
 
-    public void SingletonAddProposedFunctionality(string functionality_ID, long proposedTS) {
-        proposed_functionalities.AddOrUpdate(functionality_ID, proposedTS, (key, value) => {
+    public void SingletonAddProposedFunctionality(string clientID, long proposedTS) {
+        proposed_Client_Sessions.AddOrUpdate(clientID, proposedTS, (key, value) => {
             value = proposedTS;
             return value;
         });
     }
 
-    public void SingletonRemoveProposedFunctionality(string functionality_ID) {
-        if (proposed_functionalities.ContainsKey(functionality_ID))
-            proposed_functionalities.TryRemove(functionality_ID, out long _);
+    public void SingletonRemoveProposedFunctionality(string clientID) {
+        if (proposed_Client_Sessions.ContainsKey(clientID))
+            proposed_Client_Sessions.TryRemove(clientID, out long _);
     }
 
-    public void SingletonAddWrappedItemsToProposedSet(string functionality_ID, long proposedTS) {
-        // Gather the objects inside the wrapper with given functionality_ID
-        ConcurrentBag<object[]> objects_to_propose = wrapped_discount_items.GetValueOrDefault(functionality_ID, new ConcurrentBag<object[]>());
+    public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS) {
+        // Gather the objects inside the wrapper with given clientID
+        ConcurrentBag<object[]> objects_to_propose = wrapped_Discount_Items.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
 
         // For each object, add it to the proposed set using its identifiers, adding the proposed timestamp associated
         foreach (object[] object_to_propose in objects_to_propose) {
             object[] identifiers = new object[] { object_to_propose[1], object_to_propose[2], object_to_propose[3] };
 
-            proposed_discount_items[identifiers] = new ConcurrentDictionary<DateTime, int>();
-            proposed_discount_items[identifiers].AddOrUpdate(new DateTime(proposedTS), 1, (key, value) => {
+            proposed_Discount_Items[identifiers] = new ConcurrentDictionary<DateTime, int>();
+            proposed_Discount_Items[identifiers].AddOrUpdate(new DateTime(proposedTS), 1, (key, value) => {
                 value = 1;
                 return value;
             });
         }
     }
 
-    public void SingletonRemoveWrappedItemsFromProposedSet(string functionality_ID, ConcurrentBag<object[]> wrapped_objects) {
+    public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects) {
         // For each object, remove it from the proposed set using its identifiers, removing the proposed timestamp associated
         foreach (object[] object_to_remove in wrapped_objects) {
             object[] identifiers = new object[] { object_to_remove[1], object_to_remove[2], object_to_remove[3] };
-            var original_proposedTS = new DateTime(proposed_functionalities[functionality_ID]);
-            foreach (object[] item in proposed_discount_items.Keys) {
+            var original_proposedTS = new DateTime(proposed_Client_Sessions[clientID]);
+            foreach (object[] item in proposed_Discount_Items.Keys) {
                 if (item[0].ToString() == identifiers[0].ToString() && item[1].ToString() == identifiers[1].ToString() && item[2].ToString() == identifiers[2].ToString()) {
-                    proposed_discount_items[item].TryRemove(original_proposedTS, out _);
+                    proposed_Discount_Items[item].TryRemove(original_proposedTS, out _);
                 }
             }
         }
