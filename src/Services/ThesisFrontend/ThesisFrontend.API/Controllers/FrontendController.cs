@@ -27,7 +27,7 @@ public class FrontendController : ControllerBase {
 
     [HttpGet]
     [Route("readbasket")]
-    [ProducesResponseType(typeof(string), (int)HttpStatusCode.OK)]
+    [ProducesResponseType(typeof(BasketData), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     public async Task<IActionResult> ReadBasketAsync([FromQuery] string basketId) {
         // Check if the basket id is valid
@@ -104,6 +104,67 @@ public class FrontendController : ControllerBase {
         // Get the list of discount items from the database that match the triple of item name, brand, and type
         var discounts = await _discountService.GetDiscountItemsAsync(itemNames, itemBrands, itemTypes);
         return Ok(discounts);
+    }
+
+    [HttpPost]
+    [Route("additemtobasket")]
+    [ProducesResponseType(typeof(BasketData), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<IActionResult> AddItemToBasketAsync([FromBody] AddItemToBasketRequest request) {
+        // Check if the request is valid
+        if (request == null) {
+            return BadRequest();
+        }
+
+        // Extract the basketId and catalogItemId from the request
+        var basketId = request.BasketId;
+        var catalogItemId = request.CatalogItemId;
+        
+        // Check if the basketId and catalogItemId are present
+        if (string.IsNullOrEmpty(basketId) || catalogItemId <= 0) {
+            return BadRequest();
+        }
+
+        // Get the item from the Catalog
+        var catalogItem = await _catalogService.GetCatalogItemByIdAsync(catalogItemId);
+
+        // Get the current basket
+        var basket = await _basketService.GetBasketAsync(basketId);
+
+        // Check if the product is already in the basket
+        var basketItem = basket.Items.SingleOrDefault(i => i.ProductName == catalogItem.Name && i.ProductBrand == request.CatalogItemBrandName && i.ProductType == request.CatalogItemTypeName);
+
+        // If the product is already in the basket, increment the quantity
+        if (basketItem != null) {
+            basketItem.Quantity += request.Quantity;
+        }
+        else {
+            // If the product is not in the basket, add it to the basket
+            basket.Items.Add(new BasketDataItem() {
+                UnitPrice = catalogItem.Price,
+                PictureUrl = catalogItem.PictureUri,
+                ProductId = catalogItem.Id,
+                ProductName = catalogItem.Name,
+                Quantity = request.Quantity,
+                ProductBrand = request.CatalogItemBrandName,
+                ProductType = request.CatalogItemTypeName,
+                Id = Guid.NewGuid().ToString()
+            });
+        }
+
+        // Update the basket
+        try {
+            var updatedBasket = await _basketService.UpdateBasketAsync(basket); // TODO
+            // Check if the status code is OK
+            if (updatedBasket == null) {
+                return BadRequest();
+            }
+            return Ok(updatedBasket);
+        } 
+        catch (HttpRequestException) {
+            _logger.LogError($"An error occurered while updating the basket async");
+            return BadRequest();
+        }
     }
 
     [HttpPut]
