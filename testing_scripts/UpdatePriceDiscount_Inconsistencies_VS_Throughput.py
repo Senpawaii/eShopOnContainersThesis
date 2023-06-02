@@ -130,7 +130,7 @@ def QueryDiscountItemById(catalogItems: list[dict]) -> dict:
 
         itemName = item[0]["name"].replace("&", "%26")
         # Get the discount item that matches the brand name and type name
-        address = 'http://localhost:' + discountServicePort + '/discount-api/api/v1/Discount/discounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName + '&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+        address = 'http://localhost:' + thesisFrontendPort + '/api/v1/frontend/readdiscounts?itemNames=' + itemName  + '&itemBrands=' + brandName + '&itemTypes=' + typeName
         
         # Log request address
         logging.info("Sending request to address: " + address)

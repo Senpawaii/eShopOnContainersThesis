@@ -67,7 +67,7 @@ public class FrontendController : ControllerBase {
     [Route("catalogbrands")]
     [ProducesResponseType(typeof(IEnumerable<CatalogBrand>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    public async Task<ActionResult<CatalogBrand>> ReadCatalogBrandsAsync() {
+    public async Task<ActionResult<IEnumerable<CatalogBrand>>> ReadCatalogBrandsAsync() {
         var catalogBrands = await _catalogService.GetCatalogBrandsAsync();
         if (catalogBrands == null) {
             return BadRequest();
@@ -81,7 +81,7 @@ public class FrontendController : ControllerBase {
     [Route("catalogtypes")]
     [ProducesResponseType(typeof(IEnumerable<CatalogType>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    public async Task<ActionResult<CatalogType>> ReadCatalogTypesAsync() {
+    public async Task<ActionResult<IEnumerable<CatalogType>>> ReadCatalogTypesAsync() {
         var catalogTypes = await _catalogService.GetCatalogTypesAsync();
         if (catalogTypes == null) {
             return BadRequest();
@@ -89,6 +89,21 @@ public class FrontendController : ControllerBase {
         else {
             return Ok(catalogTypes);
         }
+    }
+
+    [HttpGet]
+    [Route("readdiscounts")]
+    [ProducesResponseType(typeof(IEnumerable<DiscountItem>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult<IEnumerable<DiscountItem>>> ReadDiscountItems([FromQuery] List<string> itemNames, [FromQuery] List<string> itemBrands, [FromQuery] List<string> itemTypes) {
+        // Check if the itemNames, itemBrands, and itemTypes are valid
+        if (itemNames == null || itemBrands == null || itemTypes == null) {
+            return BadRequest();
+        }
+
+        // Get the list of discount items from the database that match the triple of item name, brand, and type
+        var discounts = await _discountService.GetDiscountItemsAsync(itemNames, itemBrands, itemTypes);
+        return Ok(discounts);
     }
 
     [HttpPut]
