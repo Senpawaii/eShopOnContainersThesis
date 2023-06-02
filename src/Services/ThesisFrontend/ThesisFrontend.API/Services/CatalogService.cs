@@ -81,6 +81,35 @@ public class CatalogService : ICatalogService {
         }
     }
 
+    public async Task<IEnumerable<CatalogType>> GetCatalogTypesAsync() {
+        try {
+            var uri = $"{_remoteCatalogServiceBaseUrl}catalogtypes";
+
+            // Set the request timeout
+            _httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+            var response = await _httpClient.GetAsync(uri);
+            if (response.StatusCode != HttpStatusCode.OK) {
+                _logger.LogError($"An error occurred while getting the catalog types. The response status code is {response.StatusCode}");
+                return null;
+            }
+
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            if(string.IsNullOrEmpty(responseString)) {
+                _logger.LogError($"An error occurred while getting the catalog types. The response string is empty");
+                return null;
+            }
+            var catalogTypes = JsonConvert.DeserializeObject<IEnumerable<CatalogType>>(responseString);
+
+            return catalogTypes;
+        }
+        catch (HttpRequestException ex) {
+            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");
+            throw; // If needed, wrap the exception in a custom exception and throw it
+        }
+    }
+
     public async Task<HttpStatusCode> UpdateCatalogPriceAsync(CatalogItem catalogItem) {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}items";

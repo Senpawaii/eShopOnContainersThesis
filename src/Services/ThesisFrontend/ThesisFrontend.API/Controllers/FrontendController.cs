@@ -67,13 +67,27 @@ public class FrontendController : ControllerBase {
     [Route("catalogbrands")]
     [ProducesResponseType(typeof(IEnumerable<CatalogBrand>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    public async Task<ActionResult<DiscountItem>> ReadCatalogBrandsAsync() {
+    public async Task<ActionResult<CatalogBrand>> ReadCatalogBrandsAsync() {
         var catalogBrands = await _catalogService.GetCatalogBrandsAsync();
         if (catalogBrands == null) {
             return BadRequest();
         }
         else {
             return Ok(catalogBrands);
+        }
+    }
+
+    [HttpGet]
+    [Route("catalogtypes")]
+    [ProducesResponseType(typeof(IEnumerable<CatalogType>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult<CatalogType>> ReadCatalogTypesAsync() {
+        var catalogTypes = await _catalogService.GetCatalogTypesAsync();
+        if (catalogTypes == null) {
+            return BadRequest();
+        }
+        else {
+            return Ok(catalogTypes);
         }
     }
 

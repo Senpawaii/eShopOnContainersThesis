@@ -99,12 +99,11 @@ def QueryDiscountItemById(catalogItems: list[dict]) -> dict:
     identity = threading.get_ident()
 
     # Access catalog Service to get the brand name and type name
-    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
 
     discountItems = []
     for item in catalogItems:
         # Get the brand name that matches the brand ID
-        address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogBrands?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+        address = 'http://localhost:' + thesisFrontendPort + '/api/v1/frontend/catalogbrands'
 
         # Log request address
         logging.info("Sending request to address: " + address)
@@ -117,7 +116,7 @@ def QueryDiscountItemById(catalogItems: list[dict]) -> dict:
                 brandName = brand["brand"]
 
         # Get the type name that matches the type ID
-        address = 'http://localhost:' + catalogServicePort + '/catalog-api/api/v1/Catalog/CatalogTypes?interval_low=0&interval_high=0&functionality_ID=func' + str(identity) + '&timestamp=' + timestamp + '&tokens=0'
+        address = 'http://localhost:' + thesisFrontendPort + '/api/v1/frontend/catalogtypes'
         
         # Log request address
         logging.info("Sending request to address: " + address)
