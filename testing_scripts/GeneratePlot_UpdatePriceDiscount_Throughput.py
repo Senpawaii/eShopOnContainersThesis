@@ -4,6 +4,8 @@ import re
 import matplotlib.pyplot as plt
 import numpy as np
 
+max_throughput = 130
+
 class Test_data:
 # test = Test_data(throughput, read_ratio, total_test_time, average_latency_by_functionality, average_latency_by_req, total_requests, total_read_requests, total_write_requests, anomalies_detected, anomalies_ratio, success_rate, file_path)
 
@@ -127,7 +129,7 @@ def plot_latency_vs_throughput(tests_data: list):
     
     # Increase the granularity of the x axis
     # plt.xticks(np.arange(0, max([test.throughput for test in tests_data[0]]), 5.0))
-    plt.xticks(np.arange(0, 140, 5.0))
+    plt.xticks(np.arange(0, max_throughput, 5.0))
     
     # Define colors to use for each test
     colors = ["-b", "-r"]
@@ -193,7 +195,7 @@ def clean_data(logs_folders: str):
             with open(test_log_path, "r") as f:
                 file_data = f.read()
                 throughput = get_throughput(file_data)
-                if throughput >= 140:
+                if throughput >= max_throughput:
                     # Stop reading the file if the throughput is greater than 140
                     continue
                 read_ratio = get_read_write_ratio(file_data)
@@ -231,7 +233,7 @@ wrapper = True
 def main():
     # Read arguments
     if len(sys.argv) < 2:
-        print("Usage: python GeneratePlot_UpdatePriceDiscount_Throughput.py <logs_folder>")
+        print("Usage: python GeneratePlot_UpdatePriceDiscount_Throughput.py <logs_folder> [1 or more]")
         return
     
     # Get the logs folder path(s)

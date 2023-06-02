@@ -18,10 +18,10 @@ import sys
     The script will also log the response from the Basket.API service.
 """
 numThreads = 32 # Number of threads to be used in the test
-secondsToRun = 60 # Number of seconds to run the test
+secondsToRun = 30 # Number of seconds to run the test
 read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
 throughput_step = 5 # Number of requests per second to increase throughput by
-throughput = 10 # requests per second
+throughput = 100 # requests per second
 max_throughput = 200
 contention_rows = 6 # Number of rows to be used in the test
 # wrappers = True # True if the test is being run with wrappers, False if the test is being run without wrappers
@@ -384,7 +384,7 @@ def assign_operations(executor: ThreadPoolExecutor, futuresThreads: list, catalo
 
 
 def check_discount_from_log_file(file_path):
-    pattern = r'Read Basket: Price {([\d.]+)}, Discount: {([\d.]+)}'
+    pattern = r'Price {([\d.]+)}, Discount: {([\d.]+)}'
     results = {'OK': 0, 'anomalies': 0}
     anomaly_line_presence = []
 
