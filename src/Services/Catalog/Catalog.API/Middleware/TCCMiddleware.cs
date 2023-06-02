@@ -1,6 +1,7 @@
 ﻿using Catalog.API.DependencyServices;
 using Microsoft.ApplicationInsights.AspNetCore.Extensions;
 using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
+using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using System.Collections.Concurrent;
 
@@ -8,15 +9,17 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
     public class TCCMiddleware {
         private readonly ILogger<TCCMiddleware> _logger;
         private readonly RequestDelegate _next;
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next) {
+
+        public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next, IServiceScopeFactory scopeFactory) {
             _logger = logger;
             _next = next;
+            _scopeFactory = scopeFactory;
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
-        public async Task Invoke(HttpContext ctx, CatalogContext catalogContext, 
-            ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata,
+        public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata,
             ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper) {
 
             // To differentiate from a regular call, check for the clientID
@@ -38,7 +41,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _dataWrapper.SingletonWrappedCatalogTypes.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_types_to_remove);
 
                     // Flush the Wrapper Data into the Database
-                    await FlushWrapper(clientID, ticks, catalogContext, _dataWrapper, _request_metadata);
+                    await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata);
 
                     DateTime proposedTS = new DateTime(ticks);
 
@@ -139,7 +142,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             }
         }
 
-        private async Task FlushWrapper(string clientID, long ticks, CatalogContext catalogContext, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata) {
+        private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata) {
             // Set client state to the in commit
             _dataWrapper.SingletonSetTransactionState(clientID, true);
                 
@@ -151,49 +154,59 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             var catalogWrapperBrands = _dataWrapper.SingletonGetCatalogBrands(clientID);
             var catalogWrapperTypes = _dataWrapper.SingletonGetCatalogTypes(clientID);
 
-            if (catalogWrapperBrands != null && catalogWrapperBrands.Count > 0) {
-                foreach (object[] brand in catalogWrapperBrands) {
-                    CatalogBrand newBrand = new CatalogBrand {
-                        //Id = Convert.ToInt32(brand[0]),
-                        Brand = Convert.ToString(brand[1]),
-                    };
-                    catalogContext.CatalogBrands.Add(newBrand);
-                }
-                await catalogContext.SaveChangesAsync();
-            }
+            using (var scope = _scopeFactory.CreateScope()) {
+                var dbContext = scope.ServiceProvider.GetRequiredService<CatalogContext>();
 
-            if (catalogWrapperTypes != null && catalogWrapperTypes.Count > 0) {
-                foreach (object[] type in catalogWrapperTypes) {
-                    CatalogType newType = new CatalogType {
+                // Copy the request metadata to the scoped metadata
+                var scopedMetadata = scope.ServiceProvider.GetRequiredService<IScopedMetadata>();
+                scopedMetadata.ClientID = _request_metadata.ClientID;
+                scopedMetadata.Timestamp = _request_metadata.Timestamp;
+                scopedMetadata.Tokens = _request_metadata.Tokens;
 
-                        //Id = Convert.ToInt32(type[0]),
-                        Type = Convert.ToString(type[1]),
-                    };
-                    catalogContext.CatalogTypes.Add(newType);
+                if (catalogWrapperBrands != null && catalogWrapperBrands.Count > 0) {
+                    foreach (object[] brand in catalogWrapperBrands) {
+                        CatalogBrand newBrand = new CatalogBrand {
+                            //Id = Convert.ToInt32(brand[0]),
+                            Brand = Convert.ToString(brand[1]),
+                        };
+                        dbContext.CatalogBrands.Add(newBrand);
+                    }
+                    await dbContext.SaveChangesAsync();
                 }
-                await catalogContext.SaveChangesAsync();
-            }
-            if (catalogWrapperItems != null && catalogWrapperItems.Count > 0) {
-                foreach (object[] item in catalogWrapperItems) {
-                    CatalogItem newItem = new CatalogItem {
-                        //Id = Convert.ToInt32(item[0]),
-                        CatalogBrandId = Convert.ToInt32(item[1]),
-                        CatalogTypeId = Convert.ToInt32(item[2]),
-                        Description = Convert.ToString(item[3]),
-                        Name = Convert.ToString(item[4]),
-                        PictureFileName = Convert.ToString(item[5]),
-                        Price = Convert.ToDecimal(item[6]),
-                        AvailableStock = Convert.ToInt32(item[7]),
-                        MaxStockThreshold = Convert.ToInt32(item[8]),
-                        OnReorder = Convert.ToBoolean(item[9]),
-                        RestockThreshold = Convert.ToInt32(item[10]),
-                    };
-                    catalogContext.CatalogItems.Add(newItem);
+
+                if (catalogWrapperTypes != null && catalogWrapperTypes.Count > 0) {
+                    foreach (object[] type in catalogWrapperTypes) {
+                        CatalogType newType = new CatalogType {
+
+                            //Id = Convert.ToInt32(type[0]),
+                            Type = Convert.ToString(type[1]),
+                        };
+                        dbContext.CatalogTypes.Add(newType);
+                    }
+                    await dbContext.SaveChangesAsync();
                 }
-                try {
-                    catalogContext.SaveChanges();
-                } catch (Exception exc) {
-                    Console.WriteLine(exc.ToString());
+                if (catalogWrapperItems != null && catalogWrapperItems.Count > 0) {
+                    foreach (object[] item in catalogWrapperItems) {
+                        CatalogItem newItem = new CatalogItem {
+                            //Id = Convert.ToInt32(item[0]),
+                            CatalogBrandId = Convert.ToInt32(item[1]),
+                            CatalogTypeId = Convert.ToInt32(item[2]),
+                            Description = Convert.ToString(item[3]),
+                            Name = Convert.ToString(item[4]),
+                            PictureFileName = Convert.ToString(item[5]),
+                            Price = Convert.ToDecimal(item[6]),
+                            AvailableStock = Convert.ToInt32(item[7]),
+                            MaxStockThreshold = Convert.ToInt32(item[8]),
+                            OnReorder = Convert.ToBoolean(item[9]),
+                            RestockThreshold = Convert.ToInt32(item[10]),
+                        };
+                        dbContext.CatalogItems.Add(newItem);
+                    }
+                    try {
+                        dbContext.SaveChanges();
+                    } catch (Exception exc) {
+                        Console.WriteLine(exc.ToString());
+                    }
                 }
             }
 

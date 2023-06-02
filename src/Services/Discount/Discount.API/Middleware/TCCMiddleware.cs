@@ -11,15 +11,17 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
     public class TCCMiddleware {
         private readonly ILogger<TCCMiddleware> _logger;
         private readonly RequestDelegate _next;
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next) {
+
+        public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next, IServiceScopeFactory scopeFactory) {
             _logger = logger;
             _next = next;
+            _scopeFactory = scopeFactory;
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
-        public async Task Invoke(HttpContext ctx, DiscountContext discountContext, 
-            ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata, 
+        public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata, 
             ITokensContextSingleton _remainingTokens, ISingletonWrapper _data_wrapper) {
             
             // Console.WriteLine("Request:" + ctx.Request.Query);
@@ -43,7 +45,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     //_logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {clientID}.");
 
                     // Flush the Wrapper Data into the Database
-                    FlushWrapper(clientID, ticks, discountContext, _data_wrapper, _request_metadata);
+                    FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata);
 
                     DateTime proposedTS = new DateTime(ticks);
 
@@ -129,8 +131,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             }
         }
 
-        private void FlushWrapper(string clientID, long ticks, DiscountContext discountContext, 
-            ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata) {
+        private void FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata) {
             
             // Set functionality state to the in commit
             _data_wrapper.SingletonSetTransactionState(clientID, true);
@@ -141,21 +142,31 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             // Get stored objects
             var discountWrapperItems = _data_wrapper.SingletonGetDiscountItems(clientID);
 
-            if (discountWrapperItems != null && discountWrapperItems.Count > 0) {
-                foreach (object[] item in discountWrapperItems) {
-                    DiscountItem newItem = new DiscountItem {
-                        //Id = Convert.ToInt32(item[0]),
-                        ItemName = Convert.ToString(item[1]),
-                        ItemBrand = Convert.ToString(item[2]),
-                        ItemType = Convert.ToString(item[3]),
-                        DiscountValue = Convert.ToInt32(item[4]),
-                    };
-                    discountContext.Discount.Add(newItem);
-                }
-                try {
-                    discountContext.SaveChanges();
-                } catch (Exception exc) {
-                    Console.WriteLine(exc.ToString());
+            using (var scope = _scopeFactory.CreateScope()) {
+                var dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+                
+                // Copy the request metadata to the scoped metadata
+                var scopedMetadata = scope.ServiceProvider.GetRequiredService<IScopedMetadata>();
+                scopedMetadata.ClientID = _request_metadata.ClientID;
+                scopedMetadata.Timestamp = _request_metadata.Timestamp;
+                scopedMetadata.Tokens = _request_metadata.Tokens;
+                
+                if (discountWrapperItems != null && discountWrapperItems.Count > 0) {
+                    foreach (object[] item in discountWrapperItems) {
+                        DiscountItem newItem = new DiscountItem {
+                            //Id = Convert.ToInt32(item[0]),
+                            ItemName = Convert.ToString(item[1]),
+                            ItemBrand = Convert.ToString(item[2]),
+                            ItemType = Convert.ToString(item[3]),
+                            DiscountValue = Convert.ToInt32(item[4]),
+                        };
+                        dbContext.Discount.Add(newItem);
+                    }
+                    try {
+                        dbContext.SaveChanges();
+                    } catch (Exception exc) {
+                        Console.WriteLine(exc.ToString());
+                    }
                 }
             }
 
