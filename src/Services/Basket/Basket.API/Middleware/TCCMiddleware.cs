@@ -10,25 +10,31 @@ namespace Microsoft.eShopOnContainers.Services.Basket.API.Middleware;
 public class TCCMiddleware {
     private readonly ILogger<TCCMiddleware> _logger;
     private readonly RequestDelegate _next;
+    private IScopedMetadata _request_metadata;
+    private ITokensContextSingleton _remainingTokens;
+    private readonly ICoordinatorService _coordinatorSvc;
 
-    public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next) {
+    public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next, ICoordinatorService coordinatorSvc, IScopedMetadata metadata, ITokensContextSingleton remainingTokens) {
         _logger = logger;
         _next = next;
+        _request_metadata = metadata;
+        _remainingTokens = remainingTokens;
+        _coordinatorSvc = coordinatorSvc;
     }
 
     // Middleware has access to Scoped Data, dependency-injected at Startup
-    public async Task Invoke(HttpContext ctx, IScopedMetadata svc, ICoordinatorService coordinatorSvc) {
+    public async Task Invoke(HttpContext ctx) {
 
         // To differentiate from a regular call, check for the client ID
         if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             // Store the client ID in the scoped metadata
-            svc.ClientID.Value = clientID;
-            
+            _request_metadata.ClientID.Value = clientID;
+
             // Initially set the read-only flag to true. Update it as write operations are performed.
-            svc.ReadOnly.Value = true;
+            _request_metadata.ReadOnly.Value = true;
             if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                 //_logger.LogInformation($"Registered timestamp: {timestamp}");
-                svc.Timestamp.Value = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
+                _request_metadata.Timestamp.Value = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
             }
 
             if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
@@ -36,7 +42,8 @@ public class TCCMiddleware {
                 if(!int.TryParse(tokens, out int numTokens)) {
                     _logger.LogError("Couldn't extract the number of tokens from the request query string.");
                 }
-                svc.Tokens.Value = numTokens;
+                _request_metadata.Tokens.Value = numTokens;
+                _remainingTokens.AddRemainingTokens(clientID, numTokens);
             }
 
             var removeTheseParams = new List<string> { "clientID", "timestamp", "tokens" }.AsReadOnly();
@@ -53,9 +60,9 @@ public class TCCMiddleware {
             ctx.Response.Body = memStream;
 
             ctx.Response.OnStarting(() => {
-                ctx.Response.Headers["clientID"] = svc.ClientID.Value;
-                ctx.Response.Headers["timestamp"] = svc.Timestamp.Value.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
-                ctx.Response.Headers["tokens"] = svc.Tokens.ToString();
+                ctx.Response.Headers["clientID"] = _request_metadata.ClientID.Value;
+                ctx.Response.Headers["timestamp"] = _request_metadata.Timestamp.Value.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
+                ctx.Response.Headers["tokens"] = _request_metadata.Tokens.ToString();
                 return Task.CompletedTask;
             });
 
@@ -80,10 +87,12 @@ public class TCCMiddleware {
             ctx.Response.Body = originalResponseBody;
             await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
-            if (svc.Tokens.Value > 0) {
+            if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID.Value) > 0) {
                 // send any remaining Tokens to the Coordinator
-                await coordinatorSvc.SendTokens();
+                await _coordinatorSvc.SendTokens();
             }
+            // Clean the singleton fields for the current session context
+            _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID.Value);
         }
         else {
             // This is not an HTTP request that requires change

@@ -21,14 +21,14 @@ public class DiscountService : IDiscountService {
 
     public async Task<HttpStatusCode> UpdateDiscountValueAsync(DiscountItem discountItem) {
         try {
-            var uri = $"{_remoteDiscountServiceBaseUrl}items";
+            var uri = $"{_remoteDiscountServiceBaseUrl}discounts";
 
             // Serialize the discount item to JSON
             var discountItemJson = JsonConvert.SerializeObject(discountItem);
             using (StringContent requestContent = new StringContent(discountItemJson, Encoding.UTF8, "application/json")) {
 
                 // Set the request timeout
-                _httpClient.Timeout = TimeSpan.FromSeconds(5);
+                _httpClient.Timeout = TimeSpan.FromSeconds(10);
 
                 var response = await _httpClient.PutAsync(uri, requestContent);
                 if (response.StatusCode != HttpStatusCode.Created) {

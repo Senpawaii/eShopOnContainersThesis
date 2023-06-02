@@ -39,6 +39,7 @@ public class Startup {
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services
                 .AddScoped<IScopedMetadata, ScopedMetadata>()
+                .AddSingleton<ITokensContextSingleton, TokensContextSingleton>()
                 .AddSingleton<ISingletonWrapper, SingletonWrapper>()
                 .AddHostedService<GarbageCollectionService>()
                 .AddHttpClient<ICoordinatorService, CoordinatorService>();

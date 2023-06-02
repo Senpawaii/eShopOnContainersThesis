@@ -147,7 +147,9 @@ public class Startup
             // Register the HTTP Message Handler
             services.AddScoped<TCCHttpInjector>();
             
-            services.AddSingleton<IScopedMetadata, ScopedMetadata>();
+            services.AddScoped<IScopedMetadata, ScopedMetadata>();
+            services.AddSingleton<ITokensContextSingleton, TokensContextSingleton>();
+
             services.AddHttpClient<ICoordinatorService, CoordinatorService>();
             services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<TCCHttpInjector>();
             services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<TCCHttpInjector>();

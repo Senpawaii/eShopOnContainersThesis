@@ -112,23 +112,6 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
                 result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
 
-                // Add the new object to the Discount context
-                //switch (targetTable) {
-                //    case "Discount":
-                //        var newDiscount = new DiscountItem() {
-                //            ItemName = (string)columnsToInsert["ItemName"],
-                //            ItemBrand = (string)columnsToInsert["ItemBrand"],
-                //            ItemType = (string)columnsToInsert["ItemType"],
-                //            DiscountValue = (int)columnsToInsert["DiscountValue"]
-                //        };
-                //        _discountContext.Discount.Add(newDiscount);
-                //        break;
-                //}
-                //_discountContext.SaveChanges();
-
-                //var testMock = new List<object[]>();
-                //testMock.Add(new object[] { 1 });
-
                 break;
         }
 

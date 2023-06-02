@@ -1,5 +1,4 @@
-﻿using Catalog.API.DependencyServices;
-using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
+﻿using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Infrastructure.Filters;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Infrastructure.HttpHandlers;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Middleware;

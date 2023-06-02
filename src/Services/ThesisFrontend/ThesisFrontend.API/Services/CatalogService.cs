@@ -26,7 +26,7 @@ public class CatalogService : ICatalogService {
             using (StringContent requestContent = new StringContent(catalogItemJson, Encoding.UTF8, "application/json")) {
                 
                 // Set the request timeout
-                _httpClient.Timeout = TimeSpan.FromSeconds(5);
+                _httpClient.Timeout = TimeSpan.FromSeconds(10);
                 
                 var response = await _httpClient.PutAsync(uri, requestContent);
                 if (response.StatusCode != HttpStatusCode.Created) {

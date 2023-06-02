@@ -1,5 +1,4 @@
-﻿using Catalog.API.DependencyServices;
-using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
+﻿using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
 using System.Net.Http;
 using System.Reflection.Metadata.Ecma335;
 using System.Threading;

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Concurrent;
 
-namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
+namespace Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 public class TokensContextSingleton : ITokensContextSingleton {
     ConcurrentDictionary<string, int> remaining_tokens = new ConcurrentDictionary<string, int>();
     public TokensContextSingleton() {

@@ -15,13 +15,16 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
-        public async Task Invoke(HttpContext ctx, IScopedMetadata request_metadata, ICoordinatorService coordinatorSvc, ISingletonWrapper wrapperSvc, CatalogContext catalogContext) {
+        public async Task Invoke(HttpContext ctx, CatalogContext catalogContext, 
+            ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata,
+            ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper) {
+
             // To differentiate from a regular call, check for the clientID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
-                request_metadata.ClientID = clientID;
+                _request_metadata.ClientID = clientID;
 
                 // Initially set the read-only flag to true. Update it as write operations are performed.
-                request_metadata.ReadOnly = true;
+                _request_metadata.ReadOnly = true;
 
                 string currentUri = ctx.Request.GetUri().ToString();
 
@@ -30,42 +33,42 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
-                    wrapperSvc.SingletonWrappedCatalogItems.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_objects_to_remove);
-                    wrapperSvc.SingletonWrappedCatalogBrands.TryGetValue(clientID,out ConcurrentBag<object[]> catalog_brands_to_remove);
-                    wrapperSvc.SingletonWrappedCatalogTypes.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_types_to_remove);
+                    _dataWrapper.SingletonWrappedCatalogItems.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_objects_to_remove);
+                    _dataWrapper.SingletonWrappedCatalogBrands.TryGetValue(clientID,out ConcurrentBag<object[]> catalog_brands_to_remove);
+                    _dataWrapper.SingletonWrappedCatalogTypes.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_types_to_remove);
 
                     // Flush the Wrapper Data into the Database
-                    await FlushWrapper(clientID, wrapperSvc, ticks, request_metadata, catalogContext);
+                    await FlushWrapper(clientID, ticks, catalogContext, _dataWrapper, _request_metadata);
 
                     DateTime proposedTS = new DateTime(ticks);
 
                     // Remove the wrapped items from the proposed set
-                    if (catalog_objects_to_remove != null) { 
-                        wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_objects_to_remove, "Catalog");
+                    if (catalog_objects_to_remove != null) {
+                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_objects_to_remove, "Catalog");
                     }
                     if (catalog_brands_to_remove != null) {
-                        wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_brands_to_remove, "CatalogBrand");
+                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_brands_to_remove, "CatalogBrand");
                     }
                     if (catalog_types_to_remove != null) {
-                        wrapperSvc.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_types_to_remove, "CatalogType");
+                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_types_to_remove, "CatalogType");
                     }
 
                     // Remove the client session from the proposed state
-                    wrapperSvc.SingletonRemoveProposedFunctionality(clientID);
+                    _dataWrapper.SingletonRemoveProposedFunctionality(clientID);
 
                     await _next.Invoke(ctx);
                     return;
                 } 
                 else if(currentUri.Contains("proposeTS")) {
                     // Update client session to Proposed State and Store data written in the current session in a proposed-state structure
-                    var currentTS = request_metadata.Timestamp.Ticks;
-                    wrapperSvc.SingletonAddProposedFunctionality(clientID, currentTS);
-                    wrapperSvc.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                    var currentTS = _request_metadata.Timestamp.Ticks;
+                    _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
+                    _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     //_logger.LogInformation($"Registered timestamp: {timestamp}");
-                    request_metadata.Timestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
+                    _request_metadata.Timestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
                 }
 
                 //_logger.LogInformation($"Checkpoint 1_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
@@ -73,8 +76,10 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                 if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
                     //_logger.LogInformation($"Registered tokens: {tokens}");
-                    Double.TryParse(tokens, out double numTokens);
-                    request_metadata.Tokens = numTokens;
+                    Int32.TryParse(tokens, out int numTokens);
+                    _request_metadata.Tokens = numTokens;
+                    _remainingTokens.AddRemainingTokens(clientID, numTokens);
+
                 }
 
                 var removeTheseParams = new List<string> { "clientID", "timestamp", "tokens" }.AsReadOnly();
@@ -94,9 +99,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 ctx.Response.Body = memStream;
 
                 ctx.Response.OnStarting(() => {
-                    ctx.Response.Headers["clientID"] = request_metadata.ClientID;
-                    ctx.Response.Headers["timestamp"] = request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
-                    ctx.Response.Headers["tokens"] = request_metadata.Tokens.ToString();
+                    ctx.Response.Headers["clientID"] = _request_metadata.ClientID;
+                    ctx.Response.Headers["timestamp"] = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ"); // "2023-04-03T16:20:30+00:00" for example
+                    ctx.Response.Headers["tokens"] = _request_metadata.Tokens.ToString();
                     return Task.CompletedTask;
                 });
 
@@ -121,10 +126,12 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
-                if(request_metadata.Tokens > 0) {                    
+                if(_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {                    
                     // Propose Timestamp with Tokens to the Coordinator
-                    await coordinatorSvc.SendTokens();
+                    await _coordinatorSvc.SendTokens();
                 }
+                // Clean the singleton fields for the current session context
+                _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
             }
             else {
                 // This is not an HTTP request that requires change
@@ -132,17 +139,17 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             }
         }
 
-        private async Task FlushWrapper(string clientID, ISingletonWrapper wrapperSvc, long ticks, IScopedMetadata request_metadata, CatalogContext catalogContext) {
+        private async Task FlushWrapper(string clientID, long ticks, CatalogContext catalogContext, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata) {
             // Set client state to the in commit
-            wrapperSvc.SingletonSetTransactionState(clientID, true);
+            _dataWrapper.SingletonSetTransactionState(clientID, true);
                 
             // Assign the received commit timestamp to the request scope
-            request_metadata.Timestamp = new DateTime(ticks);
+            _request_metadata.Timestamp = new DateTime(ticks);
 
             // Get stored objects
-            var catalogWrapperItems = wrapperSvc.SingletonGetCatalogITems(clientID);
-            var catalogWrapperBrands = wrapperSvc.SingletonGetCatalogBrands(clientID);
-            var catalogWrapperTypes = wrapperSvc.SingletonGetCatalogTypes(clientID);
+            var catalogWrapperItems = _dataWrapper.SingletonGetCatalogITems(clientID);
+            var catalogWrapperBrands = _dataWrapper.SingletonGetCatalogBrands(clientID);
+            var catalogWrapperTypes = _dataWrapper.SingletonGetCatalogTypes(clientID);
 
             if (catalogWrapperBrands != null && catalogWrapperBrands.Count > 0) {
                 foreach (object[] brand in catalogWrapperBrands) {
@@ -191,7 +198,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             }
 
             // Clear the stored objects in the wrapper with this clientID
-            wrapperSvc.SingletonRemoveFunctionalityObjects(clientID);
+            _dataWrapper.SingletonRemoveFunctionalityObjects(clientID);
         }
     
     }

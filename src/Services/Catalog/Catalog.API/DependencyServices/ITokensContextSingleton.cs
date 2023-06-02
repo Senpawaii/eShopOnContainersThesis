@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Primitives;
 using System.Collections.Concurrent;
 
-namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
+namespace Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 public interface ITokensContextSingleton {
     ConcurrentDictionary<string, int> RemainingTokens { get; }
     public int GetRemainingTokens(string key);

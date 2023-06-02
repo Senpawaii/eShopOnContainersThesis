@@ -1,5 +1,4 @@
-﻿using Catalog.API.DependencyServices;
-using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
+﻿using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
 using System.Net.Http;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
@@ -11,7 +10,8 @@ public class CoordinatorService : ICoordinatorService {
     private readonly IScopedMetadata _metadata;
     private readonly ITokensContextSingleton _remainingTokens;
 
-    public CoordinatorService(IOptions<ThesisFrontendSettings> settings, HttpClient httpClient, ILogger<CoordinatorService> logger, IScopedMetadata scopedMetadata, ITokensContextSingleton remainingTokens) {
+    public CoordinatorService(IOptions<ThesisFrontendSettings> settings, HttpClient httpClient, ILogger<CoordinatorService> logger, 
+        IScopedMetadata scopedMetadata, ITokensContextSingleton remainingTokens) {
         _settings = settings;
         _httpClient = httpClient;
         _logger = logger;

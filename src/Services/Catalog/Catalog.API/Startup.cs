@@ -44,6 +44,7 @@ public class Startup
             services
                 .AddScoped<IScopedMetadata, ScopedMetadata>()
                 .AddSingleton<ISingletonWrapper, SingletonWrapper>()
+                .AddSingleton<ITokensContextSingleton, TokensContextSingleton>()
                 .AddHostedService<GarbageCollectionService>()
                 .AddHttpClient<ICoordinatorService, CoordinatorService>();
         }

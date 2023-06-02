@@ -1,5 +1,4 @@
-﻿using Catalog.API.DependencyServices;
-using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
+﻿using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Middleware;
@@ -8,24 +7,25 @@ public class TCCMiddleware {
     private readonly RequestDelegate _next;
     private IScopedMetadata _request_metadata;
     private ITokensContextSingleton _remainingTokens;
-    private static Random random = new Random();
+    private readonly ICoordinatorService _coordinatorSvc;
 
-    public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next, IScopedMetadata metadata, ITokensContextSingleton remainingTokens) {
+    public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next, ICoordinatorService coordinatorSvc, IScopedMetadata metadata, ITokensContextSingleton remainingTokens) {
         _logger = logger;
         _next = next;
         _request_metadata = metadata;
         _remainingTokens = remainingTokens;
+        _coordinatorSvc = coordinatorSvc;
     }
 
-    public async Task Invoke(HttpContext httpctx, ICoordinatorService coordinatorSvc) {
+    public async Task Invoke(HttpContext httpctx) {
         // Initialize the metadata fields
         SeedMetadata();
 
         await _next.Invoke(httpctx);
 
         // Send the rest of the tokens to the coordinator
-        if(_request_metadata.Tokens.Value > 0) {
-            await coordinatorSvc.SendTokens();
+        if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID.Value) > 0) {
+            await _coordinatorSvc.SendTokens();
         }
         // Clean the singleton fields for the current session context
         _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID.Value);
@@ -46,7 +46,8 @@ public class TCCMiddleware {
     }
 
     private string GenerateRandomString(int length) {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    Random random = new Random();
+    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         return new string(Enumerable.Repeat(chars, length)
                        .Select(s => s[random.Next(s.Length)]).ToArray());
     }

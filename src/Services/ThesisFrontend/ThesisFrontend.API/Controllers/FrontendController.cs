@@ -1,4 +1,5 @@
 ﻿
+using Grpc.Core;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Model;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 using Newtonsoft.Json.Linq;
@@ -64,7 +65,11 @@ public class FrontendController : ControllerBase {
 
         // Update the catalog item price
         try {
-            await _catalogService.UpdateCatalogPriceAsync(catalogItem);
+            var catalog_StatusCode = await _catalogService.UpdateCatalogPriceAsync(catalogItem);
+            // Check if the status code is CREATED
+            if (catalog_StatusCode != HttpStatusCode.Created) {
+                return BadRequest();
+            }
         } 
         catch (HttpRequestException) {
             _logger.LogError($"An error occurered while updating the Catalog Price async");
@@ -73,12 +78,18 @@ public class FrontendController : ControllerBase {
 
         // Update the discount item value
         try {
-            await _discountService.UpdateDiscountValueAsync(discountItem);
+            var discount_StatusCode = await _discountService.UpdateDiscountValueAsync(discountItem);
+            // Check if the status code is OK
+            if (discount_StatusCode != HttpStatusCode.Created) {
+                return BadRequest();
+            }
         } 
         catch (HttpRequestException) {
             _logger.LogError($"An error occurered while updating the Discount Value async");
             return BadRequest();
         }
+
+
         return Ok();
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 public class ScopedMetadata : IScopedMetadata {
-    double tokens;
+    int tokens;
     // The default timestamp should not be used by any functionality. This is used mainly for ContextSeed population.
     DateTime timestamp = DateTime.UtcNow;
     string clientID;
@@ -8,7 +8,7 @@ public class ScopedMetadata : IScopedMetadata {
 
     public ScopedMetadata() { }
 
-    public double Tokens {
+    public int Tokens {
         get { return tokens; }
         set { tokens = value; }
     }
