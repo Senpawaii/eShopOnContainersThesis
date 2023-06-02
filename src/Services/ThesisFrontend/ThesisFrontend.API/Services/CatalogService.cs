@@ -17,6 +17,41 @@ public class CatalogService : ICatalogService {
         _remoteCatalogServiceBaseUrl = settings.Value.CatalogUrl;
     }
 
+    public async Task<CatalogItem> GetCatalogItemByIdAsync(string catalogItemId) {
+        try {
+            var uri = $"{_remoteCatalogServiceBaseUrl}items/{catalogItemId}";
+
+            // Set the request timeout
+            _httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+            var response = await _httpClient.GetAsync(uri);
+            if (response.StatusCode != HttpStatusCode.OK) {
+                if(response.StatusCode == HttpStatusCode.NotFound) {
+                    _logger.LogError($"The catalog item with id {catalogItemId} was not found");
+                    return null;
+                }
+                else if(response.StatusCode == HttpStatusCode.BadRequest) {
+                    _logger.LogError($"The catalog item id {catalogItemId} is not valid");
+                    return null;
+                }
+            }
+
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            if(string.IsNullOrEmpty(responseString)) {
+                _logger.LogError($"An error occurred while getting the catalog item. The response string is empty");
+                return null;
+            }
+            var catalogItem = JsonConvert.DeserializeObject<CatalogItem>(responseString);
+
+            return catalogItem;
+        }
+        catch (HttpRequestException ex) {
+            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");
+            throw; // If needed, wrap the exception in a custom exception and throw it
+        }
+    }
+
     public async Task<HttpStatusCode> UpdateCatalogPriceAsync(CatalogItem catalogItem) {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}items";

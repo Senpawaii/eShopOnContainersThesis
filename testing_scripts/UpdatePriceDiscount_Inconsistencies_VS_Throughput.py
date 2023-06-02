@@ -26,6 +26,7 @@ max_throughput = 200
 contention_rows = 6 # Number of rows to be used in the test
 # wrappers = True # True if the test is being run with wrappers, False if the test is being run without wrappers
 
+thesisFrontendPort = "5142"
 catalogServicePort = "5101"
 discountServicePort = "5140"
 basketServicePort = "5103"
@@ -78,7 +79,7 @@ def ConfigureLoggingSettings(throughput: int, test_logging_path: str) -> str:
 def QueryCatalogItemById(ids: list[id]) -> dict:
     catalogItems = []
     for id in ids:
-        address = "http://localhost:" + catalogServicePort + "/catalog-api/api/v1/Catalog/items?ids=" + str(id) + "&interval_low=0&interval_high=0&functionality_ID=func1&timestamp=2025-05-30T14:00:00.0000000Z&tokens=0"
+        address = "http://localhost:" + thesisFrontendPort + "/api/v1/frontend/readcatalogitem?catalogItemId=" + str(id)
     
         # Log request address
         logging.info("Sending request to address: " + address)

@@ -44,6 +44,25 @@ public class FrontendController : ControllerBase {
         }
     }
 
+    [HttpGet]
+    [Route("readcatalogitem")]
+    [ProducesResponseType(typeof(CatalogItem), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult<CatalogItem>> ReadCatalogItemAsync([FromQuery] string catalogItemId) {
+        // Check if the catalog item id is valid
+        if (string.IsNullOrEmpty(catalogItemId)) {
+            return BadRequest();
+        }
+
+        var catalogItem = await _catalogService.GetCatalogItemByIdAsync(catalogItemId);
+        if (catalogItem == null) {
+            return BadRequest();
+        }
+        else {
+            return catalogItem;
+        }
+    }
+
     [HttpPut]
     [Route("updatepricediscount")]
     [ProducesResponseType((int)HttpStatusCode.OK)]
