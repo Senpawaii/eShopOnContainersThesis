@@ -17,7 +17,7 @@ public class CatalogService : ICatalogService {
         _remoteCatalogServiceBaseUrl = settings.Value.CatalogUrl;
     }
 
-    public async Task<CatalogItem> GetCatalogItemByIdAsync(string catalogItemId) {
+    public async Task<CatalogItem> GetCatalogItemByIdAsync(int catalogItemId) {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}items/{catalogItemId}";
 
@@ -45,6 +45,35 @@ public class CatalogService : ICatalogService {
             var catalogItem = JsonConvert.DeserializeObject<CatalogItem>(responseString);
 
             return catalogItem;
+        }
+        catch (HttpRequestException ex) {
+            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");
+            throw; // If needed, wrap the exception in a custom exception and throw it
+        }
+    }
+
+    public async Task<IEnumerable<CatalogBrand>> GetCatalogBrandsAsync() {
+        try {
+            var uri = $"{_remoteCatalogServiceBaseUrl}catalogbrands";
+
+            // Set the request timeout
+            _httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+            var response = await _httpClient.GetAsync(uri);
+            if (response.StatusCode != HttpStatusCode.OK) {
+                _logger.LogError($"An error occurred while getting the catalog brands. The response status code is {response.StatusCode}");
+                return null;
+            }
+
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            if(string.IsNullOrEmpty(responseString)) {
+                _logger.LogError($"An error occurred while getting the catalog brands. The response string is empty");
+                return null;
+            }
+            var catalogBrands = JsonConvert.DeserializeObject<IEnumerable<CatalogBrand>>(responseString);
+
+            return catalogBrands;
         }
         catch (HttpRequestException ex) {
             _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");

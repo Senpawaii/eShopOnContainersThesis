@@ -45,21 +45,35 @@ public class FrontendController : ControllerBase {
     }
 
     [HttpGet]
-    [Route("readcatalogitem")]
+    [Route("readcatalogitem/{id:int}")]
     [ProducesResponseType(typeof(CatalogItem), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    public async Task<ActionResult<CatalogItem>> ReadCatalogItemAsync([FromQuery] string catalogItemId) {
-        // Check if the catalog item id is valid
-        if (string.IsNullOrEmpty(catalogItemId)) {
+    public async Task<ActionResult<CatalogItem>> ReadCatalogItemAsync(int id) {
+        // Check if the id is valid
+        if (id <= 0) {
             return BadRequest();
         }
 
-        var catalogItem = await _catalogService.GetCatalogItemByIdAsync(catalogItemId);
+        var catalogItem = await _catalogService.GetCatalogItemByIdAsync(id);
         if (catalogItem == null) {
             return BadRequest();
         }
         else {
             return catalogItem;
+        }
+    }
+
+    [HttpGet]
+    [Route("catalogbrands")]
+    [ProducesResponseType(typeof(IEnumerable<CatalogBrand>), (int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult<DiscountItem>> ReadCatalogBrandsAsync() {
+        var catalogBrands = await _catalogService.GetCatalogBrandsAsync();
+        if (catalogBrands == null) {
+            return BadRequest();
+        }
+        else {
+            return Ok(catalogBrands);
         }
     }
 
