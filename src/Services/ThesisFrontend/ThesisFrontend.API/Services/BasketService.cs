@@ -1,7 +1,7 @@
 ﻿using System.Net.Http;
 using YamlDotNet.Serialization;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Model;
-
+using System.Text.Json;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 public class BasketService : IBasketService {
@@ -27,6 +27,7 @@ public class BasketService : IBasketService {
             return null;
         }
         else {
+            // Read the JSON response and deserialize it to a BasketData object
             var responseString = await response.Content.ReadAsStringAsync();
             var deserializer = new DeserializerBuilder().Build();
             var basketData = deserializer.Deserialize<BasketData>(responseString);
@@ -37,8 +38,11 @@ public class BasketService : IBasketService {
     public async Task<BasketData> UpdateBasketAsync(BasketData currentBasket) {
         var uri = $"{_remoteBasketServiceBaseUrl}";
 
+        // Serialize the BasketData object to JSON
+        var basketDataJson = JsonSerializer.Serialize(currentBasket);
+
         // Send the current basket to the basket service on HTTP POST Body
-        var basketData = new StringContent(currentBasket.ToString(), System.Text.Encoding.UTF8, "application/json");
+        var basketData = new StringContent(basketDataJson, System.Text.Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync(uri, basketData);
 
         if (response.StatusCode != HttpStatusCode.OK) {

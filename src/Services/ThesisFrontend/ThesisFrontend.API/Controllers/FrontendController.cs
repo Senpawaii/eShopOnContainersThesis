@@ -128,27 +128,32 @@ public class FrontendController : ControllerBase {
         // Get the item from the Catalog
         var catalogItem = await _catalogService.GetCatalogItemByIdAsync(catalogItemId);
 
+        //// Get the discount item from the database that matches the item name, brand, and type
+        var discountItems = await _discountService.GetDiscountItemsAsync(new List<string> { request.CatalogItemName }, new List<string> { request.CatalogItemBrandName }, new List<string> { request.CatalogItemTypeName });
+        var discountItem = discountItems.SingleOrDefault();
+
         // Get the current basket
         var basket = await _basketService.GetBasketAsync(basketId);
 
         // Check if the product is already in the basket
-        var basketItem = basket.Items.SingleOrDefault(i => i.ProductName == catalogItem.Name && i.ProductBrand == request.CatalogItemBrandName && i.ProductType == request.CatalogItemTypeName);
+        var basketItem = basket.items.SingleOrDefault(i => i.productName == catalogItem.Name && i.productBrand == request.CatalogItemBrandName && i.productType == request.CatalogItemTypeName);
 
         // If the product is already in the basket, increment the quantity
         if (basketItem != null) {
-            basketItem.Quantity += request.Quantity;
+            basketItem.quantity += request.Quantity;
         }
         else {
             // If the product is not in the basket, add it to the basket
-            basket.Items.Add(new BasketDataItem() {
-                UnitPrice = catalogItem.Price,
-                PictureUrl = catalogItem.PictureUri,
-                ProductId = catalogItem.Id,
-                ProductName = catalogItem.Name,
-                Quantity = request.Quantity,
-                ProductBrand = request.CatalogItemBrandName,
-                ProductType = request.CatalogItemTypeName,
-                Id = Guid.NewGuid().ToString()
+            basket.items.Add(new BasketDataItem() {
+                unitPrice = catalogItem.Price,
+                pictureUrl = catalogItem.PictureUri,
+                productId = catalogItem.Id,
+                productName = catalogItem.Name,
+                quantity = request.Quantity,
+                productBrand = request.CatalogItemBrandName,
+                productType = request.CatalogItemTypeName,
+                discount = discountItem.DiscountValue,
+                id = Guid.NewGuid().ToString()
             });
         }
 

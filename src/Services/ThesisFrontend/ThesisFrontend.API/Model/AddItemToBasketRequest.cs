@@ -1,4 +1,4 @@
-namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Model;
+﻿namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Model;
 
 public class AddItemToBasketRequest {
     public int CatalogItemId { get; set; }
@@ -10,6 +10,7 @@ public class AddItemToBasketRequest {
     public string CatalogItemName { get; set; }
     public string CatalogItemBrandName { get; set; }
     public string CatalogItemTypeName { get; set; }
+    public decimal Discount { get; set; }
 
     public AddItemToBasketRequest()
     {

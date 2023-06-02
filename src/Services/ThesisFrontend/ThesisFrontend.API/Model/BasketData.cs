@@ -1,17 +1,17 @@
 ﻿namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Model;
 
 public class BasketData {
-    public string BuyerId { get; set; }
+    public string buyerId { get; set; }
 
-    public List<BasketDataItem> Items { get; set; } = new();
+    public List<BasketDataItem> items { get; set; } = new();
 
     public BasketData()
     {
     }
 
-    public BasketData(string buyerId)
+    public BasketData(string buyerId_c)
     {
-        BuyerId = buyerId;
+        buyerId = buyerId_c;
     }
 }
 

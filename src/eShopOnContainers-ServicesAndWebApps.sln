@@ -131,7 +131,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Coordinator.API", "Services
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ThesisFrontend", "ThesisFrontend", "{795CFF2B-79C0-4C80-9770-DA4B0213D523}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ThesisFrontend", "Services\ThesisFrontend\ThesisFrontend.API\ThesisFrontend.csproj", "{BC0D809F-98DD-4DD2-AD04-F08050132C1F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ThesisFrontend.API", "Services\ThesisFrontend\ThesisFrontend.API\ThesisFrontend.API.csproj", "{BC0D809F-98DD-4DD2-AD04-F08050132C1F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
