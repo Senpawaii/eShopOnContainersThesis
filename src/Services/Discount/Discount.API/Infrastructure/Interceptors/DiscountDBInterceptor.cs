@@ -46,7 +46,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         if (commandType == UNKNOWN_COMMAND) {
             return result;
         }
-
+        _logger.LogInformation($"1A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
 
@@ -60,8 +60,14 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return result;
             case SELECT_COMMAND:
+                _logger.LogInformation($"2A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                 UpdateSelectCommand(command);
+                _logger.LogInformation($"3A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                 WaitForProposedItemsIfNecessary(command, clientID);
+                _logger.LogInformation($"4A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
@@ -137,6 +143,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
+        _logger.LogInformation($"1B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
@@ -150,8 +157,14 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
+                _logger.LogInformation($"2B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                 UpdateSelectCommand(command);
+                _logger.LogInformation($"3B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                 WaitForProposedItemsIfNecessary(command, clientID);
+                _logger.LogInformation($"4B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
@@ -1021,6 +1034,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
 
         // Get the timestamp of the command from string to DateTime
+        _logger.LogInformation($"1C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
         Regex regex = new Regex(@"\[Timestamp\] <= '(?<Timestamp>[^']*)'");
         MatchCollection matches = regex.Matches(command.CommandText);
         DateTime readerTimestamp = DateTime.Parse(matches[0].Groups["Timestamp"].Value.ToString());
@@ -1028,6 +1043,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         if (!HasFilterCondition(command.CommandText)) {
             // The reader is trying to read all items. Wait for the proposed items to be committed.
             while (true) {
+                _logger.LogInformation($"2C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                 ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposedItems = _wrapper.Proposed_Discount_Items;
                 // Get all proposed timestamps
                 List<DateTime> proposedTimestamps = new List<DateTime>();
@@ -1038,7 +1055,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         }
                     }
                 }
-                if(proposedTimestamps.Count == 0) {
+                _logger.LogInformation($"3C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
+                if (proposedTimestamps.Count == 0) {
                     // All items have been flushed to the Database
                     return;
                 }
@@ -1048,6 +1067,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
         while(true) {
+            _logger.LogInformation($"4C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
             // Get list 
             List<string> totalDataIdentifiers = new List<string>(_wrapper.Proposed_Discount_Items.Keys);
 
@@ -1063,6 +1084,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 //Console.WriteLine($"Split Data Identifier END");
                 totalData.Add(dataIdentifier.Split("_"));
             }
+            _logger.LogInformation($"5C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
             var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
 
@@ -1083,6 +1105,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     }
                 }
             }
+            _logger.LogInformation($"5C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
             if (possibleCases == 0) {
                 // No need to wait for any versions
