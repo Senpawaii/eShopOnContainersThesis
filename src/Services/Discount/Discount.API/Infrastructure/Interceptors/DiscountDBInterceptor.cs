@@ -1051,7 +1051,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 // split the data identifier by "_"
                 var splitDataIdentifier = dataIdentifier.Split("_");
                 // log the split data identifier
-                Console.WriteLine($"Split Data Identifier:<{splitDataIdentifier}>");
+                foreach(string str in splitDataIdentifier) {
+                    Console.WriteLine("Split Data Identifier:<{0}>", str);
+                }
+                Console.WriteLine($"Split Data Identifier END");
                 totalData.Add(dataIdentifier.Split("_"));
             }
 
