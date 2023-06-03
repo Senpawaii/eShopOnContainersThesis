@@ -41,6 +41,8 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     //await Task.Delay(30000);
 
                     _data_wrapper.Singleton_Wrapped_DiscountItems.TryGetValue(clientID, out ConcurrentBag<object[]> objects_to_remove);
+                    // Log the client ID
+                    _logger.LogInformation($"Committing items for functionality {clientID}.");
 
                     // log each individual object being removed
                     foreach (object[] item in objects_to_remove) {
