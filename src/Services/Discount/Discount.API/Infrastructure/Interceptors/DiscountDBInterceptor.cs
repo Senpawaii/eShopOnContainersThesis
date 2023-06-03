@@ -678,7 +678,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             // Unsupported Table (Migration for example)
             return result;
         }
-
+        _logger.LogInformation($"5B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
         var clientID = _request_metadata.ClientID;
 
         if (clientID == null) {
@@ -692,6 +692,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             newUpdatedData.Add(new object[] { 1 });
             return new WrapperDbDataReader(newUpdatedData, result, targetTable);
         }
+        _logger.LogInformation($"6B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // Check if the command is an INSERT command and has yet to be committed
         if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
@@ -699,6 +700,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
+        _logger.LogInformation($"7B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         var newData = new List<object[]>();
 
@@ -733,6 +735,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
             newData.Add(rowValues.ToArray());
         }
+        _logger.LogInformation($"8B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
@@ -756,6 +759,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         }
                     }
                 }
+                _logger.LogInformation($"9B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
                 newData = GroupVersionedObjects(newData, targetTable);
@@ -785,6 +789,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     newData = FetchNext(command, newData, fetchRowsParam);
                 }
             }
+            _logger.LogInformation($"10B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
             if (HasCountClause(_originalCommandText)) {
                 List<object[]> countedData = new List<object[]>();
@@ -801,6 +806,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
 
         }
+        _logger.LogInformation($"11B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // _logger.LogInformation($"Checkpoint 2_d_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
