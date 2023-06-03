@@ -31,6 +31,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 // Initially set the read-only flag to true. Update it as write operations are performed.
                 _request_metadata.ReadOnly = true;
+                _logger.LogInformation($"0D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {
@@ -72,7 +73,10 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     var currentTS = _request_metadata.Timestamp.Ticks;
                     _data_wrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _data_wrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                    await _next.Invoke(ctx);
+                    return;
                 }
+                _logger.LogInformation($"0.1D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     // _logger.LogInformation($"Registered timestamp: {timestamp}");
@@ -106,8 +110,12 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     return Task.CompletedTask;
                 });
 
+                _logger.LogInformation($"0.2D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
+
                 // Call the next middleware
                 await _next.Invoke(ctx);
+                _logger.LogInformation($"0.3D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 // Set stream pointer position to 0 before reading
                 memStream.Seek(0, SeekOrigin.Begin);
