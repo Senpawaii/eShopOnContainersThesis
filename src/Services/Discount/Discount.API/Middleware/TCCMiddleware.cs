@@ -42,7 +42,11 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                     _data_wrapper.Singleton_Wrapped_DiscountItems.TryGetValue(clientID, out ConcurrentBag<object[]> objects_to_remove);
 
-                    //_logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {clientID}.");
+                    // log each individual object being removed
+                    foreach (object[] item in objects_to_remove) {
+                        _logger.LogInformation($"Removing item: {item[0]}");
+                    }
+                    _logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {clientID}.");
 
                     // Flush the Wrapper Data into the Database
                     FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata);

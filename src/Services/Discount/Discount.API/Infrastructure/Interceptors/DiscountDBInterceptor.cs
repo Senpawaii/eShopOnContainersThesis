@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http.Extensions;
+﻿using Azure.Messaging.EventHubs;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -1047,6 +1048,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             // for each data identifier, separate by "_", into an object[]
             List<object[]> totalData = new List<object[]>();
             foreach (string dataIdentifier in totalDataIdentifiers) {
+                // split the data identifier by "_"
+                var splitDataIdentifier = dataIdentifier.Split("_");
+                // log the split data identifier
+                Console.WriteLine($"Split Data Identifier:<{splitDataIdentifier}>");
                 totalData.Add(dataIdentifier.Split("_"));
             }
 
