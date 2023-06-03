@@ -1214,7 +1214,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         if (!HasFilterCondition(command.CommandText)) {
             // The reader is trying to read all items. Wait for the proposed items to be committed.
             while (true) {
-                ConcurrentDictionary<object[], ConcurrentDictionary < DateTime, int >> proposedItems = null;
+                ConcurrentDictionary<string, ConcurrentDictionary < DateTime, int >> proposedItems = null;
                 switch(targetTable) {
                     case "Catalog":
                         proposedItems = _wrapper.Proposed_catalog_items;
@@ -1229,7 +1229,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 
                 // Get all proposed timestamps
                 List<DateTime> proposedTimestamps = new List<DateTime>();
-                foreach (KeyValuePair<object[], ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
+                foreach (KeyValuePair<string, ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
                     foreach (DateTime proposalTS in pair.Value.Keys) {
                         if (proposalTS <= readerTimestamp) {
                             proposedTimestamps.Add(proposalTS);
@@ -1246,35 +1246,47 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
         while (true) {
+
+            List<string> totalDataIdentifiers = null;
+
             // Get list
-            List<object[]> totalData = null;
             switch (targetTable) {
                 case "Catalog":
-                    totalData = new List<object[]>(_wrapper.Proposed_catalog_items.Keys);
+                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_items.Keys);
                     break;
                 case "CatalogBrand":
-                    totalData = new List<object[]>(_wrapper.Proposed_catalog_brands.Keys);
+                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_brands.Keys);
                     break;
                 case "CatalogType":
-                    totalData = new List<object[]>(_wrapper.Proposed_catalog_types.Keys);
+                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_types.Keys);
                     break;
             }
+
+            List<object[]> totalData = new List<object[]>();
+            foreach (string dataIdentifier in totalDataIdentifiers) {
+                var splitDataIdentfier = dataIdentifier.Split('_');
+                totalData.Add(dataIdentifier.Split('_'));
+            }
+
             var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
 
             int possibleCases = 0;
             foreach (object[] identifier in rowsToQuery) {
+                // Concatenate the identifier into a single string identifier
+                string strIdentifier = identifier[0].ToString() + "_" + identifier[1].ToString() + "_" + identifier[2].ToString();
+
                 ConcurrentDictionary<DateTime, int> timestamps = null;
                 // Get the timestamps associated with the identifier
 
                 switch (targetTable) {
                     case "Catalog":
-                        timestamps = _wrapper.Proposed_catalog_items[identifier];
+                        timestamps = _wrapper.Proposed_catalog_items[strIdentifier];
                         break;
                     case "CatalogBrand":
-                        timestamps = _wrapper.Proposed_catalog_brands[identifier];
+                        timestamps = _wrapper.Proposed_catalog_brands[strIdentifier];
                         break;
                     case "CatalogType":
-                        timestamps = _wrapper.Proposed_catalog_types[identifier];
+                        timestamps = _wrapper.Proposed_catalog_types[strIdentifier];
                         break;
                 }
 

@@ -7,9 +7,9 @@ namespace Catalog.API.DependencyServices {
         ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogTypes { get; }
         ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogBrands { get; }
 
-        ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_catalog_items { get; }
-        ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_catalog_types { get; } 
-        ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_catalog_brands { get; }
+        ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_items { get; }
+        ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_types { get; } 
+        ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_brands { get; }
         ConcurrentDictionary<string, long> Proposed_functionalities { get; }
         ConcurrentDictionary<string, bool> SingletonTransactionState { get; }
 
