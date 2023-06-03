@@ -104,7 +104,7 @@ public class SingletonWrapper : ISingletonWrapper {
         // For each object, remove it from the proposed set using its identifiers, removing the proposed timestamp associated
         foreach (object[] object_to_remove in wrapped_objects) {
             // Log all the fields of the object to remove
-            Console.WriteLine("Object to remove: " + object_to_remove[0].ToString() + "_" + object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[3].ToString() + "_" + object_to_remove[4].ToString() "_" + object_to_remove[5].ToString());
+            Console.WriteLine("Object to remove: " + object_to_remove[0].ToString() + "_" + object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[3].ToString() + "_" + object_to_remove[4].ToString() + "_" + object_to_remove[5].ToString());
 
             // Log the object to remove
             Console.WriteLine("Removing object: " + object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[3].ToString());
