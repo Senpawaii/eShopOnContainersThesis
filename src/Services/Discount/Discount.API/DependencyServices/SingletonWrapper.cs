@@ -101,6 +101,7 @@ public class SingletonWrapper : ISingletonWrapper {
     }
 
     public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects) {
+        _logger.LogInformation($"ClientID: <{clientID}>: Removing wrapped objects from proposed set");
         // For each object, remove it from the proposed set using its identifiers, removing the proposed timestamp associated
         foreach (object[] object_to_remove in wrapped_objects) {
             // Log the object to remove
