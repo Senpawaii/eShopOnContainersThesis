@@ -126,12 +126,19 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 // (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
+                _logger.LogInformation($"3D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
+                    _logger.LogInformation($"4D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                     // Propose Timestamp with Tokens to the Coordinator
                     await _coordinatorSvc.SendTokens();
                 }
+                _logger.LogInformation($"5D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
                 _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
+                _logger.LogInformation($"6D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
             }
             else {
                 // This is not an HTTP request that requires change
