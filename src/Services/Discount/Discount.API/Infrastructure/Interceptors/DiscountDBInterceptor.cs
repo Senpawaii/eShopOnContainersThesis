@@ -1055,7 +1055,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             int possibleCases = 0;
             foreach (object[] identifier in rowsToQuery) {
                 // Concatenate the identifier into a single string identifier
-                string strIdentifier = identifier[1].ToString() + "_" + identifier[2].ToString() + "_" + identifier[3].ToString();
+                string strIdentifier = identifier[0].ToString() + "_" + identifier[1].ToString() + "_" + identifier[2].ToString();
+                // Log the identifier
+                Console.WriteLine($"Identifier:<{strIdentifier}>");
 
                 // Get the timestamps associated with the identifier
                 ConcurrentDictionary<DateTime, int> timestamps = _wrapper.Proposed_Discount_Items[strIdentifier];
