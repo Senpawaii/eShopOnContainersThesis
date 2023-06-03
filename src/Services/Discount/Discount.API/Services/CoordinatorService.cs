@@ -22,6 +22,13 @@ public class CoordinatorService : ICoordinatorService {
 
     public async Task SendTokens() {
         int tokensToSend = _remainingTokens.GetRemainingTokens(_metadata.ClientID);
+        // Log the read/write operation
+        if(_metadata.ReadOnly) {
+            _logger.LogInformation($"Func:<{_metadata.ClientID}> - Service:<DiscountService> - Tokens:<{tokensToSend}> - Read Only");
+        }
+        else {
+            _logger.LogInformation($"Func:<{_metadata.ClientID}> - Service:<DiscountService> - Tokens:<{tokensToSend}> - Write");
+        }
         string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={tokensToSend}&clientID={_metadata.ClientID}&serviceName=DiscountService&readOnly={_metadata.ReadOnly}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
