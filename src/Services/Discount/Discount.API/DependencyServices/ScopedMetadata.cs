@@ -5,7 +5,7 @@ public class ScopedMetadata : IScopedMetadata {
     // The default timestamp should not be used by any functionality. This is used mainly for ContextSeed population.
     DateTime timestamp = DateTime.UtcNow;
     string clientID;
-    public static bool readOnly = true;
+    public bool readOnly = true;
 
     public ScopedMetadata() { }
 
