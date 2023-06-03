@@ -61,7 +61,7 @@ public class CoordinatorController : ControllerBase {
             if (_functionalityService.HasCollectedAllTokens(clientID)) {
                 
                 // If no services are registered (read-only functionality), do not ask for proposals / commit
-                if (_functionalityService.ServicesTokensProposed[clientID].Count == 0) {
+                if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
                     _logger.LogInformation($"Func:<{clientID}> - Read-only Functionality");
                     // Clear all the data structures from the functionality
                     _functionalityService.ClearFunctionality(clientID);
@@ -88,7 +88,7 @@ public class CoordinatorController : ControllerBase {
                                     .Select(t => t.Item1)
                                     .Distinct()
                                     .ToList();
-        // _logger.LogInformation($"Commit Func:<{clientID}> - Addresses:<{string.Join(",", addresses)}>");
+        _logger.LogInformation($"Commit Func:<{clientID}> - Addresses:<{string.Join(",", addresses)}>");
         foreach (string address in addresses) {
             switch(address) {
                 case "CatalogService":

@@ -5,7 +5,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 public interface ISingletonWrapper {
     ConcurrentDictionary<string, ConcurrentBag<object[]>> Singleton_Wrapped_DiscountItems { get; }
     
-    ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_Discount_Items { get; }
+    ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_Discount_Items { get; }
     ConcurrentDictionary<string, long> Proposed_Client_Sessions { get; }
 
     ConcurrentDictionary<string, bool> Singleton_Transaction_State { get; }

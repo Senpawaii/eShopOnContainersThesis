@@ -6,7 +6,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 public class SingletonWrapper : ISingletonWrapper {
     ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_Discount_Items  = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
 
-    ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> proposed_Discount_Items = new ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>>();
+    ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_Discount_Items = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
 
     // Store the proposed Timestamp for each functionality in Proposed State
     ConcurrentDictionary<string, long> proposed_Client_Sessions = new ConcurrentDictionary<string, long>();
@@ -25,7 +25,7 @@ public class SingletonWrapper : ISingletonWrapper {
         get { return transaction_State; }
     }
 
-    public ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> Proposed_Discount_Items {
+    public ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_Discount_Items {
         get { return proposed_Discount_Items; }
     }
 
@@ -84,10 +84,17 @@ public class SingletonWrapper : ISingletonWrapper {
         // For each object, add it to the proposed set using its identifiers, adding the proposed timestamp associated
         foreach (object[] object_to_propose in objects_to_propose) {
             object[] identifiers = new object[] { object_to_propose[1], object_to_propose[2], object_to_propose[3] };
+            // Concat the identifiers in a single string
+            string identifiersStr = object_to_propose[1].ToString() + "_" + object_to_propose[2].ToString() + "_" + object_to_propose[3].ToString();
 
-            proposed_Discount_Items[identifiers] = new ConcurrentDictionary<DateTime, int>();
-            proposed_Discount_Items[identifiers].AddOrUpdate(new DateTime(proposedTS), 1, (key, value) => {
-                value = 1;
+            // If the identifiers have yet to be inserted in the proposed_discount_items set, add them as a new key
+            // If the identifiers have already been inserted in the proposed_discount_items set, add the proposed timestamp to the list of timestamps associated with the identifiers
+            proposed_Discount_Items.AddOrUpdate(identifiersStr, _ => {
+                var innerDict = new ConcurrentDictionary<DateTime, int>();
+                innerDict.TryAdd(new DateTime(proposedTS), 1);
+                return innerDict;
+            }, (_, value) => {
+                value.TryAdd(new DateTime(proposedTS), 1);
                 return value;
             });
         }
@@ -96,13 +103,10 @@ public class SingletonWrapper : ISingletonWrapper {
     public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects) {
         // For each object, remove it from the proposed set using its identifiers, removing the proposed timestamp associated
         foreach (object[] object_to_remove in wrapped_objects) {
-            object[] identifiers = new object[] { object_to_remove[1], object_to_remove[2], object_to_remove[3] };
+            // The identifiers of the object to remove consist of the item name, the item brand and the item type
+            string objectToRemoveIdentifier = object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[3].ToString();
             var original_proposedTS = new DateTime(proposed_Client_Sessions[clientID]);
-            foreach (object[] item in proposed_Discount_Items.Keys) {
-                if (item[0].ToString() == identifiers[0].ToString() && item[1].ToString() == identifiers[1].ToString() && item[2].ToString() == identifiers[2].ToString()) {
-                    proposed_Discount_Items[item].TryRemove(original_proposedTS, out _);
-                }
-            }
+            proposed_Discount_Items[objectToRemoveIdentifier].TryRemove(original_proposedTS, out _);
         }
     }
 }

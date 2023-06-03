@@ -133,9 +133,12 @@ namespace Catalog.API.DependencyServices {
                 // Name: catalog_item_to_propose[1], BrandId: catalog_item_to_propose[2], TypeId: catalog_item_to_propose[4]
                 object[] identifiers = new object[] { catalog_item_to_propose[1], catalog_item_to_propose[2], catalog_item_to_propose[4] };
 
-                proposed_catalog_items[identifiers] = new ConcurrentDictionary<DateTime, int>();
-                proposed_catalog_items[identifiers].AddOrUpdate(new DateTime(proposedTS), 1, (key, value) => {
-                    value = 1;
+                proposed_catalog_items.AddOrUpdate(identifiers, _ => {
+                    var innerDict = new ConcurrentDictionary<DateTime, int>();
+                    innerDict.TryAdd(new DateTime(proposedTS), 1);
+                    return innerDict;
+                }, (_, value) => {
+                    value.TryAdd(new DateTime(proposedTS), 1);
                     return value;
                 });
             }
@@ -143,9 +146,12 @@ namespace Catalog.API.DependencyServices {
             foreach (object[] catalog_brand_to_propose in catalog_brands_to_propose) {
                 // Brand: catalog_brand_to_propose[1]
                 object[] identifiers = new object[] { catalog_brand_to_propose[1] };
-                proposed_catalog_brands[identifiers] = new ConcurrentDictionary<DateTime, int>();
-                proposed_catalog_brands[identifiers].AddOrUpdate(new DateTime(proposedTS), 1, (key, value) => {
-                    value = 1;
+                proposed_catalog_brands.AddOrUpdate(identifiers, _ => {
+                    var innerDict = new ConcurrentDictionary<DateTime, int>();
+                    innerDict.TryAdd(new DateTime(proposedTS), 1);
+                    return innerDict;
+                }, (_, value) => {
+                    value.TryAdd(new DateTime(proposedTS), 1);
                     return value;
                 });
             }
@@ -153,9 +159,12 @@ namespace Catalog.API.DependencyServices {
             foreach (object[] catalog_type_to_propose in catalog_types_to_propose) {
                 // Type: catalog_type_to_propose[1]
                 object[] identifiers = new object[] { catalog_type_to_propose[1] };
-                proposed_catalog_types[identifiers] = new ConcurrentDictionary<DateTime, int>();
-                proposed_catalog_types[identifiers].AddOrUpdate(new DateTime(proposedTS), 1, (key, value) => {
-                    value = 1;
+                proposed_catalog_types.AddOrUpdate(identifiers, _ => {
+                    var innerDict = new ConcurrentDictionary<DateTime, int>();
+                    innerDict.TryAdd(new DateTime(proposedTS), 1);
+                    return innerDict;
+                }, (_, value) => {
+                    value.TryAdd(new DateTime(proposedTS), 1);
                     return value;
                 });
             }

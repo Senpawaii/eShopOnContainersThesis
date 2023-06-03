@@ -1240,7 +1240,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     // All items have been flushed to the Database
                     return;
                 }
-                Thread.Sleep(100);
+                Thread.Sleep(10);
             }
         }
 

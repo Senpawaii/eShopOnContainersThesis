@@ -1021,10 +1021,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         if (!HasFilterCondition(command.CommandText)) {
             // The reader is trying to read all items. Wait for the proposed items to be committed.
             while (true) {
-                ConcurrentDictionary<object[], ConcurrentDictionary<DateTime, int>> proposedItems = _wrapper.Proposed_Discount_Items;
+                ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposedItems = _wrapper.Proposed_Discount_Items;
                 // Get all proposed timestamps
                 List<DateTime> proposedTimestamps = new List<DateTime>();
-                foreach (KeyValuePair<object[], ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
+                foreach (KeyValuePair<string, ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
                     foreach (DateTime proposalTS in pair.Value.Keys) {
                         if (proposalTS <= readerTimestamp) {
                             proposedTimestamps.Add(proposalTS);
@@ -1035,21 +1035,30 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     // All items have been flushed to the Database
                     return;
                 }
-                Thread.Sleep(100);
+                Thread.Sleep(10);
             }
         }
 
         // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
         while(true) {
             // Get list 
-            List<object[]> totalData = new List<object[]>(_wrapper.Proposed_Discount_Items.Keys);
+            List<string> totalDataIdentifiers = new List<string>(_wrapper.Proposed_Discount_Items.Keys);
+
+            // for each data identifier, separate by "_", into an object[]
+            List<object[]> totalData = new List<object[]>();
+            foreach (string dataIdentifier in totalDataIdentifiers) {
+                totalData.Add(dataIdentifier.Split("_"));
+            }
 
             var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
 
             int possibleCases = 0;
             foreach (object[] identifier in rowsToQuery) {
+                // Concatenate the identifier into a single string identifier
+                string strIdentifier = identifier[1].ToString() + "_" + identifier[2].ToString() + "_" + identifier[3].ToString();
+
                 // Get the timestamps associated with the identifier
-                ConcurrentDictionary<DateTime, int> timestamps = _wrapper.Proposed_Discount_Items[identifier];
+                ConcurrentDictionary<DateTime, int> timestamps = _wrapper.Proposed_Discount_Items[strIdentifier];
 
                 // Check if there is at least one timestamp that is less than the reader timestamp, and so that will require the reader to wait
                 foreach(DateTime proposalTS in timestamps.Keys) {

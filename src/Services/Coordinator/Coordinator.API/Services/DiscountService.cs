@@ -21,7 +21,7 @@ public class DiscountService : IDiscountService {
         string uri = $"{_settings.Value.DiscountUrl}commit?timestamp={maxTS}&clientID={clientID}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
-        response.EnsureSuccessStatusCode();
+        //response.EnsureSuccessStatusCode();
 
         var responseString = await response.Content.ReadAsStringAsync();
     }
@@ -29,7 +29,7 @@ public class DiscountService : IDiscountService {
     public async Task<long> GetProposal(string clientID) {
         string uri = $"{_settings.Value.DiscountUrl}proposeTS?clientID={clientID}";
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
-        response.EnsureSuccessStatusCode();
+        //response.EnsureSuccessStatusCode();
         var responseString = await response.Content.ReadAsStringAsync();
 
         // Return the max TS
