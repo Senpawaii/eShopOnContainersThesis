@@ -104,7 +104,7 @@ public class SingletonWrapper : ISingletonWrapper {
         // For each object, remove it from the proposed set using its identifiers, removing the proposed timestamp associated
         foreach (object[] object_to_remove in wrapped_objects) {
             // Log the object to remove
-            Console.WriteLine("Removing object: " + object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[3].ToString());
+            Console.WriteLine($"ClientID: <{clientID}>: Removing object: " + object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[3].ToString());
             // The identifiers of the object to remove consist of the item name, the item brand and the item type
             string objectToRemoveIdentifier = object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[3].ToString();
             var original_proposedTS = new DateTime(proposed_Client_Sessions[clientID]);
