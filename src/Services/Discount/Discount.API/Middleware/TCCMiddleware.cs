@@ -49,9 +49,11 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                         _logger.LogInformation($"Removing item: {item[0]}");
                     }
                     _logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {clientID}.");
+                    _logger.LogInformation($"1D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                     // Flush the Wrapper Data into the Database
                     FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata);
+                    _logger.LogInformation($"2D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                     DateTime proposedTS = new DateTime(ticks);
 
