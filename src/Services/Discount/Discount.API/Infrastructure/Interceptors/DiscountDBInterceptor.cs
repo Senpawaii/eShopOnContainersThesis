@@ -65,6 +65,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
+                _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecuting, INSERT");
+
                 _request_metadata.ReadOnly = false;
 
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
@@ -84,6 +86,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
             case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
+                _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecuting, UPDATE");
+
                 _request_metadata.ReadOnly = false;
 
                 // Convert the Update Command into an INSERT command
@@ -151,6 +155,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
+                _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecutingAsync, INSERT");
                 _request_metadata.ReadOnly = false;
 
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
@@ -166,6 +171,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
             case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
+                _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecutingAsync, UPDATE");
                 _request_metadata.ReadOnly = false;
 
                 // Convert the Update Command into an INSERT command
