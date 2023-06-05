@@ -21,7 +21,15 @@ public class DiscountService : IDiscountService {
 
     public async Task<IEnumerable<DiscountItem>> GetDiscountItemsAsync(List<string> itemNames, List<string> itemBrands, List<string> itemTypes) {
         try {
+            // Make sure the items Names that include "&" are encoded correctly as "%26"
+            for (int i = 0; i < itemNames.Count; i++) {
+                itemNames[i] = itemNames[i].Replace("&", "%26");
+            }
+
             var uri = $"{_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}";
+
+            // Log the request URI
+            _logger.LogInformation($"Sending request to {_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}");
 
             // Set the request timeout
             _httpClient.Timeout = TimeSpan.FromSeconds(10);

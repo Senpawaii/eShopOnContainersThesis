@@ -101,6 +101,9 @@ public class FrontendController : ControllerBase {
             return BadRequest();
         }
 
+        // Log the request
+        _logger.LogInformation($"Received request to read discount items with item names: {string.Join(",", itemNames)}, item brands: {string.Join(",", itemBrands)}, and item types: {string.Join(",", itemTypes)}");
+
         // Get the list of discount items from the database that match the triple of item name, brand, and type
         var discounts = await _discountService.GetDiscountItemsAsync(itemNames, itemBrands, itemTypes);
         return Ok(discounts);
