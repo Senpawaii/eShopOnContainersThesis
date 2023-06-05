@@ -31,7 +31,9 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 // Initially set the read-only flag to true. Update it as write operations are performed.
                 _request_metadata.ReadOnly = true;
-                _logger.LogInformation($"0D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                
+                // Log the current Time and the client ID
+                _logger.LogInformation($"0D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {
@@ -49,12 +51,14 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     foreach (object[] item in objects_to_remove) {
                         _logger.LogInformation($"Removing item: {item[0]}");
                     }
-                    _logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {clientID}.");
-                    _logger.LogInformation($"1D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                    //_logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {clientID}.");
+                    // Log the current Time and the client ID
+                    _logger.LogInformation($"1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                     // Flush the Wrapper Data into the Database
                     FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata);
-                    _logger.LogInformation($"2D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                    // Log the current Time and the client ID
+                    _logger.LogInformation($"2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                     DateTime proposedTS = new DateTime(ticks);
 
@@ -76,7 +80,8 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     await _next.Invoke(ctx);
                     return;
                 }
-                _logger.LogInformation($"0.1D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // Log the current Time and the client ID
+                _logger.LogInformation($"0.1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     // _logger.LogInformation($"Registered timestamp: {timestamp}");
@@ -110,12 +115,14 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     return Task.CompletedTask;
                 });
 
-                _logger.LogInformation($"0.2D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // Log the current Time and the client ID
+                _logger.LogInformation($"0.2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
 
                 // Call the next middleware
                 await _next.Invoke(ctx);
-                _logger.LogInformation($"0.3D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // Log the current Time and the client ID
+                _logger.LogInformation($"0.3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 // Set stream pointer position to 0 before reading
                 memStream.Seek(0, SeekOrigin.Begin);
@@ -134,18 +141,22 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 // (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
-                _logger.LogInformation($"3D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // Log the current Time and the client ID
+                _logger.LogInformation($"3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
-                    _logger.LogInformation($"4D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                    // Log the current Time and the client ID
+                    _logger.LogInformation($"4D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                     // Propose Timestamp with Tokens to the Coordinator
                     await _coordinatorSvc.SendTokens();
                 }
-                _logger.LogInformation($"5D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // Log the current Time and the client ID
+                _logger.LogInformation($"5D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
-                _logger.LogInformation($"6D: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // Log the current Time and the client ID
+                _logger.LogInformation($"6D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
             }
             else {
