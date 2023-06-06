@@ -24,6 +24,7 @@ public class Startup {
         // Add CatalogClient and DiscountClient dependencies
         services.AddHttpClient<ICatalogService, CatalogService>();
         services.AddHttpClient<IDiscountService, DiscountService>();
+        services.AddHttpClient<IThesisFrontendService, ThesisFrontendService>();
 
         var container = new ContainerBuilder();
         container.Populate(services);

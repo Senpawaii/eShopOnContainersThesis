@@ -18,11 +18,11 @@ public class ThesisFrontendService : IThesisFrontendService {
     }
 
     public async Task IssueCommit(string clientID) {
-        string uri = $"{_settings.Value.DiscountUrl}commit?clientID={clientID}state=OK";
-
+        string uri = $"{_remoteServiceBaseUrl}commit?clientID={clientID}&state=OK";
+        // _logger.LogInformation($"URI being called:{uri}");
+    
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         //response.EnsureSuccessStatusCode();
-
         var responseString = await response.Content.ReadAsStringAsync();
     }
 }

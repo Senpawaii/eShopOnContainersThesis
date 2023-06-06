@@ -57,9 +57,17 @@ public class TCCMiddleware {
             return;
         }
 
-        // Block the result until the state of the transaction is set to either commit or abort
+        // Block the result until the state of the transaction is set to either commit or abort, timeout after 5 seconds
+        var currentTime = DateTime.Now;
         while (_remainingTokens.GetTransactionState(_request_metadata.ClientID.Value) == null) {
+            // _logger.LogInformation($"Waiting for the transaction state to be set for {_request_metadata.ClientID.Value}");
             await Task.Delay(10);
+            if (DateTime.Now.Subtract(currentTime).TotalSeconds > 5) {
+                _logger.LogError($"Timeout while waiting for the transaction state to be set for {_request_metadata.ClientID.Value}");
+                // Set the transaction state to abort
+                _remainingTokens.ChangeTransactionState(_request_metadata.ClientID.Value, "abort");
+                break;
+            }
         }
 
         // Check if the transaction was aborted
@@ -78,6 +86,7 @@ public class TCCMiddleware {
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
+            _logger.LogInformation($"Committing transaction for {_request_metadata.ClientID.Value}");
         }
         else {
             _logger.LogError("ClientID not found in the request");

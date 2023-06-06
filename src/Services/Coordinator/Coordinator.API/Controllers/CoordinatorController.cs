@@ -90,7 +90,7 @@ public class CoordinatorController : ControllerBase {
                                     .Select(t => t.Item1)
                                     .Distinct()
                                     .ToList();
-        _logger.LogInformation($"Commit Func:<{clientID}> - Addresses:<{string.Join(",", addresses)}>");
+        // _logger.LogInformation($"Commit Func:<{clientID}> - Addresses:<{string.Join(",", addresses)}>");
         foreach (string address in addresses) {
             switch(address) {
                 case "CatalogService":
@@ -100,6 +100,7 @@ public class CoordinatorController : ControllerBase {
                     await _discountService.IssueCommit(maxTS.ToString(), clientID);
                     break;
                 case "ThesisFrontendService":
+                    // _logger.LogInformation($"Commit Func:<{clientID}> - Address:<{address}>");
                     await _thesisFrontendService.IssueCommit(clientID);
                     break;
             }

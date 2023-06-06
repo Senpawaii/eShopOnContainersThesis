@@ -81,7 +81,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     return;
                 }
                 // Log the current Time and the client ID
-                _logger.LogInformation($"0.1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                // _logger.LogInformation($"0.1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     // _logger.LogInformation($"Registered timestamp: {timestamp}");
@@ -116,13 +116,13 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 });
 
                 // Log the current Time and the client ID
-                _logger.LogInformation($"0.2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                // _logger.LogInformation($"0.2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
 
                 // Call the next middleware
                 await _next.Invoke(ctx);
                 // Log the current Time and the client ID
-                _logger.LogInformation($"0.3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                // _logger.LogInformation($"0.3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 // Set stream pointer position to 0 before reading
                 memStream.Seek(0, SeekOrigin.Begin);
@@ -142,21 +142,21 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
                 // Log the current Time and the client ID
-                _logger.LogInformation($"3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                // _logger.LogInformation($"3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
                     // Log the current Time and the client ID
-                    _logger.LogInformation($"4D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                    // _logger.LogInformation($"4D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                     // Propose Timestamp with Tokens to the Coordinator
                     await _coordinatorSvc.SendTokens();
                 }
                 // Log the current Time and the client ID
-                _logger.LogInformation($"5D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                // _logger.LogInformation($"5D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
                 // Log the current Time and the client ID
-                _logger.LogInformation($"6D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                // _logger.LogInformation($"6D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
             }
             else {
