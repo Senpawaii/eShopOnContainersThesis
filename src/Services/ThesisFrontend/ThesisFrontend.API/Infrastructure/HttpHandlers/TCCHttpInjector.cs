@@ -32,7 +32,9 @@ public class TCCHttpInjector : DelegatingHandler {
         query["tokens"] = partialTokensToSend.ToString();
         uriBuilder.Query = query.ToString();
         request.RequestUri = uriBuilder.Uri;
-    
+
+        _logger.LogInformation($"TF HTTP Injector at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+
         return await base.SendAsync(request, cancellationToken);
     }
 }

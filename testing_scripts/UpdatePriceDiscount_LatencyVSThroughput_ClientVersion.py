@@ -18,12 +18,12 @@ import sys
     The script will also log the response from the Basket.API service.
 """
 numThreads = 32 # Number of threads to be used in the test
-secondsToRun = 60 # Number of seconds to run the test
+secondsToRun = 30 # Number of seconds to run the test
 read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
-throughput_step = 0 # Number of requests per second to increase throughput by
-throughput = 340 # requests per second
+throughput_step = 10 # Number of requests per second to increase throughput by
+throughput = 20 # requests per second
 max_throughput = 340
-contention_rows = 6 # Number of rows to be used in the test
+contention_rows = 24 # Number of rows to be used in the test
 # wrappers = True # True if the test is being run with wrappers, False if the test is being run without wrappers
 
 thesisFrontendPort = "5142"
@@ -57,7 +57,12 @@ def configureRootLogger(contention: str, wrappers: str) -> str:
 
 def ConfigureLoggingSettings(testNum: int, throughput: int, test_logging_path: str) -> str:
     # Configure logging settings
-    log_file_name = f"Test<{testNum}> Throughput-{throughput}.log"
+    # The test number should be formated as a 3 digit number
+    if testNum < 10:
+        testNum = "00" + str(testNum)
+    elif testNum < 100:
+        testNum = "0" + str(testNum)
+    log_file_name = f"Test<{testNum}>.log"
     logger_name = f"Test<{testNum}> Throughput-{throughput}"
     log_file_path = os.path.join(test_logging_path, log_file_name)
 
@@ -226,17 +231,17 @@ def writeOperations(catalogItem: dict, discountItem: dict, timeTakenList: dict, 
     thread_identity = threading.get_ident()
 
     # Check if the thread has already a pair price and discount already assigned in the dicionary of key/value: thread_id/(price, discount)
-    if thread_identity not in thread_price_discount:
-            # Pick a random price and discount from the predefined list and remove it from the list of predefined prices and discounts
-            price, discount = prices.pop(), discounts.pop()
-            # Add the price and discount to the dictionary of key/value: thread_id/(price, discount)
-            thread_price_discount[thread_identity] = (price, discount)
-    else:
-        # Update the price and discount in the dictionary of key/value: thread_id/(price, discount)
-        price, discount = thread_price_discount[thread_identity]
-        thread_price_discount[thread_identity] = (price + 10, discount + 1)
-        # Get the price and discount already assigned to the thread
-        price, discount = thread_price_discount[thread_identity]
+    # if thread_identity not in thread_price_discount:
+    #         # Pick a random price and discount from the predefined list and remove it from the list of predefined prices and discounts
+    #         price, discount = prices.pop(), discounts.pop()
+    #         # Add the price and discount to the dictionary of key/value: thread_id/(price, discount)
+    #         thread_price_discount[thread_identity] = (price, discount)
+    # else:
+    #     # Update the price and discount in the dictionary of key/value: thread_id/(price, discount)
+    #     price, discount = thread_price_discount[thread_identity]
+    #     thread_price_discount[thread_identity] = (price + 10, discount + 1)
+    #     # Get the price and discount already assigned to the thread
+    #     price, discount = thread_price_discount[thread_identity]
 
     # logger.info('Executing write operations with thread: ' + str(thread_identity) + ' and price/discount: ' + str(price) + '/' + str(discount))
 
@@ -245,7 +250,11 @@ def writeOperations(catalogItem: dict, discountItem: dict, timeTakenList: dict, 
     
     # # Update discount on discount item
     # updateDiscount(discountItem, discount, timeTakenList, successCount, logger)
-    
+
+    # Get a random price between 1000 and 1000000, but divisible by 10
+    price = random.randint(100, 100000) * 10
+    discount = price // 10
+
     # Update the price and discount on the catalog item and discount item
     updatePriceAndDiscount(catalogItem, discountItem, price, discount, timeTakenList, successCount, logger)
 
@@ -303,12 +312,11 @@ def updatePriceAndDiscount(catalogItem: dict, discountItem: dict, price: int, di
         return
 
 
-def assign_operations(executor: ThreadPoolExecutor, futuresThreads: list, catalogItems: list[dict], discountItems: list[dict], read_write_list: list, timeTakenList: dict, successCount: dict, secondsToRun: int, logger: logging.Logger, throughput: int, basket_IDs_assigned: dict, contention: str):
-    request_interval = 1 / throughput
+def exec_functionality(testNum: int, catalogItems: list[dict], discountItems: list[dict], read_write_list: list, timeTakenList: dict, successCount: dict, secondsToRun: int, logger: logging.Logger, throughput: int, basket_IDs_assigned: dict, contention: str):
+    sleep_time = 0.30
+    
     global readOperationsCount
     global writeOperationsCount
-    total_active_time = 0
-    # nanossecs_to_run = secondsToRun * 1000000000
     start_test_time = time.time()
 
     while time.time() < start_test_time + secondsToRun:
@@ -319,24 +327,13 @@ def assign_operations(executor: ThreadPoolExecutor, futuresThreads: list, catalo
         if random_choice == 0:
             # Read operation
             readOperationsCount += 1
-            future = executor.submit(readBasket, timeTakenList, successCount, logger, f"basket{index}", contention)
-            
-            futuresThreads.append(future)
-            # Limit the throughput to throughtput request per second
-            time.sleep(request_interval)
+            readBasket(timeTakenList, successCount, logger, f"basket{index}", contention)
+            time.sleep(sleep_time)
         else:
             # Write operation
             writeOperationsCount += 1
-            future = executor.submit(writeOperations, copy.deepcopy(catalogItems[index]), copy.deepcopy(discountItems[index]), timeTakenList, successCount, logger)
-            futuresThreads.append(future)
-            # Limit the throughput to 2 * throughtput request per second: 1 for catalogpPriceUpdate and 1 for discountUpdate
-            time.sleep(request_interval)
-        # future = executor.submit(microDiscountTest)
-        # time.sleep(request_interval)
-
-    for future in futuresThreads:
-        future.cancel()
-    wait(futuresThreads, return_when=ALL_COMPLETED)
+            writeOperations(copy.deepcopy(catalogItems[index]), copy.deepcopy(discountItems[index]), timeTakenList, successCount, logger)
+            time.sleep(sleep_time)
 
 
 def check_discount_from_log_file(file_path):
@@ -403,29 +400,22 @@ def main():
 
     # Store the lines of anomalies for each read/write ratio
     anomalyLinePresenceList = []
-    
-    executor = ThreadPoolExecutor(max_workers=numThreads)  
-    
-    # while the throughput is less than 130
+
+    read_ratio = (10 - read_write_ratio) * 10
+    write_ratio = 100 - read_ratio 
+
+    # Create a list for chances of read/write operations
+    read_write_list = [1 for _ in range(read_write_ratio)] + [0 for _ in range(10 - read_write_ratio)]
+
     global throughput
     testNum = 0
-    while throughput <= max_throughput:
+    while testNum <= 100:
         testNum += 1
-        if(testNum == 5):
-            throughput = 20
-        if(testNum == 7):
-            break
+
         # Configure logging settings for each read/write ratio test
         logger, log_file = ConfigureLoggingSettings(testNum, throughput, test_logging_path)
         logger.log(logging.INFO, "Logging")
 
-        read_ratio = (10 - read_write_ratio) * 10
-        write_ratio = 100 - read_ratio 
-        
-                     
-        # Create a list for chances of read/write operations
-        read_write_list = [1 for _ in range(read_write_ratio)] + [0 for _ in range(10 - read_write_ratio)]
-        
         # Create a single dictionary with an entry for each thread. Each thread is assigned a list of time taken and success count
         timeTakenList = {}
         successCount = {}
@@ -438,20 +428,25 @@ def main():
         readOperationsCount = 0
         writeOperationsCount = 0
 
-        # Create a pool of futures
-        futuresThreads = []
+        clients = []
+        # Create 30 Clients
+        for _ in range(testNum):
+            client = threading.Thread(target=exec_functionality, args=(testNum, catalogItems, discountItems, read_write_list, timeTakenList, successCount, secondsToRun, logger, throughput, basket_IDs_assigned, contention))
+            clients.append(client)
 
-        # Create new Thread for assigning operations
-        assign_operations_thread = threading.Thread(target=assign_operations, args=(executor, futuresThreads, catalogItems, discountItems, read_write_list, timeTakenList, successCount, secondsToRun, logger, throughput, basket_IDs_assigned, contention))
-        # Start thread
-        assign_operations_thread.start()
-        # Wait for thread to finish
-        assign_operations_thread.join()
-        
+        # Start the threads
+        for client in clients:
+            client.start()
+
+        # Wait for all threads to finish
+        for client in clients:
+            client.join()
 
         # Open RESULTS log tag
         logger.info("-------------TEST RESULTS-------------")
-        logger.info("Throughput: " + str(throughput) + " req/sec.")
+        # logger.info("Throughput: " + str(throughput) + " req/sec.")
+        logger.info("Test with: " + str(testNum) + " concurrent Client. Sleeping for" + str(90) + "ms." )
+
         logger.info("Read: " + str(read_ratio) + "%, Write: " + str(write_ratio) + "%")
 
         # Calculate total time taken
@@ -501,26 +496,6 @@ def main():
         logger.info("=========================================")
 
         throughput += throughput_step
-
-    # Shutdown executor
-    executor.shutdown(wait=True)
-
-    # generatePlots()
-
-    # logging.info("Average time taken for each read/write ratio:")
-    # for i in range(len(read_write_ratio)):
-    #     logging.info(str(read_write_ratio[i]) + "/10: " + str(averageTimeTakenList[i]) + " ns")
-    #     logging.info("Success rate: " + str(successRatioList[i] * 100) + "%" + str(sum(successRatioList[j] for j in successRatioList[i])) + "/" + str(totalRequestsList[i]) + ")")
-    #     logging.info("Requests per second: " + str(requestsPerSecond[i]))
-    #     logging.info("Total time taken: " + str(totalTimeTakenList[i]) + " s")
-    #     logging.info("Total requests: " + str(totalRequestsList[i]))
-    #     logging.info("Success count: " + str(successCountList[i]))
-    #     logging.info("Results: " + str(resultsList[i]['OK']) + " OK, " + str(resultsList[i]['anomalies']) + " anomalies")
-    #     if resultsList[i]['anomalies'] > 0:
-    #         for line in anomalyLinePresenceList[i]:
-    #             logging.info(line, end='')
-        
-    #     logging.info("Anomalies ratio: " + str(resultsList[i]['anomalies'] / (resultsList[i]['OK'] + resultsList[i]['anomalies']) * 100) + "%")
 
 
 if __name__ == "__main__":

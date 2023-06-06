@@ -34,6 +34,16 @@ public class DiscountContext : DbContext {
         // Add here the DB Interceptor as needed
         if (_wrapperThesis) {
             optionsBuilder.AddInterceptors(new DiscountDBInterceptor(_scopedMetadata, _wrapper, _logger));
+            // optionsBuilder.UseLoggerFactory(loggerFactory)
+            //     .EnableDetailedErrors()
+            //     .EnableSensitiveDataLogging();
         }
     }
+
+    public static readonly ILoggerFactory loggerFactory = LoggerFactory.Create(builder => {
+        builder.AddFilter((category, level) =>
+            category == DbLoggerCategory.Database.Command.Name
+            && level == LogLevel.Information)
+            .AddConsole();
+    });
 }

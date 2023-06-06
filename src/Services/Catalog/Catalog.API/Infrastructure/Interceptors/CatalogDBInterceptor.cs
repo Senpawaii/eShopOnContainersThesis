@@ -1307,7 +1307,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
 
             // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
-            Thread.Sleep(100);
+            Thread.Sleep(10);
         }
     }
 

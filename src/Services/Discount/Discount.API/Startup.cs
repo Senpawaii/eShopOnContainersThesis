@@ -13,6 +13,10 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Middleware;
 using Microsoft.eShopOnContainers.Services.Discount.API.Services;
 using System.Data.Common;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Data.SqlClient;
+using System.Data;
 
 namespace Discount.API;
 public class Startup {
@@ -75,7 +79,11 @@ public class Startup {
 
         // TODO The middleware should only be called for the /api/v1/discount/items (and 2 more routes), instead of all Discount routes. How can we do this? 
         bool wrapperEnabled = Convert.ToBoolean(Configuration["ThesisWrapperEnabled"]);
+        Console.WriteLine($"Wrapper Enabled: {wrapperEnabled}");
+
         if (wrapperEnabled) {
+            // Log the the boolean
+            Console.WriteLine($"Wrapper Enabled if: {wrapperEnabled}");
             app.UseTCCMiddleware();
         }
 
@@ -196,7 +204,6 @@ public static class CustomExtensionMethods {
                                             //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
                                             sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
                                         });
-
             });
 
         // services.AddDbContext<IntegrationEventLogContext>(options => {
@@ -224,6 +231,22 @@ public static class CustomExtensionMethods {
 
         return services;
     }
+
+    // // Connection state change event handler
+    // static void Connection_StateChange(object sender, StateChangeEventArgs e)
+    // {
+    //     SqlConnection connection = (SqlConnection)sender;
+    //     Console.WriteLine($"Connection state changed: {e.OriginalState} => {e.CurrentState}");
+
+    //     if (e.CurrentState == ConnectionState.Open)
+    //     {
+    //         Console.WriteLine($"Connection opened: {connection.DataSource}, Database: {connection.Database}");
+    //     }
+    //     else if (e.CurrentState == ConnectionState.Closed)
+    //     {
+    //         Console.WriteLine($"Connection closed: {connection.DataSource}, Database: {connection.Database}");
+    //     }
+    // }
 
     public static IServiceCollection AddCustomOptions(this IServiceCollection services, IConfiguration configuration) {
         services.Configure<DiscountSettings>(configuration);
