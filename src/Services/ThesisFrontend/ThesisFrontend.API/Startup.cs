@@ -23,6 +23,7 @@ public class Startup {
             .AddCustomHealthCheck(Configuration);
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
+            Console.WriteLine("Wrapper Enabled");
             services.AddScoped<IScopedMetadata, ScopedMetadata>();
             services.AddScoped<TCCHttpInjector>();
             

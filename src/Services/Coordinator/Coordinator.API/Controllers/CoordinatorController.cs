@@ -51,18 +51,18 @@ public class CoordinatorController : ControllerBase {
 
             if(!readOnly) {
                 // Register the service that sent the tokens and executed at least 1 write operation
-                _logger.LogInformation($"Func:<{clientID}> - Service:<{service}> - Tokens:<{tokens}> - Write");
+                // _logger.LogInformation($"Func:<{clientID}> - Service:<{service}> - Tokens:<{tokens}> - Write");
                 _functionalityService.AddNewServiceSentTokens(clientID, service);
             }
             else {
-                _logger.LogInformation($"Func:<{clientID}> - Service:<{service}> - Tokens:<{tokens}> - Read Only");
+                // _logger.LogInformation($"Func:<{clientID}> - Service:<{service}> - Tokens:<{tokens}> - Read Only");
             }
 
             if (_functionalityService.HasCollectedAllTokens(clientID)) {
                 
                 // If no services are registered (read-only functionality), do not ask for proposals / commit
                 if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
-                    _logger.LogInformation($"Func:<{clientID}> - Read-only Functionality");
+                    // _logger.LogInformation($"Func:<{clientID}> - Read-only Functionality");
                     // Clear all the data structures from the functionality
                     _functionalityService.ClearFunctionality(clientID);
                     return;

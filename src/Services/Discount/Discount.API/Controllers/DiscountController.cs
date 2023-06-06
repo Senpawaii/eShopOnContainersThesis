@@ -34,7 +34,7 @@ public class DiscountController : ControllerBase {
         // Get the list of discount items from the database that match the triple of item name, brand, and type
         
         // Log the request
-        _logger.LogInformation($"Received request to read discount items with item names: {string.Join(",", itemNames)}, item brands: {string.Join(",", itemBrands)}, and item types: {string.Join(",", itemTypes)}");
+        // _logger.LogInformation($"Received request to read discount items with item names: {string.Join(",", itemNames)}, item brands: {string.Join(",", itemBrands)}, and item types: {string.Join(",", itemTypes)}");
         
         var discounts = await _discountContext.Discount.Where(i => itemNames.Contains(i.ItemName) && itemBrands.Contains(i.ItemBrand) && itemTypes.Contains(i.ItemType)).ToListAsync();
         return Ok(discounts);

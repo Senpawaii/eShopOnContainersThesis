@@ -46,7 +46,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         if (commandType == UNKNOWN_COMMAND) {
             return result;
         }
-        _logger.LogInformation($"1A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        // _logger.LogInformation($"1A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
 
@@ -60,18 +60,18 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return result;
             case SELECT_COMMAND:
-                _logger.LogInformation($"2A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"2A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 UpdateSelectCommand(command);
-                _logger.LogInformation($"3A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"3A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 WaitForProposedItemsIfNecessary(command, clientID);
-                _logger.LogInformation($"4A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"4A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
-                _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecuting, INSERT");
+                // _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecuting, INSERT");
 
                 _request_metadata.ReadOnly = false;
 
@@ -92,7 +92,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
             case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
-                _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecuting, UPDATE");
+                // _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecuting, UPDATE");
 
                 _request_metadata.ReadOnly = false;
 
@@ -143,7 +143,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
-        _logger.LogInformation($"1B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        // _logger.LogInformation($"1B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
@@ -157,18 +157,21 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
-                _logger.LogInformation($"2B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"2B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                try {
+                    UpdateSelectCommand(command);
+                    // _logger.LogInformation($"3B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
-                UpdateSelectCommand(command);
-                _logger.LogInformation($"3B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-
-                WaitForProposedItemsIfNecessary(command, clientID);
-                _logger.LogInformation($"4B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-
+                    WaitForProposedItemsIfNecessary(command, clientID);
+                    // _logger.LogInformation($"4B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                } catch (Exception ex) {
+                    _logger.LogError(ex, "Error on ReaderExecutingAsync");
+                }
+                
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
-                _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecutingAsync, INSERT");
+                // _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecutingAsync, INSERT");
                 _request_metadata.ReadOnly = false;
 
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
@@ -184,7 +187,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
             case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
-                _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecutingAsync, UPDATE");
+                // _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecutingAsync, UPDATE");
                 _request_metadata.ReadOnly = false;
 
                 // Convert the Update Command into an INSERT command
@@ -672,13 +675,14 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
         // _logger.LogInformation($"Checkpoint 2_c_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         // _logger.LogInformation("Command executed: " + command.CommandText);
+        // _logger.LogInformation($"5G at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
         string targetTable = GetTargetTable(command.CommandText);
         if (targetTable.IsNullOrEmpty()) {
             // Unsupported Table (Migration for example)
             return result;
         }
-        _logger.LogInformation($"5B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        // _logger.LogInformation($"5B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
         var clientID = _request_metadata.ClientID;
 
         if (clientID == null) {
@@ -692,7 +696,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             newUpdatedData.Add(new object[] { 1 });
             return new WrapperDbDataReader(newUpdatedData, result, targetTable);
         }
-        _logger.LogInformation($"6B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        // _logger.LogInformation($"6B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // Check if the command is an INSERT command and has yet to be committed
         if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
@@ -700,9 +704,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
-        _logger.LogInformation($"7B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        // _logger.LogInformation($"7B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         var newData = new List<object[]>();
+        // _logger.LogInformation($"5H at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
         while (await result.ReadAsync(cancellationToken)) {
             var rowValues = new List<object>();
@@ -735,7 +740,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
             newData.Add(rowValues.ToArray());
         }
-        _logger.LogInformation($"8B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        // _logger.LogInformation($"5I at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
+
+        // _logger.LogInformation($"8B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
@@ -759,7 +766,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         }
                     }
                 }
-                _logger.LogInformation($"9B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"9B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
                 // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
                 newData = GroupVersionedObjects(newData, targetTable);
@@ -789,7 +796,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     newData = FetchNext(command, newData, fetchRowsParam);
                 }
             }
-            _logger.LogInformation($"10B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+            // _logger.LogInformation($"10B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
             if (HasCountClause(_originalCommandText)) {
                 List<object[]> countedData = new List<object[]>();
@@ -806,7 +813,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
 
         }
-        _logger.LogInformation($"11B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        // _logger.LogInformation($"5J at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
+
+        // _logger.LogInformation($"11B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // _logger.LogInformation($"Checkpoint 2_d_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
@@ -1040,7 +1049,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
 
         // Get the timestamp of the command from string to DateTime
-        _logger.LogInformation($"1C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        // _logger.LogInformation($"1C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        _logger.LogInformation($"1C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
         Regex regex = new Regex(@"\[Timestamp\] <= '(?<Timestamp>[^']*)'");
         MatchCollection matches = regex.Matches(command.CommandText);
@@ -1049,7 +1059,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         if (!HasFilterCondition(command.CommandText)) {
             // The reader is trying to read all items. Wait for the proposed items to be committed.
             while (true) {
-                _logger.LogInformation($"2C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"2C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"2C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
                 ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposedItems = _wrapper.Proposed_Discount_Items;
                 // Get all proposed timestamps
@@ -1061,7 +1072,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         }
                     }
                 }
-                _logger.LogInformation($"3C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"3C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                // _logger.LogInformation($"3C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
                 if (proposedTimestamps.Count == 0) {
                     // All items have been flushed to the Database
@@ -1073,7 +1085,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
         while(true) {
-            _logger.LogInformation($"4C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+            // _logger.LogInformation($"4C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+            // _logger.LogInformation($"4C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
             // Get list 
             List<string> totalDataIdentifiers = new List<string>(_wrapper.Proposed_Discount_Items.Keys);
@@ -1090,16 +1103,18 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 //Console.WriteLine($"Split Data Identifier END");
                 totalData.Add(dataIdentifier.Split("_"));
             }
-            _logger.LogInformation($"5C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+            // _logger.LogInformation($"5C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+            // _logger.LogInformation($"5C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
             var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
+            // _logger.LogInformation($"5D at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
             int possibleCases = 0;
             foreach (object[] identifier in rowsToQuery) {
                 // Concatenate the identifier into a single string identifier
                 string strIdentifier = identifier[0].ToString() + "_" + identifier[1].ToString() + "_" + identifier[2].ToString();
                 // Log the identifier
-                Console.WriteLine($"Identifier:<{strIdentifier}>");
+                // Console.WriteLine($"Identifier:<{strIdentifier}>");
 
                 // Get the timestamps associated with the identifier
                 ConcurrentDictionary<DateTime, int> timestamps = _wrapper.Proposed_Discount_Items[strIdentifier];
@@ -1111,18 +1126,19 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     }
                 }
             }
-            _logger.LogInformation($"5C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
             if (possibleCases == 0) {
                 // No need to wait for any versions
+                // _logger.LogInformation($"5F at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
                 return;
             } 
             else {
-                Console.WriteLine($"Possible Cases:<{possibleCases}>. Reader has TS=<{readerTimestamp}>,  Will sleep...");
+                // Console.WriteLine($"Possible Cases:<{possibleCases}>. Reader has TS=<{readerTimestamp}>,  Will sleep...");
             }
 
             // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
-            Thread.Sleep(100);
+            // _logger.LogInformation($"5E at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
+            Thread.Sleep(10);
         }
     }
 

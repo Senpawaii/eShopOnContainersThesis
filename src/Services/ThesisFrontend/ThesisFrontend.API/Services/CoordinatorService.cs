@@ -20,12 +20,16 @@ public class CoordinatorService : ICoordinatorService {
     }
 
     public async Task SendTokens() {
+        _logger.LogInformation($"TF1.1 at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_metadata.ClientID.Value}.");
+
         int tokensToSend = _remainingTokens.GetRemainingTokens(_metadata.ClientID.Value);
         string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={tokensToSend}&clientID={_metadata.ClientID.Value}&serviceName=ThesisFrontendService&readOnly=true";
         
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
 
         var responseString = await response.Content.ReadAsStringAsync();
+        _logger.LogInformation($"TF1.2 at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_metadata.ClientID.Value}.");
+
     }
 
 }
