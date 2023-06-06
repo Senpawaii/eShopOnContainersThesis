@@ -8,4 +8,9 @@ public interface ITokensContextSingleton {
     public void AddRemainingTokens(string clientID, int tokens);
     public void DecrementRemainingTokens(string clientID, int amount);
     public void RemoveRemainingTokens(string clientID);
+
+    ConcurrentDictionary<string, string> TransactionsState { get; }
+    public string GetTransactionState(string clientID);
+    public void ChangeTransactionState(string clientID, string state);
+    public void RemoveTransactionState(string clientID);
 }

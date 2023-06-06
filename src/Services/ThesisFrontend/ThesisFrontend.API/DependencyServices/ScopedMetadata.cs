@@ -14,6 +14,8 @@ public class ScopedMetadata : IScopedMetadata {
     // The default timestamp should not be used by any functionality. This is used mainly for ContextSeed population.
     private static AsyncLocal<string> timestamp = new AsyncLocal<string>();
     private static AsyncLocal<string> clientID = new AsyncLocal<string>();
+
+    private static AsyncLocal<bool> readOnly = new AsyncLocal<bool>();
     public ScopedMetadata() { }
 
     public AsyncLocal<int> Tokens {
@@ -35,5 +37,9 @@ public class ScopedMetadata : IScopedMetadata {
     public AsyncLocal<string> ClientID {
         get { return clientID; }
         set { clientID = value; }
+    }
+    public AsyncLocal<bool> ReadOnly {
+        get { return readOnly; }
+        set { readOnly = value; }
     }
 }

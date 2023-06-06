@@ -20,13 +20,15 @@ public class CoordinatorController : ControllerBase {
     private readonly IFunctionalityService _functionalityService;
     private readonly ICatalogService _catalogService;
     private readonly IDiscountService _discountService;
+    private readonly IThesisFrontendService _thesisFrontendService;
 
-    public CoordinatorController(IOptions<CoordinatorSettings> settings, ILogger<CoordinatorController> logger, IFunctionalityService functionalityService, ICatalogService catalogSvc, IDiscountService discountSvc) {
+    public CoordinatorController(IOptions<CoordinatorSettings> settings, ILogger<CoordinatorController> logger, IFunctionalityService functionalityService, ICatalogService catalogSvc, IDiscountService discountSvc, IThesisFrontendService thesisfrontendSvc) {
         _settings = settings.Value;
         _logger = logger;
         _functionalityService = functionalityService;
         _catalogService = catalogSvc;
         _discountService = discountSvc;
+        _thesisFrontendService = thesisfrontendSvc;
     }
 
     [HttpGet]
@@ -97,8 +99,13 @@ public class CoordinatorController : ControllerBase {
                 case "DiscountService":
                     await _discountService.IssueCommit(maxTS.ToString(), clientID);
                     break;
+                case "ThesisFrontendService":
+                    await _thesisFrontendService.IssueCommit(clientID);
+                    break;
             }
         }
+
+
 
         // Clear all the data structures from the functionality
         _functionalityService.ClearFunctionality(clientID);

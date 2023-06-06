@@ -7,4 +7,5 @@ public interface IScopedMetadata {
     //AsyncLocal<int> Invocations { get; set; }
     AsyncLocal<string> Timestamp { get; set; }
     AsyncLocal<string> ClientID { get; set; }
+    AsyncLocal<bool> ReadOnly { get; set; }
 }

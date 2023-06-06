@@ -223,6 +223,13 @@ public class FrontendController : ControllerBase {
 
         return Ok();
     }
+
+    [HttpGet]
+    [Route("commit")]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    public Task CommitTransaction() {
+        return Task.CompletedTask;
+    }
 }
 
 public class UpdatePriceDiscountRequest {
