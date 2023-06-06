@@ -30,12 +30,12 @@ public class TCCMiddleware {
         SeedMetadata();
         
         // Log the current Time and the client ID
-        _logger.LogInformation($"Sending Request at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
+        //_logger.LogInformation($"Sending Request at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
 
         await _next.Invoke(httpctx);
 
         // Log the current Time and the client ID
-        _logger.LogInformation($"TF1 at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
+        //_logger.LogInformation($"TF1 at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
 
 
         // Send the rest of the tokens to the coordinator
@@ -48,7 +48,7 @@ public class TCCMiddleware {
         }
 
         // Log the current Time and the client ID
-        _logger.LogInformation($"Finishing Request at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
+        //_logger.LogInformation($"Finishing Request at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
 
         // Clean the singleton fields for the current session context
         _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID.Value);
