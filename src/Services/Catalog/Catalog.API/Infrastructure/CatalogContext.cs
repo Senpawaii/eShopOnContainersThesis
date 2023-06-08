@@ -36,7 +36,7 @@ public class CatalogContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) {
         if(_wrapperThesis) {
-            optionsBuilder.AddInterceptors(new CatalogDBInterceptor(_scopedMetadata, _wrapper, _logger));
+            optionsBuilder.AddInterceptors(new CatalogDBInterceptor(_scopedMetadata, _wrapper, _logger, _settings));
         }
     }
 }

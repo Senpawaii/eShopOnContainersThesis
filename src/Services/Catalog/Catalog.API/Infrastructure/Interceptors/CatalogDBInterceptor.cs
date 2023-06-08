@@ -30,16 +30,18 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
 
-    public CatalogDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<CatalogContext> logger) {
+    public CatalogDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<CatalogContext> logger, IOptions<CatalogSettings> settings) {
         _request_metadata = requestMetadata;
         _wrapper = wrapper;
         _logger = logger;
+        _settings = settings;
     }
 
     public IScopedMetadata _request_metadata;
     public ISingletonWrapper _wrapper;
     private string _originalCommandText;
     public ILogger<CatalogContext> _logger;
+    public IOptions<CatalogSettings> _settings;
 
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
@@ -160,7 +162,17 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 }
                 else {
                     // Transaction is in commit state, update the command to store in the database
-                    UpdateInsertCommand(command, targetTable);
+                    
+                    // If the Limit 1 Version flag is ON, the command to be executed is the original one - an UPDATE command
+                    if(!_settings.Value.Limit1Version) {
+                        UpdateInsertCommand(command, targetTable);
+                    } 
+                    else {
+                        // Execute the original command
+                        command.CommandText = _originalCommandText;
+                        // Log the original command
+                        _logger.LogInformation($"Original command: {command.CommandText}");
+                    }
                 }
                 break;
             case UPDATE_COMMAND:
