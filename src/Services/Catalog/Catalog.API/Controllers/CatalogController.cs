@@ -98,6 +98,10 @@ public class CatalogController : ControllerBase {
             return item;
         }
 
+        if(_settings.Limit1Version) {
+            return new CatalogItem();
+        }
+
         return NotFound();
     }
 

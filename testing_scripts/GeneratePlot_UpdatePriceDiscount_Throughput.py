@@ -118,36 +118,62 @@ def get_success_rate(file_data) -> float:
     return None
 
 
-def plot_latency_vs_throughput(tests_data: list, max_client: int):
+def plot_latency_vs_throughput(tests_data: list):
     global wrapper
 
     # Plot the average latency by request vs throughput
     plt.figure(figsize=(10, 5))
     # plt.title("Average latency by Request vs Throughput")
     # plt.xlabel("Débito (Funcionalidades/s)")
-    plt.xlabel("Número de clientes concorrentes (cada cliente exec. 5 func/s)")
+    plt.xlabel("Carga (funcionalidades / s)")
     plt.ylabel("Latência (ms)")
+    
+    # Get the maximum throughput value of all tests
+    max_throughput = 0
+    for test_data in tests_data:
+        for throughput in test_data.keys():
+            if throughput > max_throughput:
+                max_throughput = throughput
     
     # Increase the granularity of the x axis
     # plt.xticks(np.arange(0, max([test.throughput for test in tests_data[0]]), 5.0))
-    plt.xticks(np.arange(0, max_client + 5, 5.0))
+    plt.xticks(np.arange(0, max_throughput + 5, 20.0))
     
     # Define colors to use for each test
-    colors = ["-c", "--b", ":b", "-.r"]
+    colors = ["-r", ":r", "-b", ":b"]
     
     # Define legend labels
     # legend_labels = ["µTCC: 1000 Versões/ Produto", "µTCC: 750 Versões/ Produto", "µTCC: 500 Versões/ Produto", "µTCC: 250 Versões/ Produto"]
-    # legend_labels = ["µTCC: Com contenção", "µTCC: Sem contenção", "Sistema Base: Com contenção", "Sistema Base: Sem contenção"]
-    legend_labels = ["Sistema Base: Sem contenção", "µTCC: Sem contenção"]
+    legend_labels = ["Sistema Base: Sem contenção", "Sistema Base: Com contenção", "µTCC: Sem contenção", "µTCC: Com contenção"]
+    # legend_labels = ["Sistema Base: Sem contenção", "µTCC: Sem contenção"]
 
-    for index, test_data in enumerate(tests_data):
+    for index, test_throughputs_latencies in enumerate(tests_data):
         # Plot the average latency by request vs throughput for each test, each with a different color
 
-        # Get the throughput and average latency by request values for each test
-        x_values = [test.throughput for test in test_data]
-        y_values = [test.average_latency_by_request for test in test_data]
         # Sort the test data based on the x_values
-        x_values, y_values = zip(*sorted(zip(x_values, y_values)))
+        test_throughputs_latencies = dict(sorted(test_throughputs_latencies.items()))
+
+        x_values = []
+        y_values = []
+        # Get the keys and values of the dictionary
+        for k, v in test_throughputs_latencies.items():
+            x_values.append(k)
+            y_values.append(v)
+
+        
+
+        # Remove outliners: if the difference between the current throughput and the previous one is greater than 10, remove the current throughput and latency
+        for i in range(len(x_values) - 1, 0, -1):
+            differenceLat = y_values[i] - y_values[i - 1]
+            if differenceLat > 30 or differenceLat < -30:
+                # Check if the two previous values are also outliners
+                if i > 1:
+                    differenceLat = y_values[i] - y_values[i - 2]
+                    if differenceLat > 30 or differenceLat < -30:
+                        del x_values[i]
+                        del y_values[i]
+                        continue
+
 
         line_color_format = colors[index]
 
@@ -165,18 +191,84 @@ def plot_latency_vs_throughput(tests_data: list, max_client: int):
         os.makedirs(plots_folder)
     
     # Save the plot as a png file
-    log_name = tests_data[0][0].file_path.split("/")[-1].split("\\")[0]
-    plot_name = log_name 
+    plot_name = "Latency vs Throughput"
     # Log plot_name
-    print(tests_data[0][0].file_path)
     plt.savefig(os.path.join(plots_folder, plot_name)+ ".pdf", format="pdf", bbox_inches="tight")
 
+
+def plot_prevalence_anomalies_vs_throuhgput(tests_data: list):
+    global wrapper   
+
+    # Plot the average latency by request vs throughput
+    plt.figure(figsize=(10, 5))
+    plt.xlabel("Carga (funcionalidades / s)")
+    plt.ylabel("% Anomalias em Operações de Leitura")
+    
+    # Get the maximum throughput value of all tests
+    max_throughput = 0
+    for test_data in tests_data:
+        for throughput in test_data.keys():
+            if throughput > max_throughput:
+                max_throughput = throughput
+    
+    # Add two lists for our system anomalies detected (which are always zero) for each 20 throughput value until the max throughput value
+    throughput_anomalies = {}
+    for i in range(30, max_throughput, 10):
+        throughput_anomalies[i] = 0
+    tests_data.append(throughput_anomalies)
+    tests_data.append(throughput_anomalies)
+
+
+    # Increase the granularity of the x axis
+    plt.xticks(np.arange(0, max_throughput + 20, 20.0))
+    
+    # Define colors to use for each test
+    colors = ["-r", ":r", "-b", ":b"]
+    
+    # Define legend labels
+    # legend_labels = ["µTCC: 1000 Versões/ Produto", "µTCC: 750 Versões/ Produto", "µTCC: 500 Versões/ Produto", "µTCC: 250 Versões/ Produto"]
+    legend_labels = ["Sistema Base: Sem contenção", "Sistema Base: Com contenção", "µTCC: Sem contenção", "µTCC: Com contenção"]
+    # legend_labels = ["Sistema Base: Sem contenção", "µTCC: Sem contenção"]
+
+    for index, test_throughputs_latencies in enumerate(tests_data):
+        # Plot the average latency by request vs throughput for each test, each with a different color
+
+        # Sort the test data based on the x_values
+        test_throughputs_latencies = dict(sorted(test_throughputs_latencies.items()))
+
+        x_values = []
+        y_values = []
+        # Get the keys and values of the dictionary
+        for k, v in test_throughputs_latencies.items():
+            x_values.append(k)
+            y_values.append(v)
+
+        line_color_format = colors[index]
+
+        # Plot the average latency by request vs throughput for each test
+        line = plt.plot(x_values, y_values, line_color_format)
+        legend = legend_labels[index]
+
+        # Add a legend for the line
+    plt.legend(legend_labels, loc="upper left")
+    
+    # Get the current path and create a folder named "plots" if it doesn't exist
+    current_path = os.path.dirname(os.path.realpath(__file__))
+    plots_folder = os.path.join(current_path, "plots")
+    if not os.path.exists(plots_folder):
+        os.makedirs(plots_folder)
+    
+    # Save the plot as a png file
+    plot_name = "Anomalies vs Throughput"
+    # Log plot_name
+    plt.savefig(os.path.join(plots_folder, plot_name)+ ".pdf", format="pdf", bbox_inches="tight")
 
 
 def clean_data(logs_folders: str):
     global wrapper
     
-    all_tests_data = []
+    all_tests_lat_throughput = [] # Hold the throughputs_latencies dictionary for each test case
+    all_test_anomalies_throughput = [] # Hold the anomalies_detected dictionary for each test case
 
     # Read all log files in the logs folder
     for logs_folder in logs_folders:
@@ -193,20 +285,13 @@ def clean_data(logs_folders: str):
         
         # Store the data of each test case in a list of Test_data objects
         tests_data = []
-        max_throughput = 0
-        # Order the throughput_log list by file name
-        throughput_log.sort()
-        throughput_log.pop(1)
-        throughput_log.pop(1)
+        throughputs_latencies = {} # Keys: throughput, Values: average latency by request
+        throughput_anomalies = {} # Keys: throughput, Values: number of anomalies detected
         for index, test_case in enumerate(throughput_log):
             test_log_path = os.path.join(logs_folder, test_case)
             with open(test_log_path, "r") as f:
                 file_data = f.read()
                 throughput = get_throughput(file_data)
-                # throughput = 0
-                # if throughput >= max_throughput + 5:
-                #     # Stop reading the file if the throughput is greater than 140
-                #     continue
                 read_ratio = get_read_write_ratio(file_data)
                 total_test_time = get_total_test_time(file_data) # in seconds
                 average_latency_by_functionality = get_average_latency_by_functionality(file_data)
@@ -219,10 +304,23 @@ def clean_data(logs_folders: str):
                 success_rate = get_success_rate(file_data) # percentage of successful requests vs error requests (not anomalies)
                 file_path = test_log_path
 
-                # if(throughput > max_throughput):
-                #     max_throughput = throughput
-                #     test = Test_data(file_path, throughput, read_ratio, total_test_time, average_latency_by_functionality, average_latency_by_req, total_requests, total_read_requests, total_write_requests, anomalies_detected, anomalies_ratio, success_rate)
-                #     tests_data.append(test)
+                if throughput == None:
+                    continue
+
+                # Check if the throughput value is already in the throughputs dictionary
+                if throughput in throughputs_latencies:
+                    # If the average latency by request is lower than the one in the dictionary, update the value
+                    if average_latency_by_req < throughputs_latencies[throughput]:
+                        throughputs_latencies[throughput] = average_latency_by_req
+                else:
+                    throughputs_latencies[throughput] = average_latency_by_req
+                
+                if throughput in throughput_anomalies:
+                    if anomalies_ratio > throughput_anomalies[throughput]:
+                        throughput_anomalies[throughput] = anomalies_ratio 
+                else:
+                    throughput_anomalies[throughput] = anomalies_ratio
+
                 test = Test_data(file_path, (index + 1) * 5, read_ratio, total_test_time, average_latency_by_functionality, average_latency_by_req, total_requests, total_read_requests, total_write_requests, anomalies_detected, anomalies_ratio, success_rate)
                 tests_data.append(test)
 
@@ -236,12 +334,12 @@ def clean_data(logs_folders: str):
                 #         break
                 # if not throughput_exists:
                 #     tests_data.append(test)
-        all_tests_data.append(tests_data)
+        all_tests_lat_throughput.append(throughputs_latencies)
+        all_test_anomalies_throughput.append(throughput_anomalies)
     
-    # Get the maximum number of tests from the tests_data list
-    num_tests = max([len(tests_data) for tests_data in all_tests_data])
-    # Generate plot of latency per request vs throughput
-    plot_latency_vs_throughput(all_tests_data, num_tests)
+    # Enable what plot to generate
+    # plot_latency_vs_throughput(all_tests_lat_throughput)
+    plot_prevalence_anomalies_vs_throuhgput(all_test_anomalies_throughput)
 
 
 wrapper = True

@@ -20,7 +20,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
         public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata,
-            ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper) {
+            ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper, IOptions<CatalogSettings> settings) {
 
             // To differentiate from a regular call, check for the clientID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
@@ -41,7 +41,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _dataWrapper.SingletonWrappedCatalogTypes.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_types_to_remove);
 
                     // Flush the Wrapper Data into the Database
-                    await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata);
+                    await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
 
                     DateTime proposedTS = new DateTime(ticks);
 
@@ -142,7 +142,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             }
         }
 
-        private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata) {
+        private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata, IOptions<CatalogSettings> settings) {
             // Set client state to the in commit
             _dataWrapper.SingletonSetTransactionState(clientID, true);
                 
@@ -169,8 +169,16 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                             //Id = Convert.ToInt32(brand[0]),
                             Brand = Convert.ToString(brand[1]),
                         };
-                        dbContext.CatalogBrands.Add(newBrand);
+                        if(settings.Value.Limit1Version) {
+                            _logger.LogInformation($"Wrapper is Updating brand: {newBrand.Brand}");
+                            dbContext.CatalogBrands.Update(newBrand);
+                        } 
+                        else{
+                            _logger.LogInformation($"Wrapper is Adding brand: {newBrand.Brand}");
+                            dbContext.CatalogBrands.Add(newBrand);
+                        }
                     }
+                    
                     await dbContext.SaveChangesAsync();
                 }
 
@@ -181,29 +189,61 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                             //Id = Convert.ToInt32(type[0]),
                             Type = Convert.ToString(type[1]),
                         };
-                        dbContext.CatalogTypes.Add(newType);
+                        if(settings.Value.Limit1Version) {
+                            _logger.LogInformation($"Wrapper is Updating type: {newType.Type}");
+                            dbContext.CatalogTypes.Update(newType);
+                        } 
+                        else {
+                            _logger.LogInformation($"Wrapper is Adding type: {newType.Type}");
+                            dbContext.CatalogTypes.Add(newType);
+                        }
                     }
                     await dbContext.SaveChangesAsync();
                 }
                 if (catalogWrapperItems != null && catalogWrapperItems.Count > 0) {
                     foreach (object[] item in catalogWrapperItems) {
-                        CatalogItem newItem = new CatalogItem {
-                            //Id = Convert.ToInt32(item[0]),
-                            CatalogBrandId = Convert.ToInt32(item[1]),
-                            CatalogTypeId = Convert.ToInt32(item[2]),
-                            Description = Convert.ToString(item[3]),
-                            Name = Convert.ToString(item[4]),
-                            PictureFileName = Convert.ToString(item[5]),
-                            Price = Convert.ToDecimal(item[6]),
-                            AvailableStock = Convert.ToInt32(item[7]),
-                            MaxStockThreshold = Convert.ToInt32(item[8]),
-                            OnReorder = Convert.ToBoolean(item[9]),
-                            RestockThreshold = Convert.ToInt32(item[10]),
-                        };
-                        dbContext.CatalogItems.Add(newItem);
+                        // Log the items that are being updated
+                        foreach (var i in item) {
+                            _logger.LogInformation($"Item: {i.ToString()}");
+                        }
+                        if(settings.Value.Limit1Version) {
+                            CatalogItem newItem = new CatalogItem {
+                                Id = Convert.ToInt32(item[0]),
+                                CatalogBrandId = Convert.ToInt32(item[1]),
+                                CatalogTypeId = Convert.ToInt32(item[2]),
+                                Description = Convert.ToString(item[3]),
+                                Name = Convert.ToString(item[4]),
+                                PictureFileName = Convert.ToString(item[5]),
+                                Price = Convert.ToDecimal(item[6]),
+                                AvailableStock = Convert.ToInt32(item[7]),
+                                MaxStockThreshold = Convert.ToInt32(item[8]),
+                                OnReorder = Convert.ToBoolean(item[9]),
+                                RestockThreshold = Convert.ToInt32(item[10]),
+                            };
+                            
+                            _logger.LogInformation($"Wrapper is Updating item: {newItem.Name}");
+                            dbContext.CatalogItems.Update(newItem);
+                        } 
+                        else {
+                            CatalogItem newItem = new CatalogItem {
+                                //Id = Convert.ToInt32(item[0]),
+                                CatalogBrandId = Convert.ToInt32(item[1]),
+                                CatalogTypeId = Convert.ToInt32(item[2]),
+                                Description = Convert.ToString(item[3]),
+                                Name = Convert.ToString(item[4]),
+                                PictureFileName = Convert.ToString(item[5]),
+                                Price = Convert.ToDecimal(item[6]),
+                                AvailableStock = Convert.ToInt32(item[7]),
+                                MaxStockThreshold = Convert.ToInt32(item[8]),
+                                OnReorder = Convert.ToBoolean(item[9]),
+                                RestockThreshold = Convert.ToInt32(item[10]),
+                            };
+                            _logger.LogInformation($"Wrapper is Adding item: {newItem.Name}");
+                            dbContext.CatalogItems.Add(newItem);
+                        }
                     }
                     try {
-                        dbContext.SaveChanges();
+                        await dbContext.SaveChangesAsync();
                     } catch (Exception exc) {
                         Console.WriteLine(exc.ToString());
                     }

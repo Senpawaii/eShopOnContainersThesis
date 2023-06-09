@@ -163,9 +163,17 @@ public class WrapperDbDataReader : DbDataReader
         {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
-
+        Console.WriteLine($"Ordinal: {ordinal}");
+        Console.WriteLine($"FieldCount: {FieldCount}");
+        Console.WriteLine($"_data.Count: {_data.Count}");
+        Console.WriteLine($"_rowIndex: {_rowIndex}");
+        
         var value = _data[_rowIndex][ordinal];
-        return Convert.ToInt16(value);
+        try{
+            return Convert.ToInt16(value);
+        } catch (Exception ex) {
+            throw new Exception($"Error converting {value} to Int16", ex);
+        }
     }
 
     public override int GetInt32(int ordinal)
@@ -176,7 +184,11 @@ public class WrapperDbDataReader : DbDataReader
         }
 
         var value = _data[_rowIndex][ordinal];
-        return Convert.ToInt32(value);
+        try {
+            return Convert.ToInt32(value);
+        } catch (Exception ex) {
+            throw new Exception($"Error converting {value} to Int32", ex);
+        }
     }
 
     public override long GetInt64(int ordinal)

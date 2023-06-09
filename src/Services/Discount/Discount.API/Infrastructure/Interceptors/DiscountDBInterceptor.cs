@@ -22,10 +22,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
 
-    public DiscountDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<DiscountContext> logger) {
+    public DiscountDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<DiscountContext> logger, IOptions<DiscountSettings> settings) {
         _request_metadata = requestMetadata;
         _wrapper =wrapper;
         _logger = logger;
+        _settings = settings;
     }
 
     public IScopedMetadata _request_metadata;
@@ -33,6 +34,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     //public DiscountContext _discountContext;
     private string _originalCommandText;
     public ILogger<DiscountContext> _logger;
+    public IOptions<DiscountSettings> _settings;
 
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
@@ -83,11 +85,17 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 }
                 else {
                     // Transaction is in commit state, update the command to store in the database
-
+                    if(!_settings.Value.Limit1Version) {
+                        UpdateInsertCommand(command, targetTable);
+                    }
+                    else {
+                        // Execute the original command
+                        command.CommandText = _originalCommandText;
+                        // Log the original command
+                        _logger.LogInformation($"Original command: {command.CommandText}");
+                    }
                     // Log timestamp of the transaction to be committed
                     //_logger.LogInformation($"clientID:<{clientID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
-
-                    UpdateInsertCommand(command, targetTable);
                 }
                 break;
             case UPDATE_COMMAND:
@@ -190,6 +198,23 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 // _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecutingAsync, UPDATE");
                 _request_metadata.ReadOnly = false;
 
+                bool transactionState = _wrapper.SingletonGetTransactionState(clientID);
+                if(_settings.Value.Limit1Version) {
+                    if (!transactionState) {
+                        // Transaction is not in commit state, add to the wrapper
+                        _logger.LogInformation(command.CommandText);
+                        var mockReader = StoreDataInWrapperV2(command, UPDATE_COMMAND, targetTable);
+                        result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
+                        break;
+                    } 
+                    else {
+                        // Transaction is in commit state, update the row in the database
+                        _logger.LogInformation(command.CommandText);
+                        UpdateUpdateCommand(command, targetTable);
+                        break;
+                    }
+                }
+
                 // Convert the Update Command into an INSERT command
                 Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
 
@@ -217,29 +242,70 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 // If the Transaction is not in commit state, store data in wrapper
                 var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
                 result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
-
-                //var mockRows = new List<object[]>();
-                //// Add the new object to the Discount context
-                //switch (targetTable) {
-                //    case "Discount":
-                //        var newDiscount = new DiscountItem() {
-                //            ItemName = (string)columnsToInsert["ItemName"],
-                //            ItemBrand = (string)columnsToInsert["ItemBrand"],
-                //            ItemType = (string)columnsToInsert["ItemType"],
-                //            DiscountValue = (int)columnsToInsert["DiscountValue"]
-                //        };
-                //        _discountContext.Discount.Add(newDiscount);
-                //        break;
-                //}
-                //_discountContext.SaveChanges();
-                //var testMock = new List<object[]>();
-                //testMock.Add(new object[] { 1 });
-                //result = InterceptionResult<DbDataReader>.SuppressWithResult(new MockDbDataReader(testMock, 1, targetTable));
                 break;
         }
         // _logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        _logger.LogInformation($"End ReaderAsync Command Text: {command.CommandText}");
 
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
+    }
+
+    private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
+        var clientID = _request_metadata.ClientID;
+        _logger.LogInformation("Command text: " + command.CommandText);
+        string regexPattern;
+        if( operation == UPDATE_COMMAND) {
+            regexPattern = @"\[(\w+)\] = (@\w+)";
+        }
+        else {
+            regexPattern = @"\[(\w+)\]";
+        }
+
+        // Get the number of columns in each row to be inserted
+        var regex = new Regex(regexPattern);
+        var matches = regex.Matches(command.CommandText); // Each match includes a column name
+        
+        var columns = new List<string>(); // List of column names
+
+        // Discard the first match, it is the table name
+        for(int i = 0; i < matches.Count; i++) {
+            columns.Add(matches[i].Groups[1].Value);
+        }
+
+        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
+        // Get the number of rows being inserted
+        int numberRows = command.Parameters.Count / columns.Count;
+        var rowsAffected = 0;
+        
+        var rows = new List<object[]>();
+        for (int i = 0; i < numberRows; i += 1) {
+            var row = new object[columns.Count + 1]; // Added Timestamp at the end
+            // log the parameters in command.Parameters
+            foreach (DbParameter param in command.Parameters) {
+                _logger.LogInformation($"Parameter: {param.ParameterName}: {param.Value}");
+            }
+
+            for(int j = 0; j < columns.Count; j++) {
+                var columnName = columns[j];
+                var paramValue = command.Parameters[((i * columns.Count) + j + 1) % 5].Value;
+                var correctIndexToStore = standardColumnIndexes[columnName];
+                row[correctIndexToStore] = paramValue;
+                _logger.LogInformation($"Row: {columnName}: {paramValue}");
+
+            }
+            // Define the uncommitted timestamp as the current time
+            row[^1] = DateTime.UtcNow;
+            rows.Add(row);
+            rowsAffected++;
+        }
+        // Log the rows
+        foreach (object[] row in rows) {
+            _logger.LogInformation($"Row: {string.Join(", ", row)}");
+        }
+        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
+
+        _wrapper.SingletonAddDiscountItem(clientID, rows.ToArray());
+        return mockReader;
     }
 
     private MockDbDataReader StoreDataInWrapper(DbCommand command, int operation, string targetTable) {
@@ -347,6 +413,42 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         else {
             return UNKNOWN_COMMAND;
         }
+    }
+
+    private void UpdateUpdateCommand(DbCommand command, string targetTable) {
+        // Get the timestamp received from the Coordinator
+        string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+
+        // Replace Command Text to account for new parameter: timestamp
+        string commandWithTimestamp;
+        commandWithTimestamp = UpdateUpdateCommandText(command, targetTable);
+        
+        // Add new Parameter and Command text to database command
+        command.CommandText = commandWithTimestamp;
+        var timestampParam = command.CreateParameter();
+        
+        timestampParam.ParameterName = "@p5";
+        timestampParam.Value = timestamp;
+        command.Parameters.Add(timestampParam);
+
+        // log all the parameters in the command and their values
+        string values = "";
+        for(int i = 0; i < command.Parameters.Count; i++) {
+            var param = command.Parameters[i].Value;
+            values += param.ToString() + ", ";
+        }
+        _logger.LogInformation("Values being inserted: {0}", values);
+
+    }
+
+    private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
+        string updatedCommandText;
+
+        // Update the CommandText to include the Timestamp column and parameter for each entry
+        updatedCommandText = Regex.Replace(command.CommandText, @"(?<lastParam>\[ItemType\] = @p(\d+))", "${lastParam}, [Timestamp] = @p5");
+        
+        Console.WriteLine("Updated command text: {0}", updatedCommandText);	
+        return updatedCommandText;
     }
 
     /* ========== UPDATE READ QUERIES ==========*/
@@ -818,7 +920,13 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // _logger.LogInformation($"11B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
 
         // _logger.LogInformation($"Checkpoint 2_d_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
+        if(_settings.Value.Limit1Version) {
+            if(newData.IsNullOrEmpty()) {
+                // If newData is empty return a reader with a single default row
+                _logger.LogInformation("Returning default row");
+                newData.Add(new object[] { 0, 2, "name", "brand", "type", 0 });
+            }
+        }
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
@@ -939,6 +1047,22 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
         }
         return filteredData;
+    }
+
+    private static Dictionary<string, int> GetDefaultColumIndexesForUpdate(string targetTable) {
+        Dictionary<string, int> columnIndexes = new Dictionary<string, int>();
+
+        // Apply the filters according to the Target Table
+        switch (targetTable) {
+            case "Discount":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("ItemName", 1);
+                columnIndexes.Add("ItemBrand", 2);
+                columnIndexes.Add("ItemType", 3);
+                columnIndexes.Add("DiscountValue", 4);
+                break;
+        }
+        return columnIndexes;
     }
 
     private static Dictionary<string, int> GetDefaultColumIndexes(string targetTable) {
