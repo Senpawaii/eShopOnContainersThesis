@@ -198,6 +198,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                                 ItemType = Convert.ToString(item[3]),
                                 DiscountValue = Convert.ToInt32(item[4]),
                             };
+
                             _logger.LogInformation($"Wrapper is Updating item: {newItem.ItemName}");
                             dbContext.Discount.Update(newItem);
                         }

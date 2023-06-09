@@ -203,6 +203,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     else {
                         // Transaction is in commit state, update the command to store in the database
                         UpdateUpdateCommand(command, targetTable);
+                        _logger.LogInformation("Checkpoint command before DB commit: {0}", command.CommandText);
                         break;
                     }
                 }
@@ -459,7 +460,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] JOIN (SELECT Discount.ItemName, Discount.ItemBrand, Discount.ItemType, max(Discount.Timestamp) as max_timestamp FROM Discount");
         command.CommandText += whereCondition;
-        command.CommandText += "GROUP BY Discount.ItemName, Discount.ItemBrand, Discount.ItemType) e on d.ItemName = e.ItemName AND d.ItemBrand = e.ItemBrand AND d.ItemType = e.ItemType AND d.Timestamp = e.max_timestamp WHERE d.ID = (SELECT TOP 1 ID FROM Discount WHERE ItemName = d.ItemName AND ItemBrand = d.ItemBrand AND ItemType = d.ItemType AND Timestamp = d.Timestamp ORDER BY ID DESC)";
+        command.CommandText += "GROUP BY Discount.ItemName, Discount.ItemBrand, Discount.ItemType) e on d.ItemName = e.ItemName AND d.ItemBrand = e.ItemBrand AND d.ItemType = e.ItemType AND d.Timestamp = e.max_timestamp"; //WHERE d.ID = (SELECT TOP 1 ID FROM Discount WHERE ItemName = d.ItemName AND ItemBrand = d.ItemBrand AND ItemType = d.ItemType AND Timestamp = d.Timestamp ORDER BY ID DESC)
     }
 
     private string RemovePartialRowSelection(string commandText) {
@@ -489,7 +490,40 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         var timestampParam = command.CreateParameter();
         timestampParam.ParameterName = "@p5";
         timestampParam.Value = timestamp;
-        command.Parameters.Add(timestampParam); 
+        command.Parameters.Add(timestampParam);
+        
+        // command.Parameters.Clear();
+        // var parameter = command.CreateParameter();
+        // parameter.ParameterName = "@p0";
+        // parameter.Value = 100;
+        // command.Parameters.Add(parameter);
+
+        // parameter = command.CreateParameter();
+        // parameter.ParameterName = "@p1";
+        // parameter.Value = ".NET";
+        // command.Parameters.Add(parameter);
+
+        // parameter = command.CreateParameter();
+        // parameter.ParameterName = "@p2";
+        // parameter.Value = ".NET Bot Black Hoodie";
+        // command.Parameters.Add(parameter);
+
+        // parameter = command.CreateParameter();
+        // parameter.ParameterName = "@p3";
+        // parameter.Value = "T-Shirt";
+        // command.Parameters.Add(parameter);
+
+        // parameter = command.CreateParameter();
+        // parameter.ParameterName = "@p4";
+        // parameter.Value = 1;
+        // command.Parameters.Add(parameter);
+
+        // parameter = command.CreateParameter();
+        // parameter.ParameterName = "@p5";
+        // parameter.Value = timestamp;
+        // command.Parameters.Add(parameter);
+
+        // command.CommandText = "SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; UPDATE [Discount] SET [DiscountValue] = @p0, [ItemBrand] = @p1, [ItemName] = @p2, [ItemType] = @p3, [Timestamp] = @p5 OUTPUT 1 WHERE [Id] = @p4;";
     }
 
     private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {

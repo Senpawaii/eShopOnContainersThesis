@@ -188,8 +188,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     } 
                     else {
                         // Transaction is in commit state, update the row in the database
-                        _logger.LogInformation(command.CommandText);
                         UpdateUpdateCommand(command, targetTable);
+                        _logger.LogInformation("Checkpoint command before DB commit: {0}", command.CommandText);
                         break;
                     }
                 } 
