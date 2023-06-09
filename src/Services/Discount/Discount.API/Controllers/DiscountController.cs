@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Utilities;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Microsoft.IdentityModel.Tokens;
@@ -94,7 +95,7 @@ public class DiscountController : ControllerBase {
         var itemType = discountToUpdate.ItemType;
 
         // Get the discount item from the database
-        var discountItem = await _discountContext.Discount.SingleOrDefaultAsync(i => i.ItemName == itemName && i.ItemBrand == itemBrand && i.ItemType == itemType);
+        var discountItem = await _discountContext.Discount.SingleOrDefaultAsync(i => i.Id == discountToUpdate.Id);
 
         if (discountItem == null) {
             return NotFound($"Discount Item with Name: {itemName}, Brand: {itemBrand}, and Type: {itemType} was not found.");
@@ -112,12 +113,15 @@ public class DiscountController : ControllerBase {
 
         // _logger.LogInformation($"Checkpoint Update: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
-        await _discountContext.SaveChangesAsync();
+        await ResilientTransaction.New(_discountContext).ExecuteAsync(async () => {
+            // Save the changes to the database
+            await _discountContext.SaveChangesAsync();
+        });
 
         // _logger.LogInformation($"Checkpoint Saved Changes: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         // Return the updated discount item
-        return CreatedAtAction(nameof(DiscountsAsync), new { itemName = discountItem.ItemName, itemBrand = discountItem.ItemBrand, itemType = discountItem.ItemType }, null);
+        return CreatedAtAction(nameof(DiscountsAsync), new { discountToUpdate.Id }, null);
     }
 
     [HttpGet]
