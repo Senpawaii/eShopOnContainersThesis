@@ -204,7 +204,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     foreach (object[] item in catalogWrapperItems) {
                         // Log the items that are being updated
                         foreach (var i in item) {
-                            _logger.LogInformation($"Item: {i.ToString()}");
+                            _logger.LogInformation($"Item: {i}");
                         }
                         if(settings.Value.Limit1Version) {
                             CatalogItem newItem = new CatalogItem {

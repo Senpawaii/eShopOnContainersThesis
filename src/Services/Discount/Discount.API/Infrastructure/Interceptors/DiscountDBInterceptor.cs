@@ -196,7 +196,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     if(!transactionState) {
                         // The transaction is not in commit state, add to the wrapper
                         _logger.LogInformation($"ClientID: {clientID}, transactionState: {transactionState}, commandText= {command.CommandText}");
-                        var mockReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
+                        var mockReader = StoreDataInWrapperV2(command, UPDATE_COMMAND, targetTable);
                         result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                         break;
                     } 
@@ -493,7 +493,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     }
 
     private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
-        string updatedCommandText = Regex.Replace(command.CommandText, @"(?<lastParam>\[DiscountValue\] = @p(\d+))", "${lastParam}, [Timestamp] = @p5");
+        string updatedCommandText = Regex.Replace(command.CommandText, @"(?<lastParam>\[ItemType\] = @p(\d+))", "${lastParam}, [Timestamp] = @p5");
     
         return updatedCommandText;
     }

@@ -22,7 +22,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
         public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata, 
-            ITokensContextSingleton _remainingTokens, ISingletonWrapper _data_wrapper) {
+            ITokensContextSingleton _remainingTokens, ISingletonWrapper _data_wrapper, IOptions<DiscountSettings> settings) {
             
             // Console.WriteLine("Request:" + ctx.Request.Query);
             // To differentiate from a regular call, check for the functionality ID
@@ -56,7 +56,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     _logger.LogInformation($"1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                     // Flush the Wrapper Data into the Database
-                    FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata);
+                    FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata, settings);
                     // Log the current Time and the client ID
                     _logger.LogInformation($"2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
@@ -165,7 +165,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             }
         }
 
-        private void FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata) {
+        private void FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
             
             // Set functionality state to the in commit
             _data_wrapper.SingletonSetTransactionState(clientID, true);
@@ -187,17 +187,34 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 
                 if (discountWrapperItems != null && discountWrapperItems.Count > 0) {
                     foreach (object[] item in discountWrapperItems) {
-                        DiscountItem newItem = new DiscountItem {
-                            //Id = Convert.ToInt32(item[0]),
-                            ItemName = Convert.ToString(item[1]),
-                            ItemBrand = Convert.ToString(item[2]),
-                            ItemType = Convert.ToString(item[3]),
-                            DiscountValue = Convert.ToInt32(item[4]),
-                        };
-                        dbContext.Discount.Add(newItem);
+                        foreach (var i in item) {
+                            _logger.LogInformation($"Item: {i}");
+                        }
+                        if (settings.Value.Limit1Version) {
+                            DiscountItem newItem = new DiscountItem {
+                                Id = Convert.ToInt32(item[0]),
+                                ItemName = Convert.ToString(item[1]),
+                                ItemBrand = Convert.ToString(item[2]),
+                                ItemType = Convert.ToString(item[3]),
+                                DiscountValue = Convert.ToInt32(item[4]),
+                            };
+                            _logger.LogInformation($"Wrapper is Updating item: {newItem.ItemName}");
+                            dbContext.Discount.Update(newItem);
+                        }
+                        else {
+                            DiscountItem newItem = new DiscountItem {
+                                //Id = Convert.ToInt32(item[0]),
+                                ItemName = Convert.ToString(item[1]),
+                                ItemBrand = Convert.ToString(item[2]),
+                                ItemType = Convert.ToString(item[3]),
+                                DiscountValue = Convert.ToInt32(item[4]),
+                            };
+                            _logger.LogInformation($"Wrapper is Adding item: {newItem.ItemName}");
+                            dbContext.Discount.Add(newItem);
+                        }
                     }
                     try {
-                        dbContext.SaveChanges();
+                        dbContext.SaveChangesAsync();
                     } catch (Exception exc) {
                         Console.WriteLine(exc.ToString());
                     }
