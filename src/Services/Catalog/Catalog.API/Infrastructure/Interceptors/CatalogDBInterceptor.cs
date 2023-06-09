@@ -192,37 +192,38 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         UpdateUpdateCommand(command, targetTable);
                         break;
                     }
-                }
+                } 
+                else {
+                    _logger.LogInformation("Updating the command text from Update to Insert");
+                    // Convert the Update Command into an INSERT command
+                    Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
 
-                _logger.LogInformation("Updating the command text from Update to Insert");
-                // Convert the Update Command into an INSERT command
-                Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
+                    // Create a new INSERT command
+                    string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
 
-                // Create a new INSERT command
-                string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
+                    // Add the columns incased in squared brackets
+                    insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
 
-                // Add the columns incased in squared brackets
-                insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
+                    // Add the values
+                    insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
 
-                // Add the values
-                insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
-
-                if (columnsToInsert != null) {
-                    command.CommandText = insertCommand;
-                    // Clear the existing parameters
-                    command.Parameters.Clear();
-                    foreach (var column in columnsToInsert) {
-                        // Add the new parameter to the command
-                        DbParameter newParameter = command.CreateParameter();
-                        newParameter.ParameterName = column.Key;
-                        newParameter.Value = column.Value;
-                        command.Parameters.Add(newParameter);
+                    if (columnsToInsert != null) {
+                        command.CommandText = insertCommand;
+                        // Clear the existing parameters
+                        command.Parameters.Clear();
+                        foreach (var column in columnsToInsert) {
+                            // Add the new parameter to the command
+                            DbParameter newParameter = command.CreateParameter();
+                            newParameter.ParameterName = column.Key;
+                            newParameter.Value = column.Value;
+                            command.Parameters.Add(newParameter);
+                        }
                     }
-                }
 
-                // If the Transaction is not in commit state, store data in wrapper
-                var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                    // If the Transaction is not in commit state, store data in wrapper
+                    var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                    result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                }
                 break;
         }
 
@@ -251,7 +252,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         
         var columns = new List<string>(); // List of column names
 
-        // Discard the first match, it is the table name
         for(int i = 0; i < matches.Count; i++) {
             columns.Add(matches[i].Groups[1].Value);
         }
