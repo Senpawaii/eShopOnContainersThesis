@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
+import math
 import random
 import re
 import string
@@ -18,12 +19,12 @@ import sys
     The script will also log the response from the Basket.API service.
 """
 numThreads = 32 # Number of threads to be used in the test
-secondsToRun = 30 # Number of seconds to run the test
+secondsToRun = 20 # Number of seconds to run the test
 read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
 throughput_step = 10 # Number of requests per second to increase throughput by
 throughput = 20 # requests per second
 max_throughput = 340
-contention_rows = 24 # Number of rows to be used in the test
+contention_rows = 6 # Number of rows to be used in the test
 # wrappers = True # True if the test is being run with wrappers, False if the test is being run without wrappers
 
 thesisFrontendPort = "5142"
@@ -184,14 +185,24 @@ def readBasket(timeTakenList: dict, successCount: dict, logger: logging.Logger, 
     address = 'http://localhost:' + thesisFrontendPort + '/api/v1/frontend/readbasket?basketId=' + basketID
 
     # Measure time taken to send request with nano seconds precision
-    start = perf_counter_ns()
+    start = time.time_ns()
+    success = False
+    while not success:
+        try:
+            # Send request
+            response = requests.get(address)
+            if(response.status_code == 200): 
+                success = True
+        except:
+            # Sleep for 10ms
+            logger.log(logging.INFO, "Error reading basket. Retrying in 10ms")
 
-    # Send request
-    response = requests.get(address)
-
+            time.sleep(0.01)
+            continue
+    
     # Stop timer
-    end = perf_counter_ns()
-    # Calculate time taken
+    end = time.time_ns()
+    # Calculate time taken in number of nano seconds
     timeTaken = end - start
 
     # Log the time taken in milliseconds
@@ -279,15 +290,28 @@ def updatePriceAndDiscount(catalogItem: dict, discountItem: dict, price: int, di
     address = 'http://localhost:' + thesisFrontendPort + '/api/v1/frontend/updatepricediscount'
 
     # Measure time taken to send request with nano seconds precision
-    start = perf_counter_ns()
+    start = time.time_ns()
 
-    response = requests.put(address, json=payload)
-
+    success = False
+    while not success:
+        try:
+            # Send request
+            response = requests.put(address, json=payload)
+            if(response.status_code == 200): 
+                success = True
+        except:
+            # Sleep for 10ms
+            logger.log(logging.INFO, "Error updating price and discount Status_Code:"+ response.status_code +". Retrying in 10ms")
+            time.sleep(0.01)
+            continue
+    
     # Stop timer
-    end = perf_counter_ns()
+    end = time.time_ns()
 
     # Calculate time taken
     timeTaken = end - start
+
+    success = False
 
     # Log the time taken in milliseconds
     logger.info("Write Ops: Time taken: " + str(timeTaken / 1000000) + " milliseconds")
@@ -313,7 +337,8 @@ def updatePriceAndDiscount(catalogItem: dict, discountItem: dict, price: int, di
 
 
 def exec_functionality(testNum: int, catalogItems: list[dict], discountItems: list[dict], read_write_list: list, timeTakenList: dict, successCount: dict, secondsToRun: int, logger: logging.Logger, throughput: int, basket_IDs_assigned: dict, contention: str):
-    sleep_time = 0.30
+    # sleep_time = 0.50 * random.random() 
+    # sleep_time = 0.3 # Using sleep causes the threads to awake in block -> higher lat and lower throughput
     
     global readOperationsCount
     global writeOperationsCount
@@ -328,12 +353,12 @@ def exec_functionality(testNum: int, catalogItems: list[dict], discountItems: li
             # Read operation
             readOperationsCount += 1
             readBasket(timeTakenList, successCount, logger, f"basket{index}", contention)
-            time.sleep(sleep_time)
+            # time.sleep(sleep_time)
         else:
             # Write operation
             writeOperationsCount += 1
             writeOperations(copy.deepcopy(catalogItems[index]), copy.deepcopy(discountItems[index]), timeTakenList, successCount, logger)
-            time.sleep(sleep_time)
+            # time.sleep(sleep_time)
 
 
 def check_discount_from_log_file(file_path):
@@ -357,9 +382,6 @@ def check_discount_from_log_file(file_path):
                     anomaly_line_presence.append(line)
 
     return results, anomaly_line_presence
-
-
-# def generatePlots():
 
 
 # Create predefined list of prices and discounts to be used in tests equal to the number of threads
@@ -408,9 +430,8 @@ def main():
     read_write_list = [1 for _ in range(read_write_ratio)] + [0 for _ in range(10 - read_write_ratio)]
 
     global throughput
-    testNum = 0
-    while testNum <= 100:
-        testNum += 1
+    testNum = 1
+    while testNum <= 300:
 
         # Configure logging settings for each read/write ratio test
         logger, log_file = ConfigureLoggingSettings(testNum, throughput, test_logging_path)
@@ -496,6 +517,9 @@ def main():
         logger.info("=========================================")
 
         throughput += throughput_step
+        testNum = math.floor(testNum * 1.02) + 1
+
+
 
 
 if __name__ == "__main__":
