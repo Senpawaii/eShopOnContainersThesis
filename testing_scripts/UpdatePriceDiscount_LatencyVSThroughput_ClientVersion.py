@@ -63,7 +63,7 @@ def ConfigureLoggingSettings(testNum: int, throughput: int, test_logging_path: s
         testNum = "00" + str(testNum)
     elif testNum < 100:
         testNum = "0" + str(testNum)
-    log_file_name = f"Test<{testNum}>.log"
+    log_file_name = f"Test{testNum}.log"
     logger_name = f"Test<{testNum}> Throughput-{throughput}"
     log_file_path = os.path.join(test_logging_path, log_file_name)
 
