@@ -56,7 +56,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     _logger.LogInformation($"1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                     // Flush the Wrapper Data into the Database
-                    FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata, settings);
+                    await FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata, settings);
                     // Log the current Time and the client ID
                     _logger.LogInformation($"2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
@@ -165,7 +165,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             }
         }
 
-        private void FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
+        private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
             
             // Set functionality state to the in commit
             _data_wrapper.SingletonSetTransactionState(clientID, true);
@@ -215,7 +215,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                         }
                     }
                     try {
-                        dbContext.SaveChangesAsync();
+                        await dbContext.SaveChangesAsync();
                     } catch (Exception exc) {
                         Console.WriteLine(exc.ToString());
                     }
