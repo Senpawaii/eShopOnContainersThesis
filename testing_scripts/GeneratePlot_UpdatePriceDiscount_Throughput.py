@@ -144,7 +144,7 @@ def plot_latency_vs_throughput(tests_data: list):
     
     # Define legend labels
     # legend_labels = ["µTCC: 1000 Versões/ Produto", "µTCC: 750 Versões/ Produto", "µTCC: 500 Versões/ Produto", "µTCC: 250 Versões/ Produto"]
-    legend_labels = ["Sistema Base: Sem contenção", "Sistema Base: Com contenção", "µTCC: Sem contenção", "µTCC: Com contenção"]
+    legend_labels = ["Sistema Base: Contenção Baixa", "Sistema Base: Contenção Elevada", "µTCC: Contenção Baixa", "µTCC: Contenção Elevada"]
     # legend_labels = ["Sistema Base: Sem contenção", "µTCC: Sem contenção"]
 
     for index, test_throughputs_latencies in enumerate(tests_data):
@@ -191,7 +191,7 @@ def plot_latency_vs_throughput(tests_data: list):
         os.makedirs(plots_folder)
     
     # Save the plot as a png file
-    plot_name = "Latency vs Throughput"
+    plot_name = "Latência_V_Throughput_2Sistemas"
     # Log plot_name
     plt.savefig(os.path.join(plots_folder, plot_name)+ ".pdf", format="pdf", bbox_inches="tight")
 
@@ -227,7 +227,7 @@ def plot_prevalence_anomalies_vs_throuhgput(tests_data: list):
     
     # Define legend labels
     # legend_labels = ["µTCC: 1000 Versões/ Produto", "µTCC: 750 Versões/ Produto", "µTCC: 500 Versões/ Produto", "µTCC: 250 Versões/ Produto"]
-    legend_labels = ["Sistema Base: Sem contenção", "Sistema Base: Com contenção", "µTCC: Sem contenção", "µTCC: Com contenção"]
+    legend_labels = ["Sistema Base: Contenção Baixa", "Sistema Base: Contenção Elevada", "µTCC: Contenção Baixa", "µTCC: Contenção Elevada"]
     # legend_labels = ["Sistema Base: Sem contenção", "µTCC: Sem contenção"]
 
     for index, test_throughputs_latencies in enumerate(tests_data):
@@ -260,6 +260,7 @@ def plot_prevalence_anomalies_vs_throuhgput(tests_data: list):
     
     # Save the plot as a png file
     plot_name = "Anomalies vs Throughput"
+
     # Log plot_name
     plt.savefig(os.path.join(plots_folder, plot_name)+ ".pdf", format="pdf", bbox_inches="tight")
 

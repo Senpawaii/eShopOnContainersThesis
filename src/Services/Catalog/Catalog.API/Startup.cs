@@ -45,9 +45,13 @@ public class Startup
                 .AddScoped<IScopedMetadata, ScopedMetadata>()
                 .AddSingleton<ISingletonWrapper, SingletonWrapper>()
                 .AddSingleton<ITokensContextSingleton, TokensContextSingleton>()
-                .AddHostedService<GarbageCollectionService>()
                 .AddHttpClient<ICoordinatorService, CoordinatorService>();
+        
+            if(Configuration["Limit1Version"] == "False") {
+                services.AddHostedService<GarbageCollectionService>();
+            }
         }
+
 
         var container = new ContainerBuilder();
         container.Populate(services);
