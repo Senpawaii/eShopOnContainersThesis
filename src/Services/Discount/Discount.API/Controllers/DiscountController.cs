@@ -36,8 +36,26 @@ public class DiscountController : ControllerBase {
         
         // Log the request
         // _logger.LogInformation($"Received request to read discount items with item names: {string.Join(",", itemNames)}, item brands: {string.Join(",", itemBrands)}, and item types: {string.Join(",", itemTypes)}");
-        
-        var discounts = await _discountContext.Discount.Where(i => itemNames.Contains(i.ItemName) && itemBrands.Contains(i.ItemBrand) && itemTypes.Contains(i.ItemType)).ToListAsync();
+        var discountsT = _discountContext.Discount.Where(i => itemNames.Contains(i.ItemName) && itemBrands.Contains(i.ItemBrand) && itemTypes.Contains(i.ItemType));
+        List<DiscountItem> discounts;
+        try {
+            _logger.LogInformation("Before ToListAsync()");
+            discounts = await discountsT.ToListAsync();
+        } catch (Exception e) {
+            _logger.LogError(e, "Error occurred while reading discount items from the database");
+            return BadRequest("Error occurred while reading discount items from the database");
+        }
+        if(discounts.IsNullOrEmpty()) {
+            _logger.LogInformation("No discounts were found for the given item names, brands, and types");
+            // Create a new default discount item
+            var defaultDiscount = new DiscountItem {
+                ItemName = "Default Item",
+                ItemBrand = "Default Brand",
+                ItemType = "Default Type",
+                DiscountValue = 1
+            };
+            discounts.Add(defaultDiscount);
+        }
         return Ok(discounts);
     }
 

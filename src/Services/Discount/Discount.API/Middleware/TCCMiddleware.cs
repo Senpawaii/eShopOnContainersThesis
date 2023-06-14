@@ -33,7 +33,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 _request_metadata.ReadOnly = true;
                 
                 // Log the current Time and the client ID
-                _logger.LogInformation($"0D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                // _logger.LogInformation($"0D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {
@@ -45,20 +45,20 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                     _data_wrapper.Singleton_Wrapped_DiscountItems.TryGetValue(clientID, out ConcurrentBag<object[]> objects_to_remove);
                     // Log the client ID
-                    _logger.LogInformation($"Committing items for functionality {clientID}.");
+                    // _logger.LogInformation($"Committing items for functionality {clientID}.");
 
                     // log each individual object being removed
                     foreach (object[] item in objects_to_remove) {
-                        _logger.LogInformation($"Removing item: {item[0]}");
+                        // _logger.LogInformation($"Removing item: {item[0]}");
                     }
                     //_logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {clientID}.");
                     // Log the current Time and the client ID
-                    _logger.LogInformation($"1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                    // _logger.LogInformation($"1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                     // Flush the Wrapper Data into the Database
                     await FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata, settings);
                     // Log the current Time and the client ID
-                    _logger.LogInformation($"2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                    // _logger.LogInformation($"2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                     DateTime proposedTS = new DateTime(ticks);
 
@@ -188,7 +188,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 if (discountWrapperItems != null && discountWrapperItems.Count > 0) {
                     foreach (object[] item in discountWrapperItems) {
                         foreach (var i in item) {
-                            _logger.LogInformation($"Item: {i}");
+                            // _logger.LogInformation($"Item: {i}");
                         }
                         if (settings.Value.Limit1Version) {
                             DiscountItem newItem = new DiscountItem {
@@ -199,7 +199,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                                 DiscountValue = Convert.ToInt32(item[4]),
                             };
 
-                            _logger.LogInformation($"Wrapper is Updating item: {newItem.ItemName}");
+                            // _logger.LogInformation($"Wrapper is Updating item: {newItem.ItemName}");
                             dbContext.Discount.Update(newItem);
                         }
                         else {
@@ -210,7 +210,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                                 ItemType = Convert.ToString(item[3]),
                                 DiscountValue = Convert.ToInt32(item[4]),
                             };
-                            _logger.LogInformation($"Wrapper is Adding item: {newItem.ItemName}");
+                            // _logger.LogInformation($"Wrapper is Adding item: {newItem.ItemName}");
                             dbContext.Discount.Add(newItem);
                         }
                     }

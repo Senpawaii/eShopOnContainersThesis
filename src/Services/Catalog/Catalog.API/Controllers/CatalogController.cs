@@ -383,12 +383,14 @@ public class CatalogController : ControllerBase {
 
         brands = brands.Where(bn => bn.Brand == catalogBrand);
         if (await brands.CountAsync() == 0) {
+            _logger.LogInformation($"The catalog brand: {catalogBrand} was not found");
             return NotFound();
         }
         var brandId = brands.Select(a => a.Id).First();
 
         types = types.Where(tn => tn.Type == catalogType);
         if (await types.CountAsync() == 0) {
+            _logger.LogInformation($"The catalog type: {catalogType} was not found");
             return NotFound();
         }
         var typeId = types.Select(a => a.Id).First();
@@ -398,9 +400,12 @@ public class CatalogController : ControllerBase {
         var totalItems = await items
             .CountAsync();
 
-        if (totalItems == 0) { return NotFound(); }
+        if (totalItems == 0) { 
+            _logger.LogInformation($"The catalog item: {name} was not found");
+            return NotFound(); 
+        }
         var itemId = items.Select(a => a.Id).First();
-
+        _logger.LogInformation("Catalog Item Id queried: {0}", itemId.ToString());
         // _logger.LogInformation("Finished ItemIdByNameAndTypeIdAndBrandId request!");
 
         return itemId;
@@ -419,12 +424,14 @@ public class CatalogController : ControllerBase {
 
         brands = brands.Where(bn => bn.Brand == catalogBrand);
         if (await brands.CountAsync() == 0) {
+            _logger.LogInformation($"The catalog brand: {catalogBrand} was not found");
             return NotFound();
         }
         var brandId = brands.Select(a => a.Id).First();
 
         types = types.Where(tn => tn.Type == catalogType);
         if (await types.CountAsync() == 0) {
+            _logger.LogInformation($"The catalog type: {catalogType} was not found");
             return NotFound();
         }
         var typeId = types.Select(a => a.Id).First();
@@ -434,9 +441,13 @@ public class CatalogController : ControllerBase {
         var totalItems = await items
             .CountAsync();
 
-        if (totalItems == 0) { return NotFound(); }
-        var itemPrice = items.Select(a => a.Price).First();
-
+        if (totalItems == 0) { 
+            _logger.LogInformation($"The catalog item: {name} was not found, generating a new price...");
+            var generatedPrice = 10;
+            return generatedPrice; 
+        }
+        var itemPrice = await items.Select(a => a.Price).FirstAsync();
+        _logger.LogInformation("Catalog Item Price queried: {0}", itemPrice.ToString());
         //_logger.LogInformation("Finished ItemPriceGivenNameBrandType request!");
 
         return itemPrice;

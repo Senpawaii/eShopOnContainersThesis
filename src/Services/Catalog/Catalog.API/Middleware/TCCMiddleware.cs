@@ -170,11 +170,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                             Brand = Convert.ToString(brand[1]),
                         };
                         if(settings.Value.Limit1Version) {
-                            _logger.LogInformation($"Wrapper is Updating brand: {newBrand.Brand}");
+                            // _logger.LogInformation($"Wrapper is Updating brand: {newBrand.Brand}");
                             dbContext.CatalogBrands.Update(newBrand);
                         } 
                         else{
-                            _logger.LogInformation($"Wrapper is Adding brand: {newBrand.Brand}");
+                            // _logger.LogInformation($"Wrapper is Adding brand: {newBrand.Brand}");
                             dbContext.CatalogBrands.Add(newBrand);
                         }
                     }
@@ -190,11 +190,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                             Type = Convert.ToString(type[1]),
                         };
                         if(settings.Value.Limit1Version) {
-                            _logger.LogInformation($"Wrapper is Updating type: {newType.Type}");
+                            // _logger.LogInformation($"Wrapper is Updating type: {newType.Type}");
                             dbContext.CatalogTypes.Update(newType);
                         } 
                         else {
-                            _logger.LogInformation($"Wrapper is Adding type: {newType.Type}");
+                            // _logger.LogInformation($"Wrapper is Adding type: {newType.Type}");
                             dbContext.CatalogTypes.Add(newType);
                         }
                     }
@@ -204,7 +204,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     foreach (object[] item in catalogWrapperItems) {
                         // Log the items that are being updated
                         foreach (var i in item) {
-                            _logger.LogInformation($"Item: {i}");
+                            // _logger.LogInformation($"Item: {i}");
                         }
                         if(settings.Value.Limit1Version) {
                             CatalogItem newItem = new CatalogItem {
@@ -221,7 +221,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                                 RestockThreshold = Convert.ToInt32(item[10]),
                             };
                             
-                            _logger.LogInformation($"Wrapper is Updating item: {newItem.Name}");
+                            // _logger.LogInformation($"Wrapper is Updating item: {newItem.Name}");
                             dbContext.CatalogItems.Update(newItem);
                         } 
                         else {
@@ -238,7 +238,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                                 OnReorder = Convert.ToBoolean(item[9]),
                                 RestockThreshold = Convert.ToInt32(item[10]),
                             };
-                            _logger.LogInformation($"Wrapper is Adding item: {newItem.Name}");
+                            // _logger.LogInformation($"Wrapper is Adding item: {newItem.Name}");
                             dbContext.CatalogItems.Add(newItem);
                         }
                     }

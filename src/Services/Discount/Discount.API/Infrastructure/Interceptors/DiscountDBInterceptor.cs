@@ -195,7 +195,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 if(_settings.Value.Limit1Version) {
                     if(!transactionState) {
                         // The transaction is not in commit state, add to the wrapper
-                        _logger.LogInformation($"ClientID: {clientID}, transactionState: {transactionState}, commandText= {command.CommandText}");
+                        // _logger.LogInformation($"ClientID: {clientID}, transactionState: {transactionState}, commandText= {command.CommandText}");
                         var mockReader = StoreDataInWrapperV2(command, UPDATE_COMMAND, targetTable);
                         result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                         break;
@@ -203,7 +203,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     else {
                         // Transaction is in commit state, update the command to store in the database
                         UpdateUpdateCommand(command, targetTable);
-                        _logger.LogInformation("Checkpoint command before DB commit: {0}", command.CommandText);
+                        // _logger.LogInformation("Checkpoint command before DB commit: {0}", command.CommandText);
                         break;
                     }
                 }
@@ -245,7 +245,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
-        _logger.LogInformation($"Storing data in WrapperV2... ClientID: {clientID}, commandText= {command.CommandText}");
+        // _logger.LogInformation($"Storing data in WrapperV2... ClientID: {clientID}, commandText= {command.CommandText}");
         string regexPattern;
         if( operation == UPDATE_COMMAND) {
             regexPattern = @"\[(\w+)\] = (@\w+)";
@@ -274,7 +274,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             var row = new object[columns.Count + 1]; // Added Timestamp at the end
             // log the parameters in command.Parameters
             foreach (DbParameter param in command.Parameters) {
-                _logger.LogInformation($"Parameter: {param.ParameterName}: {param.Value}");
+                // _logger.LogInformation($"Parameter: {param.ParameterName}: {param.Value}");
             }
 
             for(int j = 0; j < columns.Count; j++) {
@@ -282,7 +282,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 var paramValue = command.Parameters[((i * columns.Count) + j + 1) % 5].Value;
                 var correctIndexToStore = standardColumnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
-                _logger.LogInformation($"Row: {columnName}: {paramValue}");
+                // _logger.LogInformation($"Row: {columnName}: {paramValue}");
 
             }
             // Define the uncommitted timestamp as the current time
@@ -293,7 +293,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         // Log the rows
         foreach (object[] row in rows) {
-            _logger.LogInformation($"Row: {string.Join(", ", row)}");
+            // _logger.LogInformation($"Row: {string.Join(", ", row)}");
         }
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
         _wrapper.SingletonAddDiscountItem(clientID, rows.ToArray());
@@ -925,6 +925,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
             }
 
+            // If the newData is empty, add a default row
+            if (newData.Count == 0) {
+                // _logger.LogInformation("Empty newData, adding default row.");
+                newData.Add(new object[] { null, null, null, null, null });
+            }
         }
         // _logger.LogInformation($"5J at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
@@ -1163,7 +1168,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         // Get the timestamp of the command from string to DateTime
         // _logger.LogInformation($"1C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-        _logger.LogInformation($"1C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
+        // _logger.LogInformation($"1C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
         Regex regex = new Regex(@"\[Timestamp\] <= '(?<Timestamp>[^']*)'");
         MatchCollection matches = regex.Matches(command.CommandText);

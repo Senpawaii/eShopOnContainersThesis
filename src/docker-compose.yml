@@ -165,6 +165,7 @@ services:
 
   webstatus:
     image: ${REGISTRY:-eshop}/webstatus:${PLATFORM:-linux}-${TAG:-latest}
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Web/WebStatus/Dockerfile
