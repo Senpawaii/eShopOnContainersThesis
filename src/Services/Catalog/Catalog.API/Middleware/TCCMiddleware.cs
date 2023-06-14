@@ -4,6 +4,7 @@ using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using System.Collections.Concurrent;
+using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
     public class TCCMiddleware {
@@ -19,6 +20,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
+        [Trace]
         public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata,
             ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper, IOptions<CatalogSettings> settings) {
 
@@ -142,6 +144,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             }
         }
 
+        [Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata, IOptions<CatalogSettings> settings) {
             // Set client state to the in commit
             _dataWrapper.SingletonSetTransactionState(clientID, true);
