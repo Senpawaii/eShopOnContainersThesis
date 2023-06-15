@@ -5,6 +5,7 @@ using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using System.Collections.Concurrent;
 using NewRelic.Api.Agent;
+using System.Diagnostics;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
     public class TCCMiddleware {
@@ -26,6 +27,10 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
             // To differentiate from a regular call, check for the clientID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
+                // Start timer
+                Stopwatch stopwatch = new Stopwatch();
+                stopwatch.Start();
+
                 _request_metadata.ClientID = clientID;
 
                 // Initially set the read-only flag to true. Update it as write operations are performed.
@@ -62,6 +67,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _dataWrapper.SingletonRemoveProposedFunctionality(clientID);
 
                     await _next.Invoke(ctx);
+                    
+                    // Stop timer
+                    stopwatch.Stop();
+                    // Log the time taken to commit
+                    _logger.LogInformation($"Commit time: {stopwatch.ElapsedMilliseconds} ms");
                     return;
                 } 
                 else if(currentUri.Contains("proposeTS")) {
@@ -137,6 +147,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 }
                 // Clean the singleton fields for the current session context
                 _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
+
+                // Stop timer
+                stopwatch.Stop();
+                // Log the time taken
+                _logger.LogInformation($"Propose time: {stopwatch.ElapsedMilliseconds} ms");
             }
             else {
                 // This is not an HTTP request that requires change
