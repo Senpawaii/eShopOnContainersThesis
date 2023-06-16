@@ -14,6 +14,8 @@ namespace Catalog.API.DependencyServices {
         ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_types = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
         ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
 
+        ConcurrentDictionary<ProposedItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_items2 = new ConcurrentDictionary<ProposedItem, ConcurrentDictionary<DateTime, int>>();
+
         // Store the proposed Timestamp for each functionality in Proposed State
         ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
 
@@ -206,5 +208,51 @@ namespace Catalog.API.DependencyServices {
             }
         }
 
+        public DateTime GetMaxTimestampToWaitFor(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp) {
+                    DateTime maxTimestamp = new DateTime();
+
+            switch(targetTable) {
+                case "Catalog":
+                    // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
+                    // Note that the original set of proposed catalog items 2 is not modified, we are just creating a new set with the results of the conditions.
+                    var proposed_catalog_items2 = new Dictionary<ProposedItem, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_items2);
+                    foreach(Tuple<string, string> condition in conditions) {
+                        switch(condition.Item1) {
+                            case "Name":
+                                proposed_catalog_items2 = proposed_catalog_items2.Where(x => x.Key.Name == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                                break;
+                            case "BrandName":
+                                proposed_catalog_items2 = proposed_catalog_items2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                                break;
+                            case "TypeName":
+                                proposed_catalog_items2 = proposed_catalog_items2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                                break;
+                        }
+                    }
+
+                    // Get the max timestamp from the remaining set of proposed catalog items 2
+                    
+                    break;
+                case "CatalogBrand":
+                    var proposed_catalog_brands = new Dictionary<string, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_brands);
+                    foreach(Tuple<string, string> condition in conditions) {
+                        proposed_catalog_brands = proposed_catalog_brands.Where(x => x.Key == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                    }
+
+                    break;
+                case "CatalogType":
+                    var proposed_catalog_types = new Dictionary<string, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_types);
+                    foreach(Tuple<string, string> condition in conditions) {
+                        proposed_catalog_types = proposed_catalog_types.Where(x => x.Key == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                    }
+                    break;
+            }
+        }
+    }
+
+    public struct ProposedItem {
+        public string Name { get; set; }
+        public string BrandName { get; set; }
+        public string TypeName { get; set; }
     }
 }

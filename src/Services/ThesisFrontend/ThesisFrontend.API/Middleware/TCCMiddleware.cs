@@ -1,6 +1,7 @@
 ﻿using Microsoft.ApplicationInsights.AspNetCore.Extensions;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
+using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Middleware;
 public class TCCMiddleware {
@@ -18,6 +19,7 @@ public class TCCMiddleware {
         _coordinatorSvc = coordinatorSvc;
     }
 
+    [Trace]
     public async Task Invoke(HttpContext httpctx) {
         string currentUri = httpctx.Request.GetUri().ToString();
 
@@ -106,6 +108,7 @@ public class TCCMiddleware {
         }
     }
 
+    [Trace]
     private void ChangeTransactionState(string clientID, string state) {
         _remainingTokens.ChangeTransactionState(clientID, state);
     }
@@ -125,6 +128,7 @@ public class TCCMiddleware {
         _request_metadata.ClientID.Value = clientID;
     }
 
+    [Trace]
     private string GenerateRandomString(int length) {
     Random random = new Random();
     const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

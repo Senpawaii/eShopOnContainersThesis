@@ -29,5 +29,6 @@ namespace Catalog.API.DependencyServices {
 
         public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
         public void SingletonRemoveProposedFunctionality(string clientID);
+        public DateTime GetMaxTimestampToWaitFor(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp);
     }
 }

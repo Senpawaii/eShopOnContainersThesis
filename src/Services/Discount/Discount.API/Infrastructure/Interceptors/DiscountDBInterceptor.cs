@@ -450,12 +450,21 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             whereCondition = match.Groups[1].Value;
             // Remove the where condition from the command
             command.CommandText = command.CommandText.Replace(whereCondition, "");
-            whereCondition = whereCondition.Replace("[d]", $"[Discount]");
-            whereCondition += $" AND [Discount].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
-
+            if(!_settings.Value.Limit1Version) {
+                whereCondition = whereCondition.Replace("[d]", $"[Discount]");
+                whereCondition += $" AND [Discount].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";    
+            } 
+            else {
+                whereCondition += $" AND [d].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+            }
         }
         else {
             whereCondition = $" WHERE [Discount].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+        }
+
+        if(_settings.Value.Limit1Version) {
+            command.CommandText += whereCondition;
+            return;
         }
 
         command.CommandText = command.CommandText.Replace("AS [d]", $"AS [d] JOIN (SELECT Discount.ItemName, Discount.ItemBrand, Discount.ItemType, max(Discount.Timestamp) as max_timestamp FROM Discount");
