@@ -1495,124 +1495,30 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
 
         DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
+        bool needToWait = true;
         string targetTable = GetTargetTable(command.CommandText);
 
-        List<Tuple<string, string>> conditions = null;
+        List<Tuple<string, string>> conditions;
         if (HasFilterCondition(command.CommandText)) {
             // Get the conditions of the WHERE clause, for now we only support equality conditions. Conditions are in the format: <columnName, value>
             conditions = GetWhereConditions(command);
-            DateTime maxTimestampToWaitFor = _wrapper.GetMaxTimestampToWaitFor(conditions, targetTable, readerTimestamp);            
-            
-            
-            // Add to the itemsToWaitFor the row identifiers that are being selected
-
         }
         else {
             // The reader is trying to read all items. Wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.
-            // Keep the itemsToWaitFor empty => wait for all.
             _logger.LogInformation($"Reader is trying to read all items. Will wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.");
-            
-        
+            conditions = null;
         }
-            
-            
-            
-        {    
-            while (true) {
-                ConcurrentDictionary<string, ConcurrentDictionary < DateTime, int >> proposedItems = null;
-                switch(targetTable) {
-                    case "Catalog":
-                        proposedItems = _wrapper.Proposed_catalog_items;
-                        break;
-                    case "CatalogBrand":
-                        proposedItems = _wrapper.Proposed_catalog_brands;
-                        break;
-                    case "CatalogType":
-                        proposedItems = _wrapper.Proposed_catalog_types;
-                        break;
-                }
-                
-                // Get all proposed timestamps
-                List<DateTime> proposedTimestamps = new List<DateTime>();
-                foreach (KeyValuePair<string, ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
-                    foreach (DateTime proposalTS in pair.Value.Keys) {
-                        if (proposalTS <= readerTimestamp) {
-                            proposedTimestamps.Add(proposalTS);
-                        }
-                    }
-                }
-                if (proposedTimestamps.Count == 0) {
-                    // All items have been flushed to the Database
-                    return;
-                }
+
+        while (needToWait) {
+            needToWait = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp);
+            if (needToWait) {
+                // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
                 Thread.Sleep(10);
             }
-        }
-
-        // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
-        while (true) {
-
-            List<string> totalDataIdentifiers = null;
-
-            // Get list
-            switch (targetTable) {
-                case "Catalog":
-                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_items.Keys);
-                    break;
-                case "CatalogBrand":
-                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_brands.Keys);
-                    break;
-                case "CatalogType":
-                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_types.Keys);
-                    break;
-            }
-
-            List<object[]> totalData = new List<object[]>();
-            foreach (string dataIdentifier in totalDataIdentifiers) {
-                var splitDataIdentfier = dataIdentifier.Split('_');
-                totalData.Add(dataIdentifier.Split('_'));
-            }
-
-            var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
-
-            int possibleCases = 0;
-            foreach (object[] identifier in rowsToQuery) {
-                // Concatenate the identifier into a single string identifier
-                string strIdentifier = identifier[0].ToString() + "_" + identifier[1].ToString() + "_" + identifier[2].ToString();
-
-                ConcurrentDictionary<DateTime, int> timestamps = null;
-                // Get the timestamps associated with the identifier
-
-                switch (targetTable) {
-                    case "Catalog":
-                        timestamps = _wrapper.Proposed_catalog_items[strIdentifier];
-                        break;
-                    case "CatalogBrand":
-                        timestamps = _wrapper.Proposed_catalog_brands[strIdentifier];
-                        break;
-                    case "CatalogType":
-                        timestamps = _wrapper.Proposed_catalog_types[strIdentifier];
-                        break;
-                }
-
-                // Check if there is at least one timestamp that is less than the reader timestamp, and so that will require the reader to wait
-                foreach (DateTime proposalTS in timestamps.Keys) {
-                    if (proposalTS <= readerTimestamp) {
-                        possibleCases++;
-                    }
-                }
-            }
-
-            if (possibleCases == 0) {
-                // No need to wait for any versions
-                return;
-            }
             else {
-                Console.WriteLine($"Possible Cases:<{possibleCases}>. Reader has TS=<{readerTimestamp}>,  Will sleep...");
+                // There are no proposed items with lower timestamp than the client timestamp. We can proceed.
+                break;
             }
-
-            // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
-            Thread.Sleep(10);
         }
     }
 

@@ -1,5 +1,6 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.Primitives;
+using Microsoft.Net.Http.Headers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using YamlDotNet.Serialization;
@@ -15,6 +16,8 @@ namespace Catalog.API.DependencyServices {
         ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
 
         ConcurrentDictionary<ProposedItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_items2 = new ConcurrentDictionary<ProposedItem, ConcurrentDictionary<DateTime, int>>();
+        ConcurrentDictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands2 = new ConcurrentDictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>>();
+        ConcurrentDictionary<ProposedType, ConcurrentDictionary<DateTime, int>> proposed_catalog_types2 = new ConcurrentDictionary<ProposedType, ConcurrentDictionary<DateTime, int>>();
 
         // Store the proposed Timestamp for each functionality in Proposed State
         ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
@@ -208,51 +211,107 @@ namespace Catalog.API.DependencyServices {
             }
         }
 
-        public DateTime GetMaxTimestampToWaitFor(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp) {
-                    DateTime maxTimestamp = new DateTime();
-
-            switch(targetTable) {
+        public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp) {
+            switch (targetTable) {
                 case "Catalog":
                     // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
                     // Note that the original set of proposed catalog items 2 is not modified, we are just creating a new set with the results of the conditions.
-                    var proposed_catalog_items2 = new Dictionary<ProposedItem, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_items2);
-                    foreach(Tuple<string, string> condition in conditions) {
-                        switch(condition.Item1) {
-                            case "Name":
-                                proposed_catalog_items2 = proposed_catalog_items2.Where(x => x.Key.Name == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
-                                break;
-                            case "BrandName":
-                                proposed_catalog_items2 = proposed_catalog_items2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
-                                break;
-                            case "TypeName":
-                                proposed_catalog_items2 = proposed_catalog_items2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
-                                break;
+                    var filtered_proposed_catalog_items2 = new Dictionary<ProposedItem, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_items2);
+                    if (conditions != null) {
+                        filtered_proposed_catalog_items2 = ApplyFiltersToCatalogItems(conditions, filtered_proposed_catalog_items2);
+                    }
+                    // Check if the there any proposed catalog items 2 with a lower timestamp than the reader's timestamp
+                    foreach (KeyValuePair<ProposedItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_item in filtered_proposed_catalog_items2) {
+                        foreach (DateTime proposedTS in proposed_catalog_item.Value.Keys) {
+                            if (proposedTS < readerTimestamp) {
+                                // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
+                                return true;
+                            }
                         }
                     }
-
-                    // Get the max timestamp from the remaining set of proposed catalog items 2
-                    
                     break;
                 case "CatalogBrand":
-                    var proposed_catalog_brands = new Dictionary<string, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_brands);
-                    foreach(Tuple<string, string> condition in conditions) {
-                        proposed_catalog_brands = proposed_catalog_brands.Where(x => x.Key == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                    var filtered_proposed_catalog_brands2 = new Dictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_brands2);
+                    if (conditions != null) {
+                        filtered_proposed_catalog_brands2 = ApplyFiltersToCatalogBrands(conditions, filtered_proposed_catalog_brands2);
+                    }
+                    // Check if the there any proposed catalog brands 2 with a lower timestamp than the reader's timestamp
+                    foreach (KeyValuePair<ProposedBrand, ConcurrentDictionary<DateTime, int>> proposed_catalog_brand in filtered_proposed_catalog_brands2) {
+                        foreach (DateTime proposedTS in proposed_catalog_brand.Value.Keys) {
+                            if (proposedTS < readerTimestamp) {
+                                // There is at least one proposed catalog brand 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
+                                return true;
+                            }
+                        }
                     }
 
                     break;
                 case "CatalogType":
-                    var proposed_catalog_types = new Dictionary<string, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_types);
-                    foreach(Tuple<string, string> condition in conditions) {
-                        proposed_catalog_types = proposed_catalog_types.Where(x => x.Key == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                    var filtered_proposed_catalog_types2 = new Dictionary<ProposedType, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_types2);
+                    if (conditions != null) {
+                        filtered_proposed_catalog_types2 = ApplyFiltersToCatalogTypes(conditions, filtered_proposed_catalog_types2);
+                    }
+                    // Check if the there any proposed catalog types 2 with a lower timestamp than the reader's timestamp
+                    foreach (KeyValuePair<ProposedType, ConcurrentDictionary<DateTime, int>> proposed_catalog_type in filtered_proposed_catalog_types2) {
+                        foreach (DateTime proposedTS in proposed_catalog_type.Value.Keys) {
+                            if (proposedTS < readerTimestamp) {
+                                // There is at least one proposed catalog type 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
+                                return true;
+                            }
+                        }
                     }
                     break;
             }
+
+            return false;
+        }
+
+        private static Dictionary<ProposedType, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogTypes(List<Tuple<string, string>> conditions, Dictionary<ProposedType, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_types2) {
+            foreach (Tuple<string, string> condition in conditions) {
+                filtered_proposed_catalog_types2 = filtered_proposed_catalog_types2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+            }
+
+            return filtered_proposed_catalog_types2;
+        }
+
+        private static Dictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogBrands(List<Tuple<string, string>> conditions, Dictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_brands2) {
+            foreach (Tuple<string, string> condition in conditions) {
+                filtered_proposed_catalog_brands2 = filtered_proposed_catalog_brands2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+            }
+
+            return filtered_proposed_catalog_brands2;
+        }
+
+        private static Dictionary<ProposedItem, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<ProposedItem, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_items2) {
+            foreach (Tuple<string, string> condition in conditions) {
+                switch (condition.Item1) {
+                    case "Name":
+                        filtered_proposed_catalog_items2 = filtered_proposed_catalog_items2.Where(x => x.Key.Name == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                        break;
+                    case "BrandName":
+                        filtered_proposed_catalog_items2 = filtered_proposed_catalog_items2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                        break;
+                    case "TypeName":
+                        filtered_proposed_catalog_items2 = filtered_proposed_catalog_items2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                        break;
+                }
+            }
+
+            return filtered_proposed_catalog_items2;
         }
     }
 
     public struct ProposedItem {
         public string Name { get; set; }
         public string BrandName { get; set; }
+        public string TypeName { get; set; }
+    }
+
+    public struct ProposedBrand {
+        public string BrandName { get; set; }
+    }
+
+    public struct ProposedType {
         public string TypeName { get; set; }
     }
 }
