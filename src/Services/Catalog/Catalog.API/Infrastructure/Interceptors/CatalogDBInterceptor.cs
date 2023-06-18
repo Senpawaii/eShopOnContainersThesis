@@ -1513,6 +1513,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             needToWait = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp);
             if (needToWait) {
                 // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
+                // Log the sleeping...
+                _logger.LogInformation($"Reader is waiting for proposed items to be committed. Will sleep for 10ms.");
                 Thread.Sleep(10);
             }
             else {
@@ -1526,12 +1528,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
 
         // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
-        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
+        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|\@(?<paramValue2>\w+))");
         MatchCollection matches = regex.Matches(command.CommandText);
         foreach (Match match in matches) {
             // Get the column name and the parameter name
-            string columnName = match.Groups[1].Value;
-            string parameterName = match.Groups[2].Value;
+            string columnName = match.Groups["columnName"].Value;
+            if(columnName == "Timestamp") {
+                // Ignore the Timestamp column
+                continue;
+            }
+            string parameterName = match.Groups["paramValue2"].Value;
             var parameterValue = command.Parameters[parameterName].Value;
 
             // Add the condition to the list
