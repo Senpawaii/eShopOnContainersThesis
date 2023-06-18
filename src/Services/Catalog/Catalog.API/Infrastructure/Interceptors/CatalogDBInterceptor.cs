@@ -977,10 +977,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     newData = FetchNext(command, newData, fetchRowsParam);
                 }
 
-                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
-                if (hasPartialRowSelection) {
-                    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-                }
+                //(bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+                //if (hasPartialRowSelection) {
+                //    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
+                //}
 
             }
         }
@@ -1145,10 +1145,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             //_logger.LogInformation($"Checkpoint 2_c_7: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             // Search for partial SELECTION on the original unaltered commandText
-            (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
-            if (hasPartialRowSelection) {
-                newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-            }
+            // Disabled in this 1 version implementation as we do not change the original query
+            //(bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+            //if (hasPartialRowSelection) {
+            //    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
+            //}
 
         }
         //_logger.LogInformation($"Checkpoint 2_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
@@ -1528,7 +1529,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
 
         // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
-        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|\@(?<paramValue2>\w+))");
+        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
         MatchCollection matches = regex.Matches(command.CommandText);
         foreach (Match match in matches) {
             // Get the column name and the parameter name
