@@ -54,13 +54,13 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                     // Remove the wrapped items from the proposed set
                     if (catalog_objects_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_objects_to_remove, "Catalog");
+                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_objects_to_remove, "Catalog");
                     }
                     if (catalog_brands_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_brands_to_remove, "CatalogBrand");
+                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_brands_to_remove, "CatalogBrand");
                     }
                     if (catalog_types_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_types_to_remove, "CatalogType");
+                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_types_to_remove, "CatalogType");
                     }
 
                     // Remove the client session from the proposed state
@@ -78,7 +78,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     // Update client session to Proposed State and Store data written in the current session in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
-                    _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                    _dataWrapper.SingletonAddWrappedItemsToProposedSetV2(clientID, currentTS);
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
@@ -167,10 +167,12 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             // Assign the received commit timestamp to the request scope
             _request_metadata.Timestamp = new DateTime(ticks);
 
+            //_dataWrapper.FlushToDatabase(clientID, );
+
             // Get stored objects
-            var catalogWrapperItems = _dataWrapper.SingletonGetCatalogITems(clientID);
-            var catalogWrapperBrands = _dataWrapper.SingletonGetCatalogBrands(clientID);
-            var catalogWrapperTypes = _dataWrapper.SingletonGetCatalogTypes(clientID);
+            var catalogWrapperItems = _dataWrapper.SingletonGetCatalogItemsV2(clientID);
+            var catalogWrapperBrands = _dataWrapper.SingletonGetCatalogBrandsV2(clientID);
+            var catalogWrapperTypes = _dataWrapper.SingletonGetCatalogTypesV2(clientID);
 
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<CatalogContext>();

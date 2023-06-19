@@ -141,8 +141,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
-        //_logger.LogInformation($"Checkpoint 2_a_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        
         // _logger.LogInformation($"Start ReaderExecutingAsync Command Text: {command.CommandText}");
+        
         _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
@@ -231,7 +232,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     }
 
                     // If the Transaction is not in commit state, store data in wrapper
-                    var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                    var updateToInsertReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
                 }
                 break;
@@ -285,7 +286,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 var paramValue = command.Parameters[((i * columns.Count) + j + 1) % 11].Value;
                 var correctIndexToStore = standardColumnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
-                // _logger.LogInformation($"Row: {columnName}: {paramValue}");
+                //_logger.LogInformation($"Row: {columnName}: {paramValue}");
 
             }
             // Define the uncommitted timestamp as the current time
@@ -363,6 +364,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
+        // Store the data in the wrapper
         switch (targetTable) {
             case "CatalogBrand":
                 _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
@@ -561,6 +563,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     
     [Trace]
     private string RemoveCountSelection(string commandText) {
+
         string pattern = @"SELECT\s+(.*?)\s+FROM";
         string replacement = "SELECT * FROM";
         string result = Regex.Replace(commandText, pattern, replacement);

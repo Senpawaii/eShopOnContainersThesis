@@ -21,6 +21,6 @@ public interface ISingletonWrapper {
 
     public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
     public void SingletonRemoveProposedFunctionality(string clientID);
-
+    public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp);
 
 }

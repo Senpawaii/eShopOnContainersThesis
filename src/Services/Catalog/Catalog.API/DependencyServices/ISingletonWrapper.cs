@@ -16,6 +16,11 @@ namespace Catalog.API.DependencyServices {
         public ConcurrentBag<object[]> SingletonGetCatalogITems(string key);
         public ConcurrentBag<object[]> SingletonGetCatalogTypes(string key);
         public ConcurrentBag<object[]> SingletonGetCatalogBrands(string key);
+
+        public ConcurrentBag<object[]> SingletonGetCatalogItemsV2(string key);
+        public ConcurrentBag<object[]> SingletonGetCatalogTypesV2(string key);
+        public ConcurrentBag<object[]> SingletonGetCatalogBrandsV2(string key);
+
         public bool SingletonGetTransactionState(string clientID);
 
         public void SingletonAddCatalogItem(string clientID, IEnumerable<object[]> values);
@@ -25,7 +30,9 @@ namespace Catalog.API.DependencyServices {
 
         public void SingletonRemoveFunctionalityObjects(string clientID);
         public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS);
+        public void SingletonAddWrappedItemsToProposedSetV2(string clientID, long proposedTS);
         public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects, string target_table);
+        public void SingletonRemoveWrappedItemsFromProposedSetV2(string clientID, ConcurrentBag<object[]> wrapped_objects, string target_table);
 
         public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
         public void SingletonRemoveProposedFunctionality(string clientID);

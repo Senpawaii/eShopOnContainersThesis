@@ -7,6 +7,7 @@ public class SingletonWrapper : ISingletonWrapper {
     ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_Discount_Items  = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
 
     ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_Discount_Items = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
+    ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, int>> proposed_Discount_Items2 = new ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, int>>();
 
     // Store the proposed Timestamp for each functionality in Proposed State
     ConcurrentDictionary<string, long> proposed_Client_Sessions = new ConcurrentDictionary<string, long>();
@@ -112,15 +113,50 @@ public class SingletonWrapper : ISingletonWrapper {
             proposed_Discount_Items[objectToRemoveIdentifier].TryRemove(original_proposedTS, out _);
         }
     }
+
+    public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp) {
+        switch (targetTable) {
+            case "Discount":
+                // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
+                // Note that the original set of proposed catalog items 2 is not modified, we are just creating a new set with the results of the conditions.
+                var filtered_proposed_Discount_items2 = new Dictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, int>>(this.proposed_Discount_Items2);
+                if (conditions != null) {
+                    filtered_proposed_Discount_items2 = ApplyFiltersToDiscountItems(conditions, filtered_proposed_Discount_items2);
+                }
+                // Check if the there any proposed catalog items 2 with a lower timestamp than the reader's timestamp
+                foreach (KeyValuePair<ProposedDiscountItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_item in filtered_proposed_Discount_items2) {
+                    foreach (DateTime proposedTS in proposed_catalog_item.Value.Keys) {
+                        if (proposedTS < readerTimestamp) {
+                            // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
+                            return true;
+                        }
+                    }
+                }
+                break;
+        }
+        return false;
+    }
+
+    private static Dictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, int>> ApplyFiltersToDiscountItems(List<Tuple<string, string>> conditions, Dictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, int>> filtered_proposed_Discount_items2) {
+        foreach (Tuple<string, string> condition in conditions) {
+            switch (condition.Item1) {
+                case "Name":
+                    filtered_proposed_Discount_items2 = filtered_proposed_Discount_items2.Where(x => x.Key.Name == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                    break;
+                case "BrandName":
+                    filtered_proposed_Discount_items2 = filtered_proposed_Discount_items2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                    break;
+                case "TypeName":
+                    filtered_proposed_Discount_items2 = filtered_proposed_Discount_items2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
+                    break;
+            }
+        }
+        return filtered_proposed_Discount_items2;
+    }
+
+    public struct ProposedDiscountItem {
+        public string Name { get; set; }
+        public string BrandName { get; set; }
+        public string TypeName { get; set; }
+    }
 }
-
-//public class DiscountItemsComparer : IEqualityComparer<object[]> {
-//    public int GetHashCode(object[] objectX) {
-//        return objectX.GetHashCode();
-//    }
-
-//    public bool Equals(object[] discount1, object[] discount2) {
-//        return discount1[0].ToString() == discount2[0].ToString() && discount1[1].ToString() == discount2[1].ToString() && discount1[2].ToString() == discount2[2].ToString();
-//    }
-
-//}

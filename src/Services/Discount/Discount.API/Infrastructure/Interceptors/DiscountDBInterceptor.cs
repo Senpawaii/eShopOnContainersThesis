@@ -8,6 +8,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.DataReaders;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Microsoft.IdentityModel.Tokens;
+using NewRelic.Api.Agent;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -61,19 +62,12 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return result;
             case SELECT_COMMAND:
-                // _logger.LogInformation($"2A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-
-                UpdateSelectCommand(command);
-                // _logger.LogInformation($"3A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-
-                WaitForProposedItemsIfNecessary(command, clientID);
-                // _logger.LogInformation($"4A: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-
+                string clientTimestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+                UpdateSelectCommand(command, targetTable);
+                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp);
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
-                // _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecuting, INSERT");
-
                 _request_metadata.ReadOnly = false;
 
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
@@ -84,11 +78,13 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 }
                 else {
                     // Transaction is in commit state, update the command to store in the database
-
-                    // Log timestamp of the transaction to be committed
-                    //_logger.LogInformation($"clientID:<{clientID}>, TS:<{_scopedMetadata.ScopedMetadataTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}>");
-
-                    UpdateInsertCommand(command, targetTable);
+                    if(!_settings.Value.Limit1Version) {
+                        UpdateInsertCommand(command, targetTable);
+                    }
+                    else {
+                        // Execute the original command
+                        command.CommandText = _originalCommandText;
+                    }
                 }
                 break;
             case UPDATE_COMMAND:
@@ -123,13 +119,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 // If the Transaction is not in commit state, store data in wrapper
                 var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
                 result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
-
                 break;
         }
 
         // _logger.LogInformation($"Checkpoint 2_b_sync: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
-
         return result;
     }
 
@@ -158,16 +151,24 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
-                // _logger.LogInformation($"2B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-                try {
-                    UpdateSelectCommand(command);
-                    // _logger.LogInformation($"3B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-
-                    WaitForProposedItemsIfNecessary(command, clientID);
-                    // _logger.LogInformation($"4B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-                } catch (Exception ex) {
-                    _logger.LogError(ex, "Error on ReaderExecutingAsync");
+                string clientTimestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+                _logger.LogInformation("The original received SELECT command text: {0}", command.CommandText);
+                if (_settings.Value.Limit1Version) {
+                    UpdateSelectCommandV2(command, targetTable, clientTimestamp);
+                } else {
+                    UpdateSelectCommand(command, targetTable);
                 }
+                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp);
+
+                //try {
+                //    UpdateSelectCommand(command);
+                //    // _logger.LogInformation($"3B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
+                //    WaitForProposedItemsIfNecessary(command, clientID);
+                //    // _logger.LogInformation($"4B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+                //} catch (Exception ex) {
+                //    _logger.LogError(ex, "Error on ReaderExecutingAsync");
+                //}
                 
                 break;
             case INSERT_COMMAND:
@@ -413,7 +414,40 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     /// Applicable to queries that contain either:
     /// </summary>
     /// <param name="command"></param>
-    private void UpdateSelectCommand(DbCommand command) {
+    /// 
+
+    [Trace]
+    public void UpdateSelectCommandV2(DbCommand command, string targetTable, string clientTimestamp) {
+        // Check if the SELECT includes a "*" or a column list
+        (bool hasPartialRowSelection, List<string> _) = HasPartialRowSelection(command.CommandText);
+
+        // Add the Timestamp column parameter, if the command has a partial row selection
+        if (hasPartialRowSelection) {
+            AddTimestampToColumnList(command);
+        }
+        AddTimestampToWhereList(command, targetTable, clientTimestamp);
+        // Log the resulting command text
+        _logger.LogInformation($"Updated Command Text: {command.CommandText}");
+    }
+
+    public void AddTimestampToWhereList(DbCommand command, string targetTable, string clientTimestamp) {
+        // Note: If we create a parameter of type DbType.DateTime2, the query will fail: "Failed executing DbCommand...", and I can't find a good explanation for this. 
+        // The exception thrown does not show the actual error. This topic is being followed on: https://github.com/dotnet/efcore/issues/24530 
+        if (command.CommandText.Contains("WHERE")) {
+            string pattern = @"WHERE\s+(.*)$";
+            command.CommandText = Regex.Replace(command.CommandText, pattern, "WHERE $1 AND [d].[Timestamp] <= '" + clientTimestamp + "'");
+        }
+        else {
+            command.CommandText += " WHERE [d].[Timestamp] <= '" + clientTimestamp + "'";
+        }
+    }
+
+    public void AddTimestampToColumnList(DbCommand command) {
+        string pattern = @"SELECT\s+(.*?)\s+FROM";
+        command.CommandText = Regex.Replace(command.CommandText, pattern, "SELECT $1, [d].[Timestamp] FROM");
+    }
+
+    private void UpdateSelectCommand(DbCommand command, string targetTable) {
         // Log the command text
         //_logger.LogInformation($"Command Text: {command.CommandText}");
 
@@ -451,19 +485,20 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             // Remove the where condition from the command
             command.CommandText = command.CommandText.Replace(whereCondition, "");
             if(!_settings.Value.Limit1Version) {
-                whereCondition = whereCondition.Replace("[d]", $"[Discount]");
-                whereCondition += $" AND [Discount].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";    
+                whereCondition = whereCondition.Replace("[d]", $"[{targetTable}]");
+                whereCondition += $" AND [{targetTable}].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";    
             } 
             else {
                 whereCondition += $" AND [d].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
             }
         }
         else {
-            whereCondition = $" WHERE [Discount].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+            whereCondition = $" WHERE [{targetTable}].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
         }
 
         if(_settings.Value.Limit1Version) {
             command.CommandText += whereCondition;
+            _logger.LogInformation($"Updated Command Text: {command.CommandText}");
             return;
         }
 
@@ -834,25 +869,27 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         while (await result.ReadAsync(cancellationToken)) {
             var rowValues = new List<object>();
             for (int i = 0; i < result.FieldCount; i++) {
-                var fieldType = result.GetFieldType(i);
+                var fieldName = result.GetName(i);
+                var columnIndex = result.GetOrdinal(fieldName);
+                var fieldType = result.GetFieldType(columnIndex);
                 switch (fieldType.Name) {
                     case "Int32":
-                        rowValues.Add(result.GetInt32(i));
+                        rowValues.Add(result.GetInt32(columnIndex));
                         break;
                     case "Int64":
-                        rowValues.Add(result.GetInt64(i));
+                        rowValues.Add(result.GetInt64(columnIndex));
                         break;
                     case "String":
-                        rowValues.Add(result.GetString(i));
+                        rowValues.Add(result.GetString(columnIndex));
                         break;
                     case "Decimal":
-                        rowValues.Add(result.GetDecimal(i));
+                        rowValues.Add(result.GetDecimal(columnIndex));
                         break;
                     case "Boolean":
-                        rowValues.Add(result.GetBoolean(i));
+                        rowValues.Add(result.GetBoolean(columnIndex));
                         break;
                     case "DateTime":
-                        rowValues.Add(result.GetDateTime(i));
+                        rowValues.Add(result.GetDateTime(columnIndex));
                         break;
                     // add additional cases for other data types as needed
                     default:
@@ -929,10 +966,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
 
             // Search for partial SELECTION on the original unaltered commandText
-            (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
-            if (hasPartialRowSelection) {
-                newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-            }
+            // Disabled in this 1 version implementation as we do not change the original query
+            //(bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+            //if (hasPartialRowSelection) {
+            //    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
+            //}
 
             // If the newData is empty, add a default row
             if (newData.Count == 0) {
@@ -1170,103 +1208,67 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return commandText.Contains("COUNT");
     }
 
-    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID) {
+    [Trace]
+    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp) {
         // The cases where this applies are:
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
 
-        // Get the timestamp of the command from string to DateTime
-        // _logger.LogInformation($"1C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-        // _logger.LogInformation($"1C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
+        DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
+        bool needToWait = true;
+        string targetTable = GetTargetTable(command.CommandText);
 
-        Regex regex = new Regex(@"\[Timestamp\] <= '(?<Timestamp>[^']*)'");
-        MatchCollection matches = regex.Matches(command.CommandText);
-        DateTime readerTimestamp = DateTime.Parse(matches[0].Groups["Timestamp"].Value.ToString());
+        List<Tuple<string, string>> conditions;
+        if (HasFilterCondition(command.CommandText)) {
+            // Get the conditions of the WHERE clause, for now we only support equality conditions. Conditions are in the format: <columnName, value>
+            conditions = GetWhereConditions(command);
+        }
+        else {
+            // The reader is trying to read all items. Wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.
+            _logger.LogInformation($"Reader is trying to read all items. Will wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.");
+            conditions = null;
+        }
 
-        if (!HasFilterCondition(command.CommandText)) {
-            // The reader is trying to read all items. Wait for the proposed items to be committed.
-            while (true) {
-                // _logger.LogInformation($"2C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-                // _logger.LogInformation($"2C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
-
-                ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposedItems = _wrapper.Proposed_Discount_Items;
-                // Get all proposed timestamps
-                List<DateTime> proposedTimestamps = new List<DateTime>();
-                foreach (KeyValuePair<string, ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
-                    foreach (DateTime proposalTS in pair.Value.Keys) {
-                        if (proposalTS <= readerTimestamp) {
-                            proposedTimestamps.Add(proposalTS);
-                        }
-                    }
-                }
-                // _logger.LogInformation($"3C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-                // _logger.LogInformation($"3C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
-
-                if (proposedTimestamps.Count == 0) {
-                    // All items have been flushed to the Database
-                    return;
-                }
+        while (needToWait) {
+            needToWait = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp);
+            if (needToWait) {
+                // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
+                // Log the sleeping...
+                _logger.LogInformation($"Reader is waiting for proposed items to be committed. Will sleep for 10ms.");
                 Thread.Sleep(10);
             }
-        }
-
-        // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
-        while(true) {
-            // _logger.LogInformation($"4C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-            // _logger.LogInformation($"4C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
-
-            // Get list 
-            List<string> totalDataIdentifiers = new List<string>(_wrapper.Proposed_Discount_Items.Keys);
-
-            // for each data identifier, separate by "_", into an object[]
-            List<object[]> totalData = new List<object[]>();
-            foreach (string dataIdentifier in totalDataIdentifiers) {
-                // split the data identifier by "_"
-                var splitDataIdentifier = dataIdentifier.Split("_");
-                // log the split data identifier
-                //foreach(string str in splitDataIdentifier) {
-                //    Console.WriteLine("Split Data Identifier:<{0}>", str);
-                //}
-                //Console.WriteLine($"Split Data Identifier END");
-                totalData.Add(dataIdentifier.Split("_"));
-            }
-            // _logger.LogInformation($"5C: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
-            // _logger.LogInformation($"5C at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
-
-            var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
-            // _logger.LogInformation($"5D at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
-
-            int possibleCases = 0;
-            foreach (object[] identifier in rowsToQuery) {
-                // Concatenate the identifier into a single string identifier
-                string strIdentifier = identifier[0].ToString() + "_" + identifier[1].ToString() + "_" + identifier[2].ToString();
-                // Log the identifier
-                // Console.WriteLine($"Identifier:<{strIdentifier}>");
-
-                // Get the timestamps associated with the identifier
-                ConcurrentDictionary<DateTime, int> timestamps = _wrapper.Proposed_Discount_Items[strIdentifier];
-
-                // Check if there is at least one timestamp that is less than the reader timestamp, and so that will require the reader to wait
-                foreach(DateTime proposalTS in timestamps.Keys) {
-                    if (proposalTS <= readerTimestamp) {
-                        possibleCases++;
-                    }
-                }
-            }
-
-            if (possibleCases == 0) {
-                // No need to wait for any versions
-                // _logger.LogInformation($"5F at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
-                return;
-            } 
             else {
-                // Console.WriteLine($"Possible Cases:<{possibleCases}>. Reader has TS=<{readerTimestamp}>,  Will sleep...");
+                // There are no proposed items with lower timestamp than the client timestamp. We can proceed.
+                break;
+            }
+        }
+    }
+
+    private List<Tuple<string, string>> GetWhereConditions(DbCommand command) {
+        List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
+
+        // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
+        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
+        MatchCollection matches = regex.Matches(command.CommandText);
+        foreach (Match match in matches) {
+            // Get the column name and the parameter name
+            string columnName = match.Groups["columnName"].Value;
+            if (columnName == "Timestamp") {
+                // Ignore the Timestamp column
+                continue;
             }
 
-            // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
-            // _logger.LogInformation($"5E at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
-            Thread.Sleep(10);
+            string parameterName = match.Groups["paramValue2"].Value;
+            if(parameterName.IsNullOrEmpty()) {
+                parameterName = match.Groups["paramValue1"].Value;
+            }
+            var parameterValue = command.Parameters[parameterName].Value;
+
+            // Add the condition to the list
+            Tuple<string, string> condition = new Tuple<string, string>(columnName, parameterValue.ToString());
+            conditions.Add(condition);
         }
+        return conditions;
     }
 
     private List<object[]> ApplyFilterToProposedSet(List<object[]> proposedSet, DbCommand command) {
