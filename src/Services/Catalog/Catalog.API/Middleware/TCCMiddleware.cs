@@ -43,28 +43,15 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
-                    _dataWrapper.SingletonWrappedCatalogItems.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_objects_to_remove);
-                    _dataWrapper.SingletonWrappedCatalogBrands.TryGetValue(clientID,out ConcurrentBag<object[]> catalog_brands_to_remove);
-                    _dataWrapper.SingletonWrappedCatalogTypes.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_types_to_remove);
+                    // TODO: instead of getting this data, call a clean method on the wrapper wit the client ID
+                    //_dataWrapper.SingletonWrappedCatalogItems.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_objects_to_remove);
+                    //_dataWrapper.SingletonWrappedCatalogBrands.TryGetValue(clientID,out ConcurrentBag<object[]> catalog_brands_to_remove);
+                    //_dataWrapper.SingletonWrappedCatalogTypes.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_types_to_remove);
 
                     // Flush the Wrapper Data into the Database
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
 
-                    DateTime proposedTS = new DateTime(ticks);
-
-                    // Remove the wrapped items from the proposed set
-                    if (catalog_objects_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_objects_to_remove, "Catalog");
-                    }
-                    if (catalog_brands_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_brands_to_remove, "CatalogBrand");
-                    }
-                    if (catalog_types_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_types_to_remove, "CatalogType");
-                    }
-
-                    // Remove the client session from the proposed state
-                    _dataWrapper.SingletonRemoveProposedFunctionality(clientID);
+                    
 
                     await _next.Invoke(ctx);
                     
@@ -167,13 +154,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             // Assign the received commit timestamp to the request scope
             _request_metadata.Timestamp = new DateTime(ticks);
 
-            //_dataWrapper.FlushToDatabase(clientID, );
-
-            // Get stored objects
-            var catalogWrapperItems = _dataWrapper.SingletonGetCatalogItemsV2(clientID);
-            var catalogWrapperBrands = _dataWrapper.SingletonGetCatalogBrandsV2(clientID);
-            var catalogWrapperTypes = _dataWrapper.SingletonGetCatalogTypesV2(clientID);
-
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<CatalogContext>();
 
@@ -183,97 +163,32 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 scopedMetadata.Timestamp = _request_metadata.Timestamp;
                 scopedMetadata.Tokens = _request_metadata.Tokens;
 
-                if (catalogWrapperBrands != null && catalogWrapperBrands.Count > 0) {
-                    foreach (object[] brand in catalogWrapperBrands) {
-                        CatalogBrand newBrand = new CatalogBrand {
-                            //Id = Convert.ToInt32(brand[0]),
-                            Brand = Convert.ToString(brand[1]),
-                        };
-                        if(settings.Value.Limit1Version) {
-                            // _logger.LogInformation($"Wrapper is Updating brand: {newBrand.Brand}");
-                            dbContext.CatalogBrands.Update(newBrand);
-                        } 
-                        else{
-                            // _logger.LogInformation($"Wrapper is Adding brand: {newBrand.Brand}");
-                            dbContext.CatalogBrands.Add(newBrand);
-                        }
-                    }
-                    
-                    await dbContext.SaveChangesAsync();
-                }
+                var onlyUpdate = settings.Value.Limit1Version ? true : false;
 
-                if (catalogWrapperTypes != null && catalogWrapperTypes.Count > 0) {
-                    foreach (object[] type in catalogWrapperTypes) {
-                        CatalogType newType = new CatalogType {
-
-                            //Id = Convert.ToInt32(type[0]),
-                            Type = Convert.ToString(type[1]),
-                        };
-                        if(settings.Value.Limit1Version) {
-                            // _logger.LogInformation($"Wrapper is Updating type: {newType.Type}");
-                            dbContext.CatalogTypes.Update(newType);
-                        } 
-                        else {
-                            // _logger.LogInformation($"Wrapper is Adding type: {newType.Type}");
-                            dbContext.CatalogTypes.Add(newType);
-                        }
-                    }
-                    await dbContext.SaveChangesAsync();
-                }
-                if (catalogWrapperItems != null && catalogWrapperItems.Count > 0) {
-                    foreach (object[] item in catalogWrapperItems) {
-                        // Log the items that are being updated
-                        foreach (var i in item) {
-                            // _logger.LogInformation($"Item: {i}");
-                        }
-                        if(settings.Value.Limit1Version) {
-                            CatalogItem newItem = new CatalogItem {
-                                Id = Convert.ToInt32(item[0]),
-                                CatalogBrandId = Convert.ToInt32(item[1]),
-                                CatalogTypeId = Convert.ToInt32(item[2]),
-                                Description = Convert.ToString(item[3]),
-                                Name = Convert.ToString(item[4]),
-                                PictureFileName = Convert.ToString(item[5]),
-                                Price = Convert.ToDecimal(item[6]),
-                                AvailableStock = Convert.ToInt32(item[7]),
-                                MaxStockThreshold = Convert.ToInt32(item[8]),
-                                OnReorder = Convert.ToBoolean(item[9]),
-                                RestockThreshold = Convert.ToInt32(item[10]),
-                            };
-                            
-                            // _logger.LogInformation($"Wrapper is Updating item: {newItem.Name}");
-                            dbContext.CatalogItems.Update(newItem);
-                        } 
-                        else {
-                            CatalogItem newItem = new CatalogItem {
-                                //Id = Convert.ToInt32(item[0]),
-                                CatalogBrandId = Convert.ToInt32(item[1]),
-                                CatalogTypeId = Convert.ToInt32(item[2]),
-                                Description = Convert.ToString(item[3]),
-                                Name = Convert.ToString(item[4]),
-                                PictureFileName = Convert.ToString(item[5]),
-                                Price = Convert.ToDecimal(item[6]),
-                                AvailableStock = Convert.ToInt32(item[7]),
-                                MaxStockThreshold = Convert.ToInt32(item[8]),
-                                OnReorder = Convert.ToBoolean(item[9]),
-                                RestockThreshold = Convert.ToInt32(item[10]),
-                            };
-                            // _logger.LogInformation($"Wrapper is Adding item: {newItem.Name}");
-                            dbContext.CatalogItems.Add(newItem);
-                        }
-                    }
-                    try {
-                        await dbContext.SaveChangesAsync();
-                    } catch (Exception exc) {
-                        Console.WriteLine(exc.ToString());
-                    }
-                }
+                await _dataWrapper.FlushDataToDatabase(clientID, dbContext, onlyUpdate);
             }
-
+            // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
+            // TODO: All 3 cleansings should happen in this Clean Wrapped Objects method
+            _dataWrapper.CleanWrappedObjects(clientID);            
             // Clear the stored objects in the wrapper with this clientID
             _dataWrapper.SingletonRemoveFunctionalityObjects(clientID);
+
+            // Remove the wrapped items from the proposed set
+            if (catalog_objects_to_remove != null) {
+                _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_objects_to_remove, "Catalog");
+            }
+            if (catalog_brands_to_remove != null) {
+                _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_brands_to_remove, "CatalogBrand");
+            }
+            if (catalog_types_to_remove != null) {
+                _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_types_to_remove, "CatalogType");
+            }
+
+            // Remove the client session from the proposed state
+            _dataWrapper.SingletonRemoveProposedFunctionality(clientID);
+
         }
-    
+
     }
 
     public static class TCCMiddlewareExtension {

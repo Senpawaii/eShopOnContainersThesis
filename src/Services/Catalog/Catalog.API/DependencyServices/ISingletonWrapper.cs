@@ -37,5 +37,7 @@ namespace Catalog.API.DependencyServices {
         public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
         public void SingletonRemoveProposedFunctionality(string clientID);
         public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp);
+
+        public Task FlushDataToDatabase(string clientID, CatalogContext dbcontext, bool onlyUpdate);
     }
 }

@@ -1,8 +1,10 @@
 ﻿using Google.Protobuf.WellKnownTypes;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using YamlDotNet.Serialization;
 
 namespace Catalog.API.DependencyServices {
@@ -464,6 +466,91 @@ namespace Catalog.API.DependencyServices {
             }
 
             return filtered_proposed_catalog_items2;
+        }
+
+        public async Task FlushDataToDatabase(string clientID, CatalogContext dbcontext, bool onlyUpdate) {
+            // Check the Catalog Items, Brands, and Types associated with the clientID and flush them to the database
+
+            if (wrapped_catalog_items2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogItem> clientCatalogItems)) {
+                foreach (WrappedCatalogItem wrappedCatalogItem in clientCatalogItems) {
+                    if (onlyUpdate) {
+                        CatalogItem catalogItem = new CatalogItem {
+                            Id = wrappedCatalogItem.Id,
+                            Name = wrappedCatalogItem.Name,
+                            Description = wrappedCatalogItem.Description,
+                            Price = wrappedCatalogItem.Price,
+                            PictureFileName = wrappedCatalogItem.PictureFileName,
+                            CatalogTypeId = wrappedCatalogItem.CatalogTypeId,
+                            CatalogBrandId = wrappedCatalogItem.CatalogBrandId,
+                            AvailableStock = wrappedCatalogItem.AvailableStock,
+                            RestockThreshold = wrappedCatalogItem.RestockThreshold,
+                            MaxStockThreshold = wrappedCatalogItem.MaxStockThreshold,
+                            OnReorder = wrappedCatalogItem.OnReorder
+                        };
+
+                        dbcontext.CatalogItems.Update(catalogItem);
+                    }
+                    else {
+                        CatalogItem catalogItem = new CatalogItem {
+                            Name = wrappedCatalogItem.Name,
+                            Description = wrappedCatalogItem.Description,
+                            Price = wrappedCatalogItem.Price,
+                            PictureFileName = wrappedCatalogItem.PictureFileName,
+                            CatalogTypeId = wrappedCatalogItem.CatalogTypeId,
+                            CatalogBrandId = wrappedCatalogItem.CatalogBrandId,
+                            AvailableStock = wrappedCatalogItem.AvailableStock,
+                            RestockThreshold = wrappedCatalogItem.RestockThreshold,
+                            MaxStockThreshold = wrappedCatalogItem.MaxStockThreshold,
+                            OnReorder = wrappedCatalogItem.OnReorder
+                        };
+
+                        dbcontext.CatalogItems.Add(catalogItem);
+                    }
+                    await dbcontext.SaveChangesAsync();
+                }
+            }
+
+            if (wrapped_catalog_brands2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogBrand> clientCatalogBrands)) {
+                foreach (WrappedCatalogBrand wrappedCatalogBrand in clientCatalogBrands) {
+                    if (onlyUpdate) {
+                        CatalogBrand catalogBrand = new CatalogBrand {
+                            Id = wrappedCatalogBrand.Id,
+                            Brand = wrappedCatalogBrand.BrandName
+                        };
+
+                        dbcontext.CatalogBrands.Update(catalogBrand);
+                    }
+                    else {
+                        CatalogBrand catalogBrand = new CatalogBrand {
+                            Brand = wrappedCatalogBrand.BrandName
+                        };
+
+                        dbcontext.CatalogBrands.Add(catalogBrand);
+                    }
+                    await dbcontext.SaveChangesAsync();
+                }
+            }
+
+            if (wrapped_catalog_types2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogType> clientCatalogTypes)) {
+                foreach (WrappedCatalogType wrappedCatalogType in clientCatalogTypes) {
+                    if (onlyUpdate) {
+                        CatalogType catalogType = new CatalogType {
+                            Id = wrappedCatalogType.Id,
+                            Type = wrappedCatalogType.TypeName
+                        };
+
+                        dbcontext.CatalogTypes.Update(catalogType);
+                    }
+                    else {
+                        CatalogType catalogType = new CatalogType {
+                            Type = wrappedCatalogType.TypeName
+                        };
+
+                        dbcontext.CatalogTypes.Add(catalogType);
+                    }
+                    await dbcontext.SaveChangesAsync();
+                }
+            }
         }
     }
 
