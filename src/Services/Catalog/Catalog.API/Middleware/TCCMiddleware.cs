@@ -168,24 +168,23 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 await _dataWrapper.FlushDataToDatabase(clientID, dbContext, onlyUpdate);
             }
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
-            // TODO: All 3 cleansings should happen in this Clean Wrapped Objects method
             _dataWrapper.CleanWrappedObjects(clientID);            
             // Clear the stored objects in the wrapper with this clientID
-            _dataWrapper.SingletonRemoveFunctionalityObjects(clientID);
+            //_dataWrapper.SingletonRemoveFunctionalityObjects(clientID);
 
-            // Remove the wrapped items from the proposed set
-            if (catalog_objects_to_remove != null) {
-                _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_objects_to_remove, "Catalog");
-            }
-            if (catalog_brands_to_remove != null) {
-                _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_brands_to_remove, "CatalogBrand");
-            }
-            if (catalog_types_to_remove != null) {
-                _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_types_to_remove, "CatalogType");
-            }
+            //// Remove the wrapped items from the proposed set
+            //if (catalog_objects_to_remove != null) {
+            //    _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_objects_to_remove, "Catalog");
+            //}
+            //if (catalog_brands_to_remove != null) {
+            //    _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_brands_to_remove, "CatalogBrand");
+            //}
+            //if (catalog_types_to_remove != null) {
+            //    _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_types_to_remove, "CatalogType");
+            //}
 
-            // Remove the client session from the proposed state
-            _dataWrapper.SingletonRemoveProposedFunctionality(clientID);
+            //// Remove the client session from the proposed state
+            //_dataWrapper.SingletonRemoveProposedFunctionality(clientID);
 
         }
 

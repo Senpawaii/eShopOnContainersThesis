@@ -9,20 +9,20 @@ using YamlDotNet.Serialization;
 
 namespace Catalog.API.DependencyServices {
     public class SingletonWrapper : ISingletonWrapper {
-        ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_items = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
-        ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_types = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
-        ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_brands = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
+        //ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_items = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
+        //ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_types = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
+        //ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_brands = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
         ConcurrentDictionary<string, ConcurrentBag<WrappedCatalogItem>> wrapped_catalog_items2 = new ConcurrentDictionary<string, ConcurrentBag<WrappedCatalogItem>>();
         ConcurrentDictionary<string, ConcurrentBag<WrappedCatalogType>> wrapped_catalog_types2 = new ConcurrentDictionary<string, ConcurrentBag<WrappedCatalogType>>();
         ConcurrentDictionary<string, ConcurrentBag<WrappedCatalogBrand>> wrapped_catalog_brands2 = new ConcurrentDictionary<string, ConcurrentBag<WrappedCatalogBrand>>();
 
 
-        ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_items = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
-        ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_types = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
-        ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
-        ConcurrentDictionary<ProposedItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_items2 = new ConcurrentDictionary<ProposedItem, ConcurrentDictionary<DateTime, int>>();
-        ConcurrentDictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands2 = new ConcurrentDictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>>();
-        ConcurrentDictionary<ProposedType, ConcurrentDictionary<DateTime, int>> proposed_catalog_types2 = new ConcurrentDictionary<ProposedType, ConcurrentDictionary<DateTime, int>>();
+        //ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_items = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
+        //ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_types = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
+        //ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
+        ConcurrentDictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_items2 = new ConcurrentDictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>>();
+        ConcurrentDictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands2 = new ConcurrentDictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>>();
+        ConcurrentDictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>> proposed_catalog_types2 = new ConcurrentDictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>>();
 
         // Store the proposed Timestamp for each functionality in Proposed State
         ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
@@ -33,43 +33,44 @@ namespace Catalog.API.DependencyServices {
         public SingletonWrapper() {
         }
 
-        public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogItems {
-            get { return wrapped_catalog_items; }
-        }
-        public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogTypes {
-            get { return wrapped_catalog_types; }
-        }
-        public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogBrands {
-            get { return wrapped_catalog_brands; }
-        }
+        //public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogItems {
+        //    get { return wrapped_catalog_items; }
+        //}
+        //public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogTypes {
+        //    get { return wrapped_catalog_types; }
+        //}
+        //public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogBrands {
+        //    get { return wrapped_catalog_brands; }
+        //}
 
         public ConcurrentDictionary<string, bool> SingletonTransactionState {
             get { return transaction_state; }
         }
 
-        public ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_items {
-            get { return proposed_catalog_items; } 
-        }
-        public ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_types {
-            get { return proposed_catalog_types; }
-        }
-        public ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_brands {
-            get { return proposed_catalog_brands; }
-        }
+        //public ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_items {
+        //    get { return proposed_catalog_items; } 
+        //}
+        //public ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_types {
+        //    get { return proposed_catalog_types; }
+        //}
+        //public ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> Proposed_catalog_brands {
+        //    get { return proposed_catalog_brands; }
+        //}
 
         public ConcurrentDictionary<string, long> Proposed_functionalities {
             get { return proposed_functionalities; }
         }
 
-        public ConcurrentBag<object[]> SingletonGetCatalogITems(string key) {
-            return wrapped_catalog_items.GetValueOrDefault(key, new ConcurrentBag<object[]>());
-        }
-        public ConcurrentBag<object[]> SingletonGetCatalogTypes(string key) {
-            return wrapped_catalog_types.GetValueOrDefault(key, new ConcurrentBag<object[]>());
-        }
-        public ConcurrentBag<object[]> SingletonGetCatalogBrands(string key) {
-            return wrapped_catalog_brands.GetValueOrDefault(key, new ConcurrentBag<object[]>());
-        }
+        //public ConcurrentBag<object[]> SingletonGetCatalogITems(string key) {
+        //    // Get wrapped catalog items associated with client ID
+        //    return wrapped_catalog_items.GetValueOrDefault(key, new ConcurrentBag<object[]>());
+        //}
+        //public ConcurrentBag<object[]> SingletonGetCatalogTypes(string key) {
+        //    return wrapped_catalog_types.GetValueOrDefault(key, new ConcurrentBag<object[]>());
+        //}
+        //public ConcurrentBag<object[]> SingletonGetCatalogBrands(string key) {
+        //    return wrapped_catalog_brands.GetValueOrDefault(key, new ConcurrentBag<object[]>());
+        //}
 
         public ConcurrentBag<object[]> SingletonGetCatalogItemsV2(string key) {
             // Get the wrapped catalog items associated with the clientID
@@ -154,16 +155,26 @@ namespace Catalog.API.DependencyServices {
         }
         public void SingletonAddCatalogType(string clientID, IEnumerable<object[]> values) {
             foreach (object[] type in values) {
-                wrapped_catalog_types.AddOrUpdate(clientID, new ConcurrentBag<object[]> { type }, (key, bag) => {
-                    bag.Add(type);
+                // Create a new Wrapped Catalog Type
+                var wrapped_type = new WrappedCatalogType {
+                    Id = (int)type[0],
+                    TypeName = (string)type[1]
+                };
+                wrapped_catalog_types2.AddOrUpdate(clientID, new ConcurrentBag<WrappedCatalogType> { wrapped_type }, (key, bag) => {
+                    bag.Add(wrapped_type);
                     return bag;
                 });
             }
         }
         public void SingletonAddCatalogBrand(string clientID, IEnumerable<object[]> values) {
             foreach (object[] brand in values) {
-                wrapped_catalog_brands.AddOrUpdate(clientID, new ConcurrentBag<object[]> { brand }, (key, bag) => {
-                    bag.Add(brand);
+                // Create a new Wrapped Catalog Brand
+                var wrapped_brand = new WrappedCatalogBrand {
+                    Id = (int)brand[0],
+                    BrandName = (string)brand[1]
+                };
+                wrapped_catalog_brands2.AddOrUpdate(clientID, new ConcurrentBag<WrappedCatalogBrand> { wrapped_brand }, (key, bag) => {
+                    bag.Add(wrapped_brand);
                     return bag;
                 });
             }
@@ -206,8 +217,8 @@ namespace Catalog.API.DependencyServices {
             // For each item, add it to the proposed set, adding the proposed timestamp associated
             foreach (WrappedCatalogItem catalog_item_to_propose in catalog_items_to_propose) {
                 // Name: catalog_item_to_propose.Name, BrandId: catalog_item_to_propose.BrandId, TypeId: catalog_item_to_propose.TypeId
-                ProposedItem newItem = new ProposedItem(catalog_item_to_propose.Id, catalog_item_to_propose.Name, catalog_item_to_propose.Description, catalog_item_to_propose.Price, catalog_item_to_propose.PictureFileName, catalog_item_to_propose.CatalogTypeId, catalog_item_to_propose.CatalogBrandId, catalog_item_to_propose.AvailableStock, catalog_item_to_propose.RestockThreshold, catalog_item_to_propose.MaxStockThreshold, catalog_item_to_propose.OnReorder);
-                proposed_catalog_items2.AddOrUpdate(newItem, _ => {
+                //WrappedCatalogItem newItem = new WrappedCatalogItem(catalog_item_to_propose.Id, catalog_item_to_propose.Name, catalog_item_to_propose.Description, catalog_item_to_propose.Price, catalog_item_to_propose.PictureFileName, catalog_item_to_propose.CatalogTypeId, catalog_item_to_propose.CatalogBrandId, catalog_item_to_propose.AvailableStock, catalog_item_to_propose.RestockThreshold, catalog_item_to_propose.MaxStockThreshold, catalog_item_to_propose.OnReorder);
+                proposed_catalog_items2.AddOrUpdate(catalog_item_to_propose, _ => {
                     var innerDict = new ConcurrentDictionary<DateTime, int>();
                     innerDict.TryAdd(new DateTime(proposedTS), 1);
                     return innerDict;
@@ -219,8 +230,8 @@ namespace Catalog.API.DependencyServices {
 
             foreach (WrappedCatalogType catalog_type_to_propose in catalog_types_to_propose) {
                 // Name: catalog_type_to_propose.Name
-                ProposedType newType = new ProposedType(catalog_type_to_propose.TypeName);
-                proposed_catalog_types2.AddOrUpdate(newType, _ => {
+                //ProposedType newType = new ProposedType(catalog_type_to_propose.TypeName);
+                proposed_catalog_types2.AddOrUpdate(catalog_type_to_propose, _ => {
                     var innerDict = new ConcurrentDictionary<DateTime, int>();
                     innerDict.TryAdd(new DateTime(proposedTS), 1);
                     return innerDict;
@@ -232,8 +243,8 @@ namespace Catalog.API.DependencyServices {
 
             foreach (WrappedCatalogBrand catalog_brand_to_propose in catalog_brands_to_propose) {
                 // Name: catalog_brand_to_propose.Name
-                ProposedBrand newBrand = new ProposedBrand(catalog_brand_to_propose.BrandName);
-                proposed_catalog_brands2.AddOrUpdate(newBrand, _ => {
+                //ProposedBrand newBrand = new ProposedBrand(catalog_brand_to_propose.BrandName);
+                proposed_catalog_brands2.AddOrUpdate(catalog_brand_to_propose, _ => {
                     var innerDict = new ConcurrentDictionary<DateTime, int>();
                     innerDict.TryAdd(new DateTime(proposedTS), 1);
                     return innerDict;
@@ -244,112 +255,126 @@ namespace Catalog.API.DependencyServices {
             }
         }
 
-        public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS) {
-            // Gather the objects inside the wrapper with given clientID
-            ConcurrentBag<object[]> catalog_items_to_propose = wrapped_catalog_items.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
-            ConcurrentBag<object[]> catalog_types_to_propose = wrapped_catalog_types.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
-            ConcurrentBag<object[]> catalog_brands_to_propose = wrapped_catalog_brands.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
+        //public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS) {
+        //    // Gather the objects inside the wrapper with given clientID
+        //    ConcurrentBag<object[]> catalog_items_to_propose = wrapped_catalog_items.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
+        //    ConcurrentBag<object[]> catalog_types_to_propose = wrapped_catalog_types.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
+        //    ConcurrentBag<object[]> catalog_brands_to_propose = wrapped_catalog_brands.GetValueOrDefault(clientID, new ConcurrentBag<object[]>());
 
-            // For each object, add it to the proposed set using its identifiers, adding the proposed timestamp associated
-            foreach (object[] catalog_item_to_propose in catalog_items_to_propose) {
-                // Name: catalog_item_to_propose[1], BrandId: catalog_item_to_propose[2], TypeId: catalog_item_to_propose[4]
-                object[] identifiers = new object[] { catalog_item_to_propose[1], catalog_item_to_propose[2], catalog_item_to_propose[4] };
-                string identifiersStr = catalog_item_to_propose[1].ToString() + "_" + catalog_item_to_propose[2].ToString() + "_" + catalog_item_to_propose[4].ToString();
+        //    // For each object, add it to the proposed set using its identifiers, adding the proposed timestamp associated
+        //    foreach (object[] catalog_item_to_propose in catalog_items_to_propose) {
+        //        // Name: catalog_item_to_propose[1], BrandId: catalog_item_to_propose[2], TypeId: catalog_item_to_propose[4]
+        //        object[] identifiers = new object[] { catalog_item_to_propose[1], catalog_item_to_propose[2], catalog_item_to_propose[4] };
+        //        string identifiersStr = catalog_item_to_propose[1].ToString() + "_" + catalog_item_to_propose[2].ToString() + "_" + catalog_item_to_propose[4].ToString();
 
-                proposed_catalog_items.AddOrUpdate(identifiersStr, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, int>();
-                    innerDict.TryAdd(new DateTime(proposedTS), 1);
-                    return innerDict;
-                }, (_, value) => {
-                    value.TryAdd(new DateTime(proposedTS), 1);
-                    return value;
-                });
-            }
+        //        proposed_catalog_items.AddOrUpdate(identifiersStr, _ => {
+        //            var innerDict = new ConcurrentDictionary<DateTime, int>();
+        //            innerDict.TryAdd(new DateTime(proposedTS), 1);
+        //            return innerDict;
+        //        }, (_, value) => {
+        //            value.TryAdd(new DateTime(proposedTS), 1);
+        //            return value;
+        //        });
+        //    }
 
-            foreach (object[] catalog_brand_to_propose in catalog_brands_to_propose) {
-                // Brand: catalog_brand_to_propose[1]
-                object[] identifiers = new object[] { catalog_brand_to_propose[1] };
-                string identifiersStr = catalog_brand_to_propose[1].ToString();
-                proposed_catalog_brands.AddOrUpdate(identifiersStr, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, int>();
-                    innerDict.TryAdd(new DateTime(proposedTS), 1);
-                    return innerDict;
-                }, (_, value) => {
-                    value.TryAdd(new DateTime(proposedTS), 1);
-                    return value;
-                });
-            }
+        //    foreach (object[] catalog_brand_to_propose in catalog_brands_to_propose) {
+        //        // Brand: catalog_brand_to_propose[1]
+        //        object[] identifiers = new object[] { catalog_brand_to_propose[1] };
+        //        string identifiersStr = catalog_brand_to_propose[1].ToString();
+        //        proposed_catalog_brands.AddOrUpdate(identifiersStr, _ => {
+        //            var innerDict = new ConcurrentDictionary<DateTime, int>();
+        //            innerDict.TryAdd(new DateTime(proposedTS), 1);
+        //            return innerDict;
+        //        }, (_, value) => {
+        //            value.TryAdd(new DateTime(proposedTS), 1);
+        //            return value;
+        //        });
+        //    }
 
-            foreach (object[] catalog_type_to_propose in catalog_types_to_propose) {
-                // Type: catalog_type_to_propose[1]
-                object[] identifiers = new object[] { catalog_type_to_propose[1] };
-                string identifiersStr = catalog_type_to_propose[1].ToString();
-                proposed_catalog_types.AddOrUpdate(identifiersStr, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, int>();
-                    innerDict.TryAdd(new DateTime(proposedTS), 1);
-                    return innerDict;
-                }, (_, value) => {
-                    value.TryAdd(new DateTime(proposedTS), 1);
-                    return value;
-                });
-            }
-        }
+        //    foreach (object[] catalog_type_to_propose in catalog_types_to_propose) {
+        //        // Type: catalog_type_to_propose[1]
+        //        object[] identifiers = new object[] { catalog_type_to_propose[1] };
+        //        string identifiersStr = catalog_type_to_propose[1].ToString();
+        //        proposed_catalog_types.AddOrUpdate(identifiersStr, _ => {
+        //            var innerDict = new ConcurrentDictionary<DateTime, int>();
+        //            innerDict.TryAdd(new DateTime(proposedTS), 1);
+        //            return innerDict;
+        //        }, (_, value) => {
+        //            value.TryAdd(new DateTime(proposedTS), 1);
+        //            return value;
+        //        });
+        //    }
+        //}
         
 
-        public void SingletonRemoveWrappedItemsFromProposedSetV2(string clientID, ConcurrentBag<object[]> wrapped_objects, string targetTable) {
+        public void SingletonRemoveWrappedItemsFromProposedSetV2(string clientID) {
+            // TODO: Possible optimization: add structure that indexes proposed objects by the client ID that proposed them
+
+            // Get the proposed objects from the wrapper with given clientID
+            ConcurrentBag<WrappedCatalogItem> catalog_items_to_remove = wrapped_catalog_items2.GetValueOrDefault(clientID, new ConcurrentBag<WrappedCatalogItem>());
+            ConcurrentBag<WrappedCatalogBrand> catalog_brands_to_remove = wrapped_catalog_brands2.GetValueOrDefault(clientID, new ConcurrentBag<WrappedCatalogBrand>());
+            ConcurrentBag<WrappedCatalogType> catalog_types_to_remove = wrapped_catalog_types2.GetValueOrDefault(clientID, new ConcurrentBag<WrappedCatalogType>());
+
+
             // Remove entries from the proposed set. These are identified by their key table identifiers.
-            switch(targetTable) {
-                case "Catalog":
-                    // Name: wrapped_object[1], BrandId: wrapped_object[2], TypeId: wrapped_object[4]
-                    ProposedItem proposedItem = 
-                    break;
+            foreach(WrappedCatalogItem item in catalog_items_to_remove) {
+                // Remove each item from the proposed set
+                proposed_catalog_items2.TryRemove(item, out _);
+            }
+            foreach(WrappedCatalogBrand brand in catalog_brands_to_remove) {
+                // Remove each brand from the proposed set
+                proposed_catalog_brands2.TryRemove(brand, out _);
+            }
+            foreach(WrappedCatalogType type in catalog_types_to_remove) {
+                // Remove each type from the proposed set
+                proposed_catalog_types2.TryRemove(type, out _);
             }
         }
 
-        public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects, string targetTable) {
-            // Remove entries in the proposed set, identified by their table identifiers and the timestamp proposed in the functionality
-            switch(targetTable) {
-                case "Catalog":
-                    foreach (object[] object_to_remove in wrapped_objects) {
-                        // Name: wrapped_object[1], BrandId: wrapped_object[2], TypeId: wrapped_object[4]
-                        object[] identifiers = new object[] { object_to_remove[1], object_to_remove[2], object_to_remove[4] };
-                        string identifiersStr = object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[4].ToString();
-                        var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
-                        proposed_catalog_items[identifiersStr].TryRemove(original_proposedTS, out _);
-                    }
-                    break;
-                case "CatalogBrand":
-                    foreach (object[] object_to_remove in wrapped_objects) {
-                        // Brand: wrapped_object[1]
-                        object[] identifiers = new object[] { object_to_remove[1] };
-                        string identifiersStr = object_to_remove[1].ToString();
-                        var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
-                        proposed_catalog_brands[identifiersStr].TryRemove(original_proposedTS, out _);
-                    }
-                    break;
-                case "CatalogType":
-                    foreach (object[] object_to_remove in wrapped_objects) {
-                        // Type: wrapped_object[1]
-                        object[] identifiers = new object[] { object_to_remove[1] };
-                        string identifiersStr = object_to_remove[1].ToString();
-                        var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
-                        proposed_catalog_types[identifiersStr].TryRemove(original_proposedTS, out _);
-                    }
-                    break;
-            }
-        }
+        //public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects, string targetTable) {
+        //    // Remove entries in the proposed set, identified by their table identifiers and the timestamp proposed in the functionality
+        //    switch(targetTable) {
+        //        case "Catalog":
+        //            foreach (object[] object_to_remove in wrapped_objects) {
+        //                // Name: wrapped_object[1], BrandId: wrapped_object[2], TypeId: wrapped_object[4]
+        //                object[] identifiers = new object[] { object_to_remove[1], object_to_remove[2], object_to_remove[4] };
+        //                string identifiersStr = object_to_remove[1].ToString() + "_" + object_to_remove[2].ToString() + "_" + object_to_remove[4].ToString();
+        //                var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
+        //                proposed_catalog_items[identifiersStr].TryRemove(original_proposedTS, out _);
+        //            }
+        //            break;
+        //        case "CatalogBrand":
+        //            foreach (object[] object_to_remove in wrapped_objects) {
+        //                // Brand: wrapped_object[1]
+        //                object[] identifiers = new object[] { object_to_remove[1] };
+        //                string identifiersStr = object_to_remove[1].ToString();
+        //                var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
+        //                proposed_catalog_brands[identifiersStr].TryRemove(original_proposedTS, out _);
+        //            }
+        //            break;
+        //        case "CatalogType":
+        //            foreach (object[] object_to_remove in wrapped_objects) {
+        //                // Type: wrapped_object[1]
+        //                object[] identifiers = new object[] { object_to_remove[1] };
+        //                string identifiersStr = object_to_remove[1].ToString();
+        //                var original_proposedTS = new DateTime(proposed_functionalities[clientID]);
+        //                proposed_catalog_types[identifiersStr].TryRemove(original_proposedTS, out _);
+        //            }
+        //            break;
+        //    }
+        //}
 
         public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp) {
             switch (targetTable) {
                 case "Catalog":
                     // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
                     // Note that the original set of proposed catalog items 2 is not modified, we are just creating a new set with the results of the conditions.
-                    var filtered_proposed_catalog_items2 = new Dictionary<ProposedItem, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_items2);
+                    var filtered_proposed_catalog_items2 = new Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_items2);
                     if (conditions != null) {
                         filtered_proposed_catalog_items2 = ApplyFiltersToCatalogItems(conditions, filtered_proposed_catalog_items2);
                     }
                     // Check if the there any proposed catalog items 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<ProposedItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_item in filtered_proposed_catalog_items2) {
+                    foreach (KeyValuePair<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_item in filtered_proposed_catalog_items2) {
                         foreach (DateTime proposedTS in proposed_catalog_item.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
@@ -359,12 +384,12 @@ namespace Catalog.API.DependencyServices {
                     }
                     break;
                 case "CatalogBrand":
-                    var filtered_proposed_catalog_brands2 = new Dictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_brands2);
+                    var filtered_proposed_catalog_brands2 = new Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_brands2);
                     if (conditions != null) {
                         filtered_proposed_catalog_brands2 = ApplyFiltersToCatalogBrands(conditions, filtered_proposed_catalog_brands2);
                     }
                     // Check if the there any proposed catalog brands 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<ProposedBrand, ConcurrentDictionary<DateTime, int>> proposed_catalog_brand in filtered_proposed_catalog_brands2) {
+                    foreach (KeyValuePair<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>> proposed_catalog_brand in filtered_proposed_catalog_brands2) {
                         foreach (DateTime proposedTS in proposed_catalog_brand.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog brand 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
@@ -375,12 +400,12 @@ namespace Catalog.API.DependencyServices {
 
                     break;
                 case "CatalogType":
-                    var filtered_proposed_catalog_types2 = new Dictionary<ProposedType, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_types2);
+                    var filtered_proposed_catalog_types2 = new Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_types2);
                     if (conditions != null) {
                         filtered_proposed_catalog_types2 = ApplyFiltersToCatalogTypes(conditions, filtered_proposed_catalog_types2);
                     }
                     // Check if the there any proposed catalog types 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<ProposedType, ConcurrentDictionary<DateTime, int>> proposed_catalog_type in filtered_proposed_catalog_types2) {
+                    foreach (KeyValuePair<WrappedCatalogType, ConcurrentDictionary<DateTime, int>> proposed_catalog_type in filtered_proposed_catalog_types2) {
                         foreach (DateTime proposedTS in proposed_catalog_type.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog type 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
@@ -394,7 +419,7 @@ namespace Catalog.API.DependencyServices {
             return false;
         }
 
-        private static Dictionary<ProposedType, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogTypes(List<Tuple<string, string>> conditions, Dictionary<ProposedType, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_types2) {
+        private static Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogTypes(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_types2) {
             foreach (Tuple<string, string> condition in conditions) {
                 filtered_proposed_catalog_types2 = filtered_proposed_catalog_types2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
             }
@@ -402,7 +427,7 @@ namespace Catalog.API.DependencyServices {
             return filtered_proposed_catalog_types2;
         }
 
-        private static Dictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogBrands(List<Tuple<string, string>> conditions, Dictionary<ProposedBrand, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_brands2) {
+        private static Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogBrands(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_brands2) {
             foreach (Tuple<string, string> condition in conditions) {
                 filtered_proposed_catalog_brands2 = filtered_proposed_catalog_brands2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
             }
@@ -410,7 +435,7 @@ namespace Catalog.API.DependencyServices {
             return filtered_proposed_catalog_brands2;
         }
 
-        private static Dictionary<ProposedItem, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<ProposedItem, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_items2) {
+        private static Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_items2) {
             foreach (Tuple<string, string> condition in conditions) {
                 switch (condition.Item1) {
                     case "Id":
@@ -427,9 +452,6 @@ namespace Catalog.API.DependencyServices {
                         break;
                     case "PictureFileName":
                         filtered_proposed_catalog_items2 = filtered_proposed_catalog_items2.Where(x => x.Key.PictureFileName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
-                        break;
-                    case "PictureUri":
-                        filtered_proposed_catalog_items2 = filtered_proposed_catalog_items2.Where(x => x.Key.PictureUri == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
                         break;
                     case "CatalogTypeId":
                         filtered_proposed_catalog_items2 = filtered_proposed_catalog_items2.Where(x => x.Key.CatalogTypeId == int.Parse(condition.Item2)).ToDictionary(x => x.Key, x => x.Value);
@@ -552,6 +574,17 @@ namespace Catalog.API.DependencyServices {
                 }
             }
         }
+
+        public void CleanWrappedObjects(string clientID) {
+            // Clean up the proposed items;
+            SingletonRemoveWrappedItemsFromProposedSetV2(clientID);
+
+            // Clean up wrapped objects;
+            SingletonRemoveFunctionalityObjects(clientID);
+
+            // Clean up the proposed functionality state
+            SingletonRemoveProposedFunctionality(clientID);
+        }
     }
 
     public struct WrappedCatalogItem {
@@ -593,48 +626,47 @@ namespace Catalog.API.DependencyServices {
         public string TypeName { get; set; }
     }
 
-    public struct ProposedItem {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public string Description { get; set; }
-        public decimal Price { get; set; }
-        public string PictureFileName { get; set; }
-        public string PictureUri { get; set; }
-        public int CatalogTypeId { get; set; }
-        public int CatalogBrandId { get; set; }
-        public int AvailableStock { get; set; }
-        public int RestockThreshold { get; set; }
-        public int MaxStockThreshold { get; set; }
-        public bool OnReorder { get; set; }
+    //public struct ProposedItem {
+    //    public int Id { get; set; }
+    //    public string Name { get; set; }
+    //    public string Description { get; set; }
+    //    public decimal Price { get; set; }
+    //    public string PictureFileName { get; set; }
+    //    public int CatalogTypeId { get; set; }
+    //    public int CatalogBrandId { get; set; }
+    //    public int AvailableStock { get; set; }
+    //    public int RestockThreshold { get; set; }
+    //    public int MaxStockThreshold { get; set; }
+    //    public bool OnReorder { get; set; }
 
-        public ProposedItem(int id, string name, string description, decimal price, string pictureFileName, int catalogTypeId, int catalogBrandId, int availableStock, int restockThreshold, int maxStockThreshold, bool onReorder) {
-            Id = id;
-            Name = name;
-            Description = description;
-            Price = price;
-            PictureFileName = pictureFileName;
-            CatalogTypeId = catalogTypeId;
-            CatalogBrandId = catalogBrandId;
-            AvailableStock = availableStock;
-            RestockThreshold = restockThreshold;
-            MaxStockThreshold = maxStockThreshold;
-            OnReorder = onReorder;
-        }
-    }
+    //    public ProposedItem(int id, string name, string description, decimal price, string pictureFileName, int catalogTypeId, int catalogBrandId, int availableStock, int restockThreshold, int maxStockThreshold, bool onReorder) {
+    //        Id = id;
+    //        Name = name;
+    //        Description = description;
+    //        Price = price;
+    //        PictureFileName = pictureFileName;
+    //        CatalogTypeId = catalogTypeId;
+    //        CatalogBrandId = catalogBrandId;
+    //        AvailableStock = availableStock;
+    //        RestockThreshold = restockThreshold;
+    //        MaxStockThreshold = maxStockThreshold;
+    //        OnReorder = onReorder;
+    //    }
+    //}
 
-    public struct ProposedBrand {
-        public string BrandName { get; set; }
+    //public struct ProposedBrand {
+    //    public string BrandName { get; set; }
 
-        public ProposedBrand(string brandName) {
-            BrandName = brandName;
-        }
-    }
+    //    public ProposedBrand(string brandName) {
+    //        BrandName = brandName;
+    //    }
+    //}
 
-    public struct ProposedType {
-        public string TypeName { get; set; }
+    //public struct ProposedType {
+    //    public string TypeName { get; set; }
     
-        public ProposedType(string typeName) {
-            TypeName = typeName;
-        }
-    }
+    //    public ProposedType(string typeName) {
+    //        TypeName = typeName;
+    //    }
+    //}
 }

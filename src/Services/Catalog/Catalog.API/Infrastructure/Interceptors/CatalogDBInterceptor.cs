@@ -914,13 +914,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
             switch (targetTable) {
                 case "CatalogBrand":
-                    wrapperData = _wrapper.SingletonGetCatalogBrands(clientID).ToList();
+                    wrapperData = _wrapper.SingletonGetCatalogBrandsV2(clientID).ToList();
                     break;
                 case "CatalogType":
-                    wrapperData = _wrapper.SingletonGetCatalogTypes(clientID).ToList();
+                    wrapperData = _wrapper.SingletonGetCatalogTypesV2(clientID).ToList();
                     break;
                 case "Catalog":
-                    wrapperData = _wrapper.SingletonGetCatalogITems(clientID).ToList();
+                    wrapperData = _wrapper.SingletonGetCatalogItemsV2(clientID).ToList();
                     break;
             }
 
@@ -1071,13 +1071,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
             switch (targetTable) {
                 case "CatalogBrand":
-                    wrapperData = _wrapper.SingletonGetCatalogBrands(clientID).ToList();
+                    wrapperData = _wrapper.SingletonGetCatalogBrandsV2(clientID).ToList();
                     break;
                 case "CatalogType":
-                    wrapperData = _wrapper.SingletonGetCatalogTypes(clientID).ToList();
+                    wrapperData = _wrapper.SingletonGetCatalogTypesV2(clientID).ToList();
                     break;
                 case "Catalog":
-                    wrapperData = _wrapper.SingletonGetCatalogITems(clientID).ToList();
+                    wrapperData = _wrapper.SingletonGetCatalogItemsV2(clientID).ToList();
                     break;
             }
             //_logger.LogInformation($"Checkpoint 2_c_2: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
