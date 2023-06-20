@@ -85,6 +85,7 @@ public class TCCMiddleware {
 
     }
 
+    [Trace]
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
