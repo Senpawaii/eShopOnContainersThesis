@@ -101,17 +101,21 @@ public class CoordinatorController : ControllerBase {
         // Get all services' addresses involved in the functionality
         List<string> services = _functionalityService.ServicesTokensProposed[clientID];
 
+        var tasks = new List<Task<long>>();
         foreach (string service in services) {
-            long proposedTS = -1;
             switch (service) {
                 case "CatalogService":
-                    proposedTS = await _catalogService.GetProposal(clientID);
+                    tasks.Add(_catalogService.GetProposal(clientID));
                     break;
                 case "DiscountService":
-                    proposedTS = await _discountService.GetProposal(clientID);
+                    tasks.Add(_discountService.GetProposal(clientID));
                     break;
             }
-            _functionalityService.AddNewProposalGivenService(clientID, service, proposedTS);
+        }
+        var results = await Task.WhenAll(tasks);
+
+        for (int i = 0; i < services.Count; i++) {
+            _functionalityService.AddNewProposalGivenService(clientID, services[i], results[i]);
         }
     }
 }

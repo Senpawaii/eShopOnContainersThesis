@@ -26,7 +26,7 @@ public class DiscountService : IDiscountService {
         var responseString = await response.Content.ReadAsStringAsync();
     }
 
-    public async ValueTask<long> GetProposal(string clientID) {
+    public async Task<long> GetProposal(string clientID) {
         string uri = $"{_settings.Value.DiscountUrl}proposeTS?clientID={clientID}";
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         //response.EnsureSuccessStatusCode();
