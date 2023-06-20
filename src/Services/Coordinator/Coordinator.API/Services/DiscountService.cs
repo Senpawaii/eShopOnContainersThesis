@@ -17,7 +17,7 @@ public class DiscountService : IDiscountService {
         _remoteServiceBaseUrl = settings.Value.DiscountUrl;
     }
 
-    public async ValueTask IssueCommit(string maxTS, string clientID) {
+    public async Task IssueCommit(string maxTS, string clientID) {
         string uri = $"{_settings.Value.DiscountUrl}commit?timestamp={maxTS}&clientID={clientID}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);

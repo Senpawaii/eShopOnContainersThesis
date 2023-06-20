@@ -72,21 +72,26 @@ public class CoordinatorController : ControllerBase {
                                     .Select(t => t.Item1)
                                     .Distinct()
                                     .ToList();
+        // Parallelize the commit process
+        List<Task> taskList = new List<Task>();
         foreach (string address in addresses) {
+            Task task = null;
             switch(address) {
                 case "CatalogService":
-                    await _catalogService.IssueCommit(maxTS.ToString(), clientID);
+                    task = _catalogService.IssueCommit(maxTS.ToString(), clientID);
                     break;
                 case "DiscountService":
-                    await _discountService.IssueCommit(maxTS.ToString(), clientID);
+                    task = _discountService.IssueCommit(maxTS.ToString(), clientID);
                     break;
                 case "ThesisFrontendService":
-                    await _thesisFrontendService.IssueCommit(clientID);
+                    task = _thesisFrontendService.IssueCommit(clientID);
                     break;
             }
+            taskList.Add(task);
         }
 
-
+        // Wait for all the services to commit
+        await Task.WhenAll(taskList);
 
         // Clear all the data structures from the functionality
         _functionalityService.ClearFunctionality(clientID);
