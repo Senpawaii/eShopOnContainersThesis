@@ -20,16 +20,15 @@ public class CatalogService : ICatalogService {
         _remoteServiceBaseUrl = settings.Value.CatalogUrl;
     }
 
-    public async Task IssueCommit(string maxTS, string clientID) {
+    public async ValueTask IssueCommit(string maxTS, string clientID) {
         string uri = $"{_settings.Value.CatalogUrl}commit?timestamp={maxTS}&clientID={clientID}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
-        response.EnsureSuccessStatusCode();
 
         var responseString = await response.Content.ReadAsStringAsync();
     }
 
-    public async Task<long> GetProposal(string clientID) {
+    public async ValueTask<long> GetProposal(string clientID) {
         string uri = $"{_settings.Value.CatalogUrl}proposeTS?clientID={clientID}";
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         response.EnsureSuccessStatusCode();
