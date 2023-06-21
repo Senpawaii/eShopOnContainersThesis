@@ -1013,6 +1013,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         if (_originalCommandText.Contains("UPDATE")) {
             var newUpdatedData = new List<object[]>();
             newUpdatedData.Add(new object[] { 1 });
+            _logger.LogInformation("ClientID: {0}", clientID);
             return new WrapperDbDataReader(newUpdatedData, result, targetTable);
         }
 
@@ -1171,7 +1172,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         newData.Add(new object[] { 0, "" });
                         break;
                 }
+                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+                if (hasPartialRowSelection) {
+                    // The select query has a partial row selection
+                    var originalNumColumns = newData[0].Length;
+                    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
+                    _logger.LogInformation("Applying the partial row selection. The original data had {0} columns. The new data has {1} columns. CommandText was {2}", originalNumColumns, newData[0].Length, _originalCommandText);
+
+                }
             }
+            
         }
         return new WrapperDbDataReader(newData, result, targetTable);
     }

@@ -1246,7 +1246,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     private List<Tuple<string, string>> GetWhereConditions(DbCommand command) {
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
-
+        _logger.LogInformation("CommandText: " + command.CommandText);
         // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
         Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
         MatchCollection matches = regex.Matches(command.CommandText);
@@ -1259,10 +1259,13 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
 
             string parameterName = match.Groups["paramValue2"].Value;
-            if(parameterName.IsNullOrEmpty()) {
-                parameterName = match.Groups["paramValue1"].Value;
+            object parameterValue;
+            if(!parameterName.IsNullOrEmpty()) {
+                parameterValue = command.Parameters[parameterName].Value;
             }
-            var parameterValue = command.Parameters[parameterName].Value;
+            else {
+                parameterValue = match.Groups["paramValue1"].Value;
+            }
 
             // Add the condition to the list
             Tuple<string, string> condition = new Tuple<string, string>(columnName, parameterValue.ToString());
