@@ -625,48 +625,4 @@ namespace Catalog.API.DependencyServices {
         public int Id { get; set; }
         public string TypeName { get; set; }
     }
-
-    //public struct ProposedItem {
-    //    public int Id { get; set; }
-    //    public string Name { get; set; }
-    //    public string Description { get; set; }
-    //    public decimal Price { get; set; }
-    //    public string PictureFileName { get; set; }
-    //    public int CatalogTypeId { get; set; }
-    //    public int CatalogBrandId { get; set; }
-    //    public int AvailableStock { get; set; }
-    //    public int RestockThreshold { get; set; }
-    //    public int MaxStockThreshold { get; set; }
-    //    public bool OnReorder { get; set; }
-
-    //    public ProposedItem(int id, string name, string description, decimal price, string pictureFileName, int catalogTypeId, int catalogBrandId, int availableStock, int restockThreshold, int maxStockThreshold, bool onReorder) {
-    //        Id = id;
-    //        Name = name;
-    //        Description = description;
-    //        Price = price;
-    //        PictureFileName = pictureFileName;
-    //        CatalogTypeId = catalogTypeId;
-    //        CatalogBrandId = catalogBrandId;
-    //        AvailableStock = availableStock;
-    //        RestockThreshold = restockThreshold;
-    //        MaxStockThreshold = maxStockThreshold;
-    //        OnReorder = onReorder;
-    //    }
-    //}
-
-    //public struct ProposedBrand {
-    //    public string BrandName { get; set; }
-
-    //    public ProposedBrand(string brandName) {
-    //        BrandName = brandName;
-    //    }
-    //}
-
-    //public struct ProposedType {
-    //    public string TypeName { get; set; }
-    
-    //    public ProposedType(string typeName) {
-    //        TypeName = typeName;
-    //    }
-    //}
 }

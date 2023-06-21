@@ -22,6 +22,7 @@ using Autofac.Core;
 using System.Runtime.CompilerServices;
 using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 using NewRelic.Api.Agent;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -1160,10 +1161,23 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         if(_settings.Value.Limit1Version) {
             if(newData.IsNullOrEmpty()) {
+                _logger.LogInformation("The database + wrapper returned no data");
                 // If newData is empty return a reader with a single default row
                 switch(targetTable) {
                     case "Catalog":
-                        newData.Add(new object[] { 0, 2, 3, 4, "ba", 0, "name", false, "file", 10.0, 0 });
+                        newData.Add(new object[] {
+                            1, // Id
+                            ".NET Bot Black Hoodie", // Name
+                            ".NET Bot Black Hoodie, and more", // Description
+                            11000, // Price
+                            "1.png", // PictureFileName
+                            2, // CatalogTypeId
+                            1, // CatakigBrandId
+                            100, // AvailableStock
+                            0, // RestockThreshold
+                            0, // MaxStockThreshold
+                            false // OnReorder
+                        });
                         break;
                     case "CatalogType":
                         newData.Add(new object[] { 0, "" });
@@ -1174,6 +1188,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 }
                 (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
                 if (hasPartialRowSelection) {
+                    foreach (string column in selectedColumns) {
+                        _logger.LogInformation("The column {0} was selected", column);
+                    }
+
                     // The select query has a partial row selection
                     var originalNumColumns = newData[0].Length;
                     newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
