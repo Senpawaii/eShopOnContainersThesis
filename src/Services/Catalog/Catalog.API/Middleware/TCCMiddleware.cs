@@ -39,6 +39,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 string currentUri = ctx.Request.GetUri().ToString();
 
                 if (currentUri.Contains("commit")) {
+                    _logger.LogInformation($"Committing clientID: {clientID}");
                     // Start flushing the Wrapper Data into the Database associated with the client session
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -50,8 +51,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                     // Flush the Wrapper Data into the Database
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
-
-                    
 
                     await _next.Invoke(ctx);
                     
@@ -148,6 +147,8 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
         [Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata, IOptions<CatalogSettings> settings) {
+            _logger.LogInformation($"Flushing Wrapper Data for clientID: {clientID}");
+            
             // Set client state to the in commit
             _dataWrapper.SingletonSetTransactionState(clientID, true);
                 

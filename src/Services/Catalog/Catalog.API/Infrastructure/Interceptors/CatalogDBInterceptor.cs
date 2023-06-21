@@ -162,7 +162,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 return new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
                 string clientTimestamp =  _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
-                _logger.LogInformation("The original received SELECT command text: {0}", command.CommandText);
+                _logger.LogInformation($"ClientID: {clientID}, The original received SELECT command text: {command.CommandText}");
                 if(_settings.Value.Limit1Version) {
                     UpdateSelectCommandV2(command, targetTable, clientTimestamp);
                 } else {
@@ -1160,6 +1160,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //_logger.LogInformation($"Checkpoint 2_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         if(_settings.Value.Limit1Version) {
+            if (HasCountClause(_originalCommandText) && newData[0][0].Equals(0)) {
+                _logger.LogInformation("The database count returned 0. Adding 1 to the count for default.");
+                newData.Add(new object[] { 1 });
+            }
             if(newData.IsNullOrEmpty()) {
                 _logger.LogInformation("The database + wrapper returned no data");
                 // If newData is empty return a reader with a single default row
@@ -1195,8 +1199,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     // The select query has a partial row selection
                     var originalNumColumns = newData[0].Length;
                     newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-                    _logger.LogInformation("Applying the partial row selection. The original data had {0} columns. The new data has {1} columns. CommandText was {2}", originalNumColumns, newData[0].Length, _originalCommandText);
-
+                    _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                    foreach (object value in newData[0]) {
+                        _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                    }
                 }
             }
             
@@ -1289,7 +1295,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
             return newRow;
         }).ToList();
-
+        
+        foreach( var row in newData) {
+            int index = 0;
+            foreach(var value in row) {
+                _logger.LogInformation($"The value {value.ToString()} was selected for column {selectedColumns[index]}");
+            }
+        }
         return newData;
     }
 
@@ -1546,7 +1558,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             if (needToWait) {
                 // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
                 // Log the sleeping...
-                _logger.LogInformation($"Reader is waiting for proposed items to be committed. Will sleep for 10ms.");
+                _logger.LogInformation($"ClientID={clientID}: Reader is waiting for proposed items to be committed. Will sleep for 10ms.");
                 Thread.Sleep(10);
             }
             else {

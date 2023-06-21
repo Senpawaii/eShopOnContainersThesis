@@ -37,7 +37,7 @@ public class CoordinatorController : ControllerBase {
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     public async Task<ActionResult<int>> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
         double.TryParse(tokens, out var numTokens);
-
+        _logger.LogInformation($"Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
         // Incremement the Tokens
         _functionalityService.IncreaseTokens(clientID, numTokens);
 
@@ -47,7 +47,7 @@ public class CoordinatorController : ControllerBase {
         }
 
         if (_functionalityService.HasCollectedAllTokens(clientID)) {
-
+            _logger.LogInformation("Received all tokens for client {clientID}", clientID);
             // If no services are registered (read-only functionality), do not ask for proposals / commit
             if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
                 // Clear all the data structures from the functionality
@@ -75,6 +75,7 @@ public class CoordinatorController : ControllerBase {
         // Parallelize the commit process
         List<Task> taskList = new List<Task>();
         foreach (string address in addresses) {
+            _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
             Task task = null;
             switch(address) {
                 case "CatalogService":
@@ -83,12 +84,12 @@ public class CoordinatorController : ControllerBase {
                 case "DiscountService":
                     task = _discountService.IssueCommit(maxTS.ToString(), clientID);
                     break;
-                case "ThesisFrontendService":
-                    task = _thesisFrontendService.IssueCommit(clientID);
-                    break;
             }
             taskList.Add(task);
         }
+
+        // Issue commit to the ThesisFrontendService: this allows the service to return the functionality results to the client 
+        taskList.Add(_thesisFrontendService.IssueCommit(clientID));
 
         // Wait for all the services to commit
         await Task.WhenAll(taskList);
@@ -114,7 +115,10 @@ public class CoordinatorController : ControllerBase {
         }
         var results = await Task.WhenAll(tasks);
 
-        for (int i = 0; i < services.Count; i++) {
+        _logger.LogInformation($"Tasks count: {tasks.Count} - Results count: {results.Count()}");
+        for (int i = 0; i < tasks.Count; i++) {
+            // Note that services might include the ThesisFrontendService, which does not have a proposal, thus we use tasks.Count instead of services.Count
+            _logger.LogInformation($"Received proposal {results[i]} from {services[i]} for client {clientID}");
             _functionalityService.AddNewProposalGivenService(clientID, services[i], results[i]);
         }
     }

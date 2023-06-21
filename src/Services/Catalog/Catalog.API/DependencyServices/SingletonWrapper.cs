@@ -492,7 +492,7 @@ namespace Catalog.API.DependencyServices {
 
         public async Task FlushDataToDatabase(string clientID, CatalogContext dbcontext, bool onlyUpdate) {
             // Check the Catalog Items, Brands, and Types associated with the clientID and flush them to the database
-
+            Console.WriteLine("Flushing data to database from client: " + clientID + " ...");
             if (wrapped_catalog_items2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogItem> clientCatalogItems)) {
                 foreach (WrappedCatalogItem wrappedCatalogItem in clientCatalogItems) {
                     if (onlyUpdate) {

@@ -36,6 +36,7 @@ public class FunctionalityService : IFunctionalityService {
     }
 
     public void AddNewProposalGivenService(string clientID, string service, long proposalTicks) {
+        Console.WriteLine($"Adding proposal from {service} for client {clientID}");
         if(_proposals.ContainsKey(clientID)) {
             _proposals[clientID].Add((service, proposalTicks));
         }

@@ -42,10 +42,6 @@ public class TCCMiddleware {
 
         // Send the rest of the tokens to the coordinator
         if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID.Value) > 0) {
-            if(currentUri.Contains("updatepricediscount")) {
-                _request_metadata.ReadOnly.Value = false;    
-            }
-            
             await _coordinatorSvc.SendTokens();
         }
 
@@ -127,6 +123,7 @@ public class TCCMiddleware {
         _request_metadata.Tokens.Value = tokens;
         _request_metadata.Timestamp.Value = timestamp;
         _request_metadata.ClientID.Value = clientID;
+        _request_metadata.ReadOnly.Value = true;
     }
 
     [Trace]
