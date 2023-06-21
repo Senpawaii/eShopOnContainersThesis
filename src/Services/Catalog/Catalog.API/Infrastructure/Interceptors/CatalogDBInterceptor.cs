@@ -143,7 +143,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
         
-        // _logger.LogInformation($"Start ReaderExecutingAsync Command Text: {command.CommandText}");
         
         _originalCommandText = new string(command.CommandText);
 
@@ -151,6 +150,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
+        _logger.LogInformation($"ClientID: {clientID}, Start ReaderExecutingAsync Command Text: {command.CommandText}");
 
         if (clientID == null) {
             // This is a system query
@@ -188,7 +188,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
-                
+                _logger.LogInformation($"ClientID: {clientID}, The original received UPDATE command text: {command.CommandText}");
                 bool transactionState = _wrapper.SingletonGetTransactionState(clientID);
                 if(_settings.Value.Limit1Version) {
                     if (!transactionState) {
@@ -199,8 +199,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         break;
                     } 
                     else {
+                        _logger.LogInformation($"ClientID {clientID} is in commit state");
                         // Transaction is in commit state, update the row in the database
                         UpdateUpdateCommand(command, targetTable);
+                        _logger.LogInformation($"ClientID {clientID} updated the command text to: {command.CommandText}");
                         // _logger.LogInformation("Checkpoint command before DB commit: {0}", command.CommandText);
                         break;
                     }
@@ -1198,7 +1200,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
                     // The select query has a partial row selection
                     var originalNumColumns = newData[0].Length;
-                    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
+                    for(int i = 0; i < newData.Count; i++) {
+                        newData[i] = PartialRowSelection(command.CommandText, newData[i], selectedColumns);
+                    }
                     _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
                     foreach (object value in newData[0]) {
                         _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
@@ -1280,29 +1284,53 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     [Trace]
-    private List<object[]> PartialRowSelection(string commandText, List<object[]> newData, List<string> selectedColumns) {
+    private object[] PartialRowSelection(string commandText, object[] row, List<string> selectedColumns) {
         string targetTable = GetTargetTable(commandText);
+        object[] newRow = new object[selectedColumns.Count];
 
         // Get the default indexes for the columns of the Catalog Database
         Dictionary<string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
 
-        newData = newData.Select(row => {
-            var newRow = new object[selectedColumns.Count];
-            for (int i = 0; i < selectedColumns.Count; i++) {
-                string columnName = selectedColumns[i];
-                int columnIndex = columnIndexes[columnName];
-                newRow[i] = row[columnIndex];
+        _logger.LogInformation($"Selected {columnIndexes.Count} columns. The commandText was {commandText}");
+
+        for (int i = 0; i < selectedColumns.Count; i++) {
+            switch(selectedColumns[i]) {
+                case "Id":
+                    newRow[i] = row[0];
+                    break;
+                case "Name":
+                    newRow[i] = row[1];
+                    break;
+                case "Description":
+                    newRow[i] = row[2];
+                    break;
+                case "Price":
+                    newRow[i] = row[3];
+                    break;
+                case "PictureFileName":
+                    newRow[i] = row[4];
+                    break;
+                case "CatalogTypeId":
+                    newRow[i] = row[5];
+                    break;
+                case "CatalogBrandId":
+                    newRow[i] = row[6];
+                    break;
+                case "AvailableStock":
+                    newRow[i] = row[7];
+                    break;
+                case "RestockThreshold":
+                    newRow[i] = row[8];
+                    break;
+                case "MaxStockThreshold":
+                    newRow[i] = row[9];
+                    break;
+                case "OnReorder":   
+                    newRow[i] = row[10];
+                    break;
             }
-            return newRow;
-        }).ToList();
-        
-        foreach( var row in newData) {
-            int index = 0;
-            foreach(var value in row) {
-                _logger.LogInformation($"The value {value.ToString()} was selected for column {selectedColumns[index]}");
-            }
-        }
-        return newData;
+        }   
+        return newRow;
     }
 
     [Trace]

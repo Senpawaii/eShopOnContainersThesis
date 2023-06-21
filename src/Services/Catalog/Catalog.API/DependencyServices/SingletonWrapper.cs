@@ -9,6 +9,8 @@ using YamlDotNet.Serialization;
 
 namespace Catalog.API.DependencyServices {
     public class SingletonWrapper : ISingletonWrapper {
+        public ILogger<SingletonWrapper> _logger;
+
         //ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_items = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
         //ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_types = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
         //ConcurrentDictionary<string, ConcurrentBag<object[]>> wrapped_catalog_brands = new ConcurrentDictionary<string, ConcurrentBag<object[]>>();
@@ -20,9 +22,9 @@ namespace Catalog.API.DependencyServices {
         //ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_items = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
         //ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_types = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
         //ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
-        ConcurrentDictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_items2 = new ConcurrentDictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>>();
-        ConcurrentDictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>> proposed_catalog_brands2 = new ConcurrentDictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>>();
-        ConcurrentDictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>> proposed_catalog_types2 = new ConcurrentDictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>>();
+        ConcurrentDictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, string>> proposed_catalog_items2 = new ConcurrentDictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, string>>();
+        ConcurrentDictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, string>> proposed_catalog_brands2 = new ConcurrentDictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, string>>();
+        ConcurrentDictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, string>> proposed_catalog_types2 = new ConcurrentDictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, string>>();
 
         // Store the proposed Timestamp for each functionality in Proposed State
         ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
@@ -30,7 +32,8 @@ namespace Catalog.API.DependencyServices {
         // Dictionary that hold the state of a transaction: PREPARE or COMMITTED
         ConcurrentDictionary<string, bool> transaction_state = new ConcurrentDictionary<string, bool>();
 
-        public SingletonWrapper() {
+        public SingletonWrapper(ILogger<SingletonWrapper> logger) {
+            _logger = logger;
         }
 
         //public ConcurrentDictionary<string, ConcurrentBag<object[]>> SingletonWrappedCatalogItems {
@@ -219,11 +222,11 @@ namespace Catalog.API.DependencyServices {
                 // Name: catalog_item_to_propose.Name, BrandId: catalog_item_to_propose.BrandId, TypeId: catalog_item_to_propose.TypeId
                 //WrappedCatalogItem newItem = new WrappedCatalogItem(catalog_item_to_propose.Id, catalog_item_to_propose.Name, catalog_item_to_propose.Description, catalog_item_to_propose.Price, catalog_item_to_propose.PictureFileName, catalog_item_to_propose.CatalogTypeId, catalog_item_to_propose.CatalogBrandId, catalog_item_to_propose.AvailableStock, catalog_item_to_propose.RestockThreshold, catalog_item_to_propose.MaxStockThreshold, catalog_item_to_propose.OnReorder);
                 proposed_catalog_items2.AddOrUpdate(catalog_item_to_propose, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, int>();
-                    innerDict.TryAdd(new DateTime(proposedTS), 1);
+                    var innerDict = new ConcurrentDictionary<DateTime, string>();
+                    innerDict.TryAdd(new DateTime(proposedTS), clientID);
                     return innerDict;
                 }, (_, value) => {
-                    value.TryAdd(new DateTime(proposedTS), 1);
+                    value.TryAdd(new DateTime(proposedTS), clientID);
                     return value;
                 });
             }
@@ -232,11 +235,11 @@ namespace Catalog.API.DependencyServices {
                 // Name: catalog_type_to_propose.Name
                 //ProposedType newType = new ProposedType(catalog_type_to_propose.TypeName);
                 proposed_catalog_types2.AddOrUpdate(catalog_type_to_propose, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, int>();
-                    innerDict.TryAdd(new DateTime(proposedTS), 1);
+                    var innerDict = new ConcurrentDictionary<DateTime, string>();
+                    innerDict.TryAdd(new DateTime(proposedTS), clientID);
                     return innerDict;
                 }, (_, value) => {
-                    value.TryAdd(new DateTime(proposedTS), 1);
+                    value.TryAdd(new DateTime(proposedTS), clientID);
                     return value;
                 });
             }
@@ -245,11 +248,11 @@ namespace Catalog.API.DependencyServices {
                 // Name: catalog_brand_to_propose.Name
                 //ProposedBrand newBrand = new ProposedBrand(catalog_brand_to_propose.BrandName);
                 proposed_catalog_brands2.AddOrUpdate(catalog_brand_to_propose, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, int>();
-                    innerDict.TryAdd(new DateTime(proposedTS), 1);
+                    var innerDict = new ConcurrentDictionary<DateTime, string>();
+                    innerDict.TryAdd(new DateTime(proposedTS), clientID);
                     return innerDict;
                 }, (_, value) => {
-                    value.TryAdd(new DateTime(proposedTS), 1);
+                    value.TryAdd(new DateTime(proposedTS), clientID);
                     return value;
                 });
             }
@@ -314,8 +317,11 @@ namespace Catalog.API.DependencyServices {
             ConcurrentBag<WrappedCatalogItem> catalog_items_to_remove = wrapped_catalog_items2.GetValueOrDefault(clientID, new ConcurrentBag<WrappedCatalogItem>());
             ConcurrentBag<WrappedCatalogBrand> catalog_brands_to_remove = wrapped_catalog_brands2.GetValueOrDefault(clientID, new ConcurrentBag<WrappedCatalogBrand>());
             ConcurrentBag<WrappedCatalogType> catalog_types_to_remove = wrapped_catalog_types2.GetValueOrDefault(clientID, new ConcurrentBag<WrappedCatalogType>());
+            _logger.LogInformation($"ClientID: {clientID}, the wrapper contains only 1 item, that is: {string.Join(",", catalog_items_to_remove.Select(x => x.Id))}");
+            _logger.LogInformation($"ClientID: {clientID}, the proposed item set contains {proposed_catalog_items2.Count} items, that is: {string.Join(",", proposed_catalog_items2.Keys.Select(x => x.Id))}");
 
 
+            _logger.LogInformation($"Client {clientID} is removing {catalog_items_to_remove.Count} catalog items, {catalog_brands_to_remove.Count} catalog brands, and {catalog_types_to_remove.Count} catalog types from the proposed set");
             // Remove entries from the proposed set. These are identified by their key table identifiers.
             foreach(WrappedCatalogItem item in catalog_items_to_remove) {
                 // Remove each item from the proposed set
@@ -329,6 +335,10 @@ namespace Catalog.API.DependencyServices {
                 // Remove each type from the proposed set
                 proposed_catalog_types2.TryRemove(type, out _);
             }
+
+            // Check if there any missing objects
+            _logger.LogInformation($"At the end, ClientID: {clientID}, the proposed item set contains {proposed_catalog_items2.Count} items, that is: {string.Join(",", proposed_catalog_items2.Keys.Select(x => x.Id))}");
+
         }
 
         //public void SingletonRemoveWrappedItemsFromProposedSet(string clientID, ConcurrentBag<object[]> wrapped_objects, string targetTable) {
@@ -369,14 +379,16 @@ namespace Catalog.API.DependencyServices {
                 case "Catalog":
                     // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
                     // Note that the original set of proposed catalog items 2 is not modified, we are just creating a new set with the results of the conditions.
-                    var filtered_proposed_catalog_items2 = new Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_items2);
+                    var filtered_proposed_catalog_items2 = new Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, string>>(this.proposed_catalog_items2);
                     if (conditions != null) {
                         filtered_proposed_catalog_items2 = ApplyFiltersToCatalogItems(conditions, filtered_proposed_catalog_items2);
+                        _logger.LogInformation($"There are left {filtered_proposed_catalog_items2.Count} items after applying the filters, namely items with ID {string.Join(",", filtered_proposed_catalog_items2.Keys.Select(x => x.Id))}");
                     }
                     // Check if the there any proposed catalog items 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>> proposed_catalog_item in filtered_proposed_catalog_items2) {
+                    foreach (KeyValuePair<WrappedCatalogItem, ConcurrentDictionary<DateTime, string>> proposed_catalog_item in filtered_proposed_catalog_items2) {
                         foreach (DateTime proposedTS in proposed_catalog_item.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
+                                Console.WriteLine($"The item {proposed_catalog_item.Key.Name} has a lower timestamp than the reader's timestamp: {proposedTS.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} < {readerTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}. Proposed ticks: {proposedTS.Ticks}, proposed by client: {proposed_catalog_item.Value[proposedTS]}");
                                 // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
                                 return true;
                             }
@@ -384,12 +396,12 @@ namespace Catalog.API.DependencyServices {
                     }
                     break;
                 case "CatalogBrand":
-                    var filtered_proposed_catalog_brands2 = new Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_brands2);
+                    var filtered_proposed_catalog_brands2 = new Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, string>>(this.proposed_catalog_brands2);
                     if (conditions != null) {
                         filtered_proposed_catalog_brands2 = ApplyFiltersToCatalogBrands(conditions, filtered_proposed_catalog_brands2);
                     }
                     // Check if the there any proposed catalog brands 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>> proposed_catalog_brand in filtered_proposed_catalog_brands2) {
+                    foreach (KeyValuePair<WrappedCatalogBrand, ConcurrentDictionary<DateTime, string>> proposed_catalog_brand in filtered_proposed_catalog_brands2) {
                         foreach (DateTime proposedTS in proposed_catalog_brand.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog brand 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
@@ -400,12 +412,12 @@ namespace Catalog.API.DependencyServices {
 
                     break;
                 case "CatalogType":
-                    var filtered_proposed_catalog_types2 = new Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>>(this.proposed_catalog_types2);
+                    var filtered_proposed_catalog_types2 = new Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, string>>(this.proposed_catalog_types2);
                     if (conditions != null) {
                         filtered_proposed_catalog_types2 = ApplyFiltersToCatalogTypes(conditions, filtered_proposed_catalog_types2);
                     }
                     // Check if the there any proposed catalog types 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<WrappedCatalogType, ConcurrentDictionary<DateTime, int>> proposed_catalog_type in filtered_proposed_catalog_types2) {
+                    foreach (KeyValuePair<WrappedCatalogType, ConcurrentDictionary<DateTime, string>> proposed_catalog_type in filtered_proposed_catalog_types2) {
                         foreach (DateTime proposedTS in proposed_catalog_type.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog type 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
@@ -419,7 +431,7 @@ namespace Catalog.API.DependencyServices {
             return false;
         }
 
-        private static Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogTypes(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_types2) {
+        private static Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogTypes(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_types2) {
             foreach (Tuple<string, string> condition in conditions) {
                 filtered_proposed_catalog_types2 = filtered_proposed_catalog_types2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
             }
@@ -427,7 +439,7 @@ namespace Catalog.API.DependencyServices {
             return filtered_proposed_catalog_types2;
         }
 
-        private static Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogBrands(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_brands2) {
+        private static Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogBrands(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_brands2) {
             foreach (Tuple<string, string> condition in conditions) {
                 filtered_proposed_catalog_brands2 = filtered_proposed_catalog_brands2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
             }
@@ -435,7 +447,7 @@ namespace Catalog.API.DependencyServices {
             return filtered_proposed_catalog_brands2;
         }
 
-        private static Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, int>> filtered_proposed_catalog_items2) {
+        private static Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<WrappedCatalogItem, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_items2) {
             foreach (Tuple<string, string> condition in conditions) {
                 switch (condition.Item1) {
                     case "Id":
@@ -490,12 +502,16 @@ namespace Catalog.API.DependencyServices {
             return filtered_proposed_catalog_items2;
         }
 
-        public async Task FlushDataToDatabase(string clientID, CatalogContext dbcontext, bool onlyUpdate) {
+        public List<CatalogItem> SingletonGetWrappedCatalogItemsToFlush(string clientID, bool onlyUpdate) {
             // Check the Catalog Items, Brands, and Types associated with the clientID and flush them to the database
-            Console.WriteLine("Flushing data to database from client: " + clientID + " ...");
+            
+            var catalogItems = new List<CatalogItem>();
+            
+            Console.WriteLine("Getting proposed data to flush from client: " + clientID + " ...");
             if (wrapped_catalog_items2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogItem> clientCatalogItems)) {
                 foreach (WrappedCatalogItem wrappedCatalogItem in clientCatalogItems) {
                     if (onlyUpdate) {
+                        _logger.LogInformation($"Client {clientID}, updating catalog item with ID {wrappedCatalogItem.Id}");
                         CatalogItem catalogItem = new CatalogItem {
                             Id = wrappedCatalogItem.Id,
                             Name = wrappedCatalogItem.Name,
@@ -509,8 +525,7 @@ namespace Catalog.API.DependencyServices {
                             MaxStockThreshold = wrappedCatalogItem.MaxStockThreshold,
                             OnReorder = wrappedCatalogItem.OnReorder
                         };
-
-                        dbcontext.CatalogItems.Update(catalogItem);
+                        catalogItems.Add(catalogItem);
                     }
                     else {
                         CatalogItem catalogItem = new CatalogItem {
@@ -525,57 +540,58 @@ namespace Catalog.API.DependencyServices {
                             MaxStockThreshold = wrappedCatalogItem.MaxStockThreshold,
                             OnReorder = wrappedCatalogItem.OnReorder
                         };
-
-                        dbcontext.CatalogItems.Add(catalogItem);
+                        catalogItems.Add(catalogItem);
                     }
-                    await dbcontext.SaveChangesAsync();
                 }
+                return catalogItems;
             }
+            return null;
 
-            if (wrapped_catalog_brands2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogBrand> clientCatalogBrands)) {
-                foreach (WrappedCatalogBrand wrappedCatalogBrand in clientCatalogBrands) {
-                    if (onlyUpdate) {
-                        CatalogBrand catalogBrand = new CatalogBrand {
-                            Id = wrappedCatalogBrand.Id,
-                            Brand = wrappedCatalogBrand.BrandName
-                        };
+            // if (wrapped_catalog_brands2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogBrand> clientCatalogBrands)) {
+            //     foreach (WrappedCatalogBrand wrappedCatalogBrand in clientCatalogBrands) {
+            //         if (onlyUpdate) {
+            //             CatalogBrand catalogBrand = new CatalogBrand {
+            //                 Id = wrappedCatalogBrand.Id,
+            //                 Brand = wrappedCatalogBrand.BrandName
+            //             };
 
-                        dbcontext.CatalogBrands.Update(catalogBrand);
-                    }
-                    else {
-                        CatalogBrand catalogBrand = new CatalogBrand {
-                            Brand = wrappedCatalogBrand.BrandName
-                        };
+            //             dbcontext.CatalogBrands.Update(catalogBrand);
+            //         }
+            //         else {
+            //             CatalogBrand catalogBrand = new CatalogBrand {
+            //                 Brand = wrappedCatalogBrand.BrandName
+            //             };
 
-                        dbcontext.CatalogBrands.Add(catalogBrand);
-                    }
-                    await dbcontext.SaveChangesAsync();
-                }
-            }
+            //             dbcontext.CatalogBrands.Add(catalogBrand);
+            //         }
+            //         await dbcontext.SaveChangesAsync();
+            //     }
+            // }
 
-            if (wrapped_catalog_types2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogType> clientCatalogTypes)) {
-                foreach (WrappedCatalogType wrappedCatalogType in clientCatalogTypes) {
-                    if (onlyUpdate) {
-                        CatalogType catalogType = new CatalogType {
-                            Id = wrappedCatalogType.Id,
-                            Type = wrappedCatalogType.TypeName
-                        };
+            // if (wrapped_catalog_types2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogType> clientCatalogTypes)) {
+            //     foreach (WrappedCatalogType wrappedCatalogType in clientCatalogTypes) {
+            //         if (onlyUpdate) {
+            //             CatalogType catalogType = new CatalogType {
+            //                 Id = wrappedCatalogType.Id,
+            //                 Type = wrappedCatalogType.TypeName
+            //             };
 
-                        dbcontext.CatalogTypes.Update(catalogType);
-                    }
-                    else {
-                        CatalogType catalogType = new CatalogType {
-                            Type = wrappedCatalogType.TypeName
-                        };
+            //             dbcontext.CatalogTypes.Update(catalogType);
+            //         }
+            //         else {
+            //             CatalogType catalogType = new CatalogType {
+            //                 Type = wrappedCatalogType.TypeName
+            //             };
 
-                        dbcontext.CatalogTypes.Add(catalogType);
-                    }
-                    await dbcontext.SaveChangesAsync();
-                }
-            }
+            //             dbcontext.CatalogTypes.Add(catalogType);
+            //         }
+            //         await dbcontext.SaveChangesAsync();
+            //     }
+            // }
         }
 
         public void CleanWrappedObjects(string clientID) {
+            _logger.LogInformation($"Cleaning wrapped objects for client {clientID} ...");
             // Clean up the proposed items;
             SingletonRemoveWrappedItemsFromProposedSetV2(clientID);
 

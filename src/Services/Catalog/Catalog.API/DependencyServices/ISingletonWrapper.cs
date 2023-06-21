@@ -38,7 +38,7 @@ namespace Catalog.API.DependencyServices {
         public void SingletonRemoveProposedFunctionality(string clientID);
         public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp);
 
-        public Task FlushDataToDatabase(string clientID, CatalogContext dbcontext, bool onlyUpdate);
+        public List<CatalogItem> SingletonGetWrappedCatalogItemsToFlush(string clientID, bool onlyUpdate);
         public void CleanWrappedObjects(string clientID);
     }
 }

@@ -37,7 +37,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 _request_metadata.ReadOnly = true;
 
                 string currentUri = ctx.Request.GetUri().ToString();
-
+                _logger.LogInformation($"ClientID: {clientID} - Current URI: {currentUri}");
                 if (currentUri.Contains("commit")) {
                     _logger.LogInformation($"Committing clientID: {clientID}");
                     // Start flushing the Wrapper Data into the Database associated with the client session
@@ -128,6 +128,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
                 if(_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {                    
+                    _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
                     // Propose Timestamp with Tokens to the Coordinator
                     await _coordinatorSvc.SendTokens();
                 }
@@ -137,7 +138,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 // Stop timer
                 stopwatch.Stop();
                 // Log the time taken
-                _logger.LogInformation($"Propose time: {stopwatch.ElapsedMilliseconds} ms");
+                _logger.LogInformation($"ClientID: {clientID} Propose time: {stopwatch.ElapsedMilliseconds} ms");
             }
             else {
                 // This is not an HTTP request that requires change
@@ -155,6 +156,15 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             // Assign the received commit timestamp to the request scope
             _request_metadata.Timestamp = new DateTime(ticks);
 
+            var onlyUpdate = settings.Value.Limit1Version ? true : false;
+
+            // TODO: Note, if these were Tasks, we could await them all at once
+            var catalogItemsToFlush = _dataWrapper.SingletonGetWrappedCatalogItemsToFlush(clientID, onlyUpdate);
+            _logger.LogInformation($"Catalog Items to Flush: {catalogItemsToFlush.Count}: {catalogItemsToFlush}");
+            
+            // var catalogBrandToFlush = _dataWrapper.SingletonGetWrappedCatalogBrandsToFlush(clientID, onlyUpdate);
+            // var catalogTypeToFlush = _dataWrapper.SingletonGetWrappedCatalogTypesToFlush(clientID, onlyUpdate);
+            
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<CatalogContext>();
 
@@ -164,10 +174,56 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 scopedMetadata.Timestamp = _request_metadata.Timestamp;
                 scopedMetadata.Tokens = _request_metadata.Tokens;
 
-                var onlyUpdate = settings.Value.Limit1Version ? true : false;
+                // Flush the wrapped items to the database
+                if(catalogItemsToFlush != null) {
+                    if(onlyUpdate) {
+                        foreach(var catalogItem in catalogItemsToFlush) {
+                            _logger.LogInformation($"Updating catalog item: {catalogItem}");
+                            dbContext.CatalogItems.Update(catalogItem);
+                        }
+                    }
+                    else {
+                        foreach(var catalogItem in catalogItemsToFlush) {
+                            dbContext.CatalogItems.Add(catalogItem);
+                        }
+                    }
+                    _logger.LogInformation($"ClientID {clientID} Saving changes to database");
+                    await dbContext.SaveChangesAsync();
+                }
 
-                await _dataWrapper.FlushDataToDatabase(clientID, dbContext, onlyUpdate);
+                // Flush the wrapped brands to the database
+                // if(catalogBrandToFlush != null) {
+                //     if(onlyUpdate) {
+                //         foreach(var catalogBrand in catalogBrandToFlush) {
+                //             dbContext.CatalogBrands.Update(catalogBrand);
+                //         }
+                //     }
+                //     else {
+                //         foreach(var catalogBrand in catalogBrandToFlush) {
+                //             dbContext.CatalogBrands.Add(catalogBrand);
+                //         }
+                //     }
+                //     await dbContext.SaveChangesAsync();
+                // }
+
+                // // Flush the wrapped types to the database
+                // if(catalogTypeToFlush != null) {
+                //     if(onlyUpdate) {
+                //         foreach(var catalogType in catalogTypeToFlush) {
+                //             dbContext.CatalogTypes.Update(catalogType);
+                //         }
+                //     }
+                //     else {
+                //         foreach(var catalogType in catalogTypeToFlush) {
+                //             dbContext.CatalogTypes.Add(catalogType);
+                //         }
+                //     }
+                //     await dbContext.SaveChangesAsync();
+                // }
+
+                // await _dataWrapper.FlushDataToDatabase(clientID, dbContext, onlyUpdate);
             }
+            _logger.LogInformation($"Flushed Wrapper Data for clientID: {clientID}");
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _dataWrapper.CleanWrappedObjects(clientID);            
             // Clear the stored objects in the wrapper with this clientID
