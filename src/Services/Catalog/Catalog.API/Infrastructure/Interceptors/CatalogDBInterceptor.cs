@@ -23,6 +23,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 using NewRelic.Api.Agent;
 using Microsoft.Extensions.Logging;
+using System.Data;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -1152,12 +1153,22 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             //_logger.LogInformation($"Checkpoint 2_c_7: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             // Search for partial SELECTION on the original unaltered commandText
-            // Disabled in this 1 version implementation as we do not change the original query
-            //(bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
-            //if (hasPartialRowSelection) {
-            //    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-            //}
+            (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+            if (hasPartialRowSelection) {
+                foreach (string column in selectedColumns) {
+                    _logger.LogInformation("The column {0} was selected", column);
+                }
 
+                // The select query has a partial row selection
+                var originalNumColumns = newData[0].Length;
+                for(int i = 0; i < newData.Count; i++) {
+                    newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable());
+                }
+                _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                foreach (object value in newData[0]) {
+                    _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                }
+            }
         }
         //_logger.LogInformation($"Checkpoint 2_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
@@ -1296,40 +1307,73 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         for (int i = 0; i < selectedColumns.Count; i++) {
             switch(selectedColumns[i]) {
                 case "Id":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[0]}");
                     newRow[i] = row[0];
                     break;
                 case "Name":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[1]}");
                     newRow[i] = row[1];
                     break;
                 case "Description":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[2]}");
                     newRow[i] = row[2];
                     break;
                 case "Price":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[3]}");
                     newRow[i] = row[3];
                     break;
                 case "PictureFileName":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[4]}");
                     newRow[i] = row[4];
                     break;
                 case "CatalogTypeId":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[5]}");
                     newRow[i] = row[5];
                     break;
                 case "CatalogBrandId":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[6]}");
                     newRow[i] = row[6];
                     break;
                 case "AvailableStock":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[7]}");
                     newRow[i] = row[7];
                     break;
                 case "RestockThreshold":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[8]}");
                     newRow[i] = row[8];
                     break;
                 case "MaxStockThreshold":
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[9]}");
                     newRow[i] = row[9];
                     break;
                 case "OnReorder":   
+                    _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[10]}");
                     newRow[i] = row[10];
                     break;
             }
         }   
+        return newRow;
+    }
+
+    [Trace]
+    private object[] PartialRowSelectionV2(string commandText, object[] row, List<string> selectedColumns, DataTable schemaTable) {
+        // Build a new row with the selected columns only, as defined in the original commandText
+        var columnIndexes = new Dictionary<string, int>();
+
+        for (int i = 0; i < schemaTable.Rows.Count; i++) {
+            var columnName = schemaTable.Rows[i]["ColumnName"].ToString();
+            var columnIndex = (int)schemaTable.Rows[i]["ColumnOrdinal"];
+            columnIndexes[columnName] = columnIndex;            
+        }
+
+        var newRow = new object[selectedColumns.Count];
+        for (int i = 0; i < selectedColumns.Count; i++) {
+            var columnName = selectedColumns[i];
+            var columnIndex = columnIndexes[columnName];
+            newRow[i] = row[columnIndex];
+            _logger.LogInformation($"Added column {columnName} with value {newRow[i]} to the new row");
+        }
+
         return newRow;
     }
 
