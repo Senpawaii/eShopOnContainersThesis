@@ -545,6 +545,7 @@ namespace Catalog.API.DependencyServices {
                 }
                 return catalogItems;
             }
+            _logger.LogInformation("No items were registered in the wrapper for clientID " + clientID);
             return null;
 
             // if (wrapped_catalog_brands2.TryGetValue(clientID, out ConcurrentBag<WrappedCatalogBrand> clientCatalogBrands)) {

@@ -24,6 +24,8 @@ using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 using NewRelic.Api.Agent;
 using Microsoft.Extensions.Logging;
 using System.Data;
+using System.Text;
+using Microsoft.Data.SqlClient;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -189,7 +191,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
-                _logger.LogInformation($"ClientID: {clientID}, The original received UPDATE command text: {command.CommandText}");
+                _logger.LogInformation($"ClientID: {clientID}, Async UPDATE original command text: {command.CommandText}");
                 bool transactionState = _wrapper.SingletonGetTransactionState(clientID);
                 if(_settings.Value.Limit1Version) {
                     if (!transactionState) {
@@ -209,34 +211,38 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     }
                 } 
                 else {
-                    // _logger.LogInformation("Updating the command text from Update to Insert");
                     // Convert the Update Command into an INSERT command
                     Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
-
+                    _logger.LogInformation("Checkpoint 1");
                     // Create a new INSERT command
-                    string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
-
+                    var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
+                        .Append(targetTable)
+                        .Append("] (");
+                    _logger.LogInformation("Checkpoint 2");
                     // Add the columns incased in squared brackets
-                    insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
-
-                    // Add the values
-                    insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
-
-                    if (columnsToInsert != null) {
-                        command.CommandText = insertCommand;
-                        // Clear the existing parameters
-                        command.Parameters.Clear();
-                        foreach (var column in columnsToInsert) {
-                            // Add the new parameter to the command
-                            DbParameter newParameter = command.CreateParameter();
-                            newParameter.ParameterName = column.Key;
-                            newParameter.Value = column.Value;
-                            command.Parameters.Add(newParameter);
-                        }
-                    }
-
+                    var columnNames = columnsToInsert.Keys.Select(x => $"[{x}]");
+                    insertCommand.Append(string.Join(", ", columnNames));
+                    _logger.LogInformation("Checkpoint 3");
+                    // Add the values as parameters
+                    var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
+                    var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
+                    insertCommand.Append(") VALUES (")
+                        .Append(string.Join(", ", parameterNames))
+                        .Append(")");
+                    _logger.LogInformation("Checkpoint 4");
+                    _logger.LogInformation("Parameters Names: {0}", string.Join(", ", parameters.Select(x => $"{x.ParameterName}: {x.Value}")));
+                    
+                    // Set the parameters on the command
+                    command.Parameters.Clear();
+                    command.Parameters.AddRange(parameters);
+                    _logger.LogInformation("Checkpoint 5");
+                    // Set the command text to the INSERT command
+                    command.CommandText = insertCommand.ToString();
+                    _logger.LogInformation($"ClientID: {clientID}, async UPODATE to INSERT new insertCommand: {insertCommand.ToString()}");
+                    _logger.LogInformation($"ClientID: {clientID}, Async UPDATE to INSERT command text: {command.CommandText}");
                     // If the Transaction is not in commit state, store data in wrapper
                     var updateToInsertReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
+                    _logger.LogInformation("Checkpoint 6");
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
                 }
                 break;
@@ -253,13 +259,17 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
-        // _logger.LogInformation("Command text: " + command.CommandText);
+        _logger.LogInformation($"ClientID: {clientID} Command text: " + command.CommandText);
         string regexPattern;
         if( operation == UPDATE_COMMAND) {
             regexPattern = @"\[(\w+)\] = (@\w+)";
         }
+        else if(operation == INSERT_COMMAND) {
+            regexPattern = @"(?:, |\()\[(\w+)\]";
+        } 
         else {
-            regexPattern = @"\[(\w+)\]";
+            _logger.LogError($"Operation not supported, command text: {command.CommandText}");
+            regexPattern = "";
         }
 
         // Get the number of columns in each row to be inserted
@@ -275,6 +285,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
         // Get the number of rows being inserted
         int numberRows = command.Parameters.Count / columns.Count;
+        _logger.LogInformation($"ClientID: {clientID} Number of rows: {numberRows}");
+        _logger.LogInformation($"ClientID: {clientID}, Columns: {string.Join(",", columns)}, Command: {command.CommandText}");
+        foreach (DbParameter param in command.Parameters) {
+            _logger.LogInformation($"ClientID: {clientID} Parameter: {param.ParameterName}: {param.Value}");
+        }
         var rowsAffected = 0;
         
         var rows = new List<object[]>();
@@ -282,12 +297,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             var row = new object[columns.Count + 1]; // Added Timestamp at the end
             // log the parameters in command.Parameters
             foreach (DbParameter param in command.Parameters) {
-                // _logger.LogInformation($"Parameter: {param.ParameterName}: {param.Value}");
+                _logger.LogInformation($"ClientID: {clientID} Parameter: {param.ParameterName}: {param.Value}");
             }
 
             for(int j = 0; j < columns.Count; j++) {
                 var columnName = columns[j];
-                var paramValue = command.Parameters[((i * columns.Count) + j + 1) % 11].Value;
+                var paramValue = command.Parameters["@"+columnName].Value;
                 var correctIndexToStore = standardColumnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
                 //_logger.LogInformation($"Row: {columnName}: {paramValue}");
@@ -300,7 +315,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
         // Log the rows
         foreach (object[] row in rows) {
-            // _logger.LogInformation($"Row: {string.Join(", ", row)}");
+            _logger.LogInformation($"ClientID: {clientID} adding to the wrapper row: {string.Join(", ", row)}");
         }
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 

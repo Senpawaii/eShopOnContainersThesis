@@ -11,6 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 using NewRelic.Api.Agent;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.Common;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -966,23 +967,62 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             }
 
             // Search for partial SELECTION on the original unaltered commandText
-            // Disabled in this 1 version implementation as we do not change the original query
-            //(bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
-            //if (hasPartialRowSelection) {
-            //    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-            //}
+            (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+            if (hasPartialRowSelection) {
+                foreach (string column in selectedColumns) {
+                    _logger.LogInformation("The column {0} was selected", column);
+                }
 
-            // If the newData is empty, add a default row
-            if (newData.Count == 0) {
-                // _logger.LogInformation("Empty newData, adding default row.");
-                newData.Add(new object[] { null, null, null, null, null });
+                // The select query has a partial row selection
+                var originalNumColumns = newData[0].Length;
+                for(int i = 0; i < newData.Count; i++) {
+                    newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable());
+                }
+                _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                foreach (object value in newData[0]) {
+                    _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                }
             }
         }
-        // _logger.LogInformation($"5J at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt")} for functionality {_request_metadata.ClientID}.");
 
-        // _logger.LogInformation($"11B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+        if(_settings.Value.Limit1Version) {
+            if (HasCountClause(_originalCommandText) && newData[0][0].Equals(0)) {
+                _logger.LogInformation("The database count returned 0. Adding 1 to the count for default.");
+                newData.Add(new object[] { 1 });
+            }
+            if(newData.IsNullOrEmpty()) {
+                _logger.LogInformation("The database + wrapper returned no data");
+                // If newData is empty return a reader with a single default row
+                switch(targetTable) {
+                    case "Discount":
+                        newData.Add(new object[] {
+                            1, // Id
+                            ".NET Bot Black Hoodie", // ItemName
+                            ".NET", // ItemBrand
+                            "T-Shirt", // ItemType
+                            2, // DiscountValue
+                        });
+                        break;
+                }
+                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+                if (hasPartialRowSelection) {
+                    foreach (string column in selectedColumns) {
+                        _logger.LogInformation("The column {0} was selected", column);
+                    }
 
-        // _logger.LogInformation($"Checkpoint 2_d_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    // The select query has a partial row selection
+                    var originalNumColumns = newData[0].Length;
+                    for(int i = 0; i < newData.Count; i++) {
+                        newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable());
+                    }
+                    _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                    foreach (object value in newData[0]) {
+                        _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                    }
+                }
+            }
+            
+        }
 
         return new WrapperDbDataReader(newData, result, targetTable);
     }
@@ -1053,6 +1093,27 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }).ToList();
 
         return newData;
+    }
+
+    private object[] PartialRowSelectionV2(string commandText, object[] row, List<string> selectedColumns, DataTable schemaTable) {
+        // Build a new row with the selected columns only, as defined in the original commandText
+        var columnIndexes = new Dictionary<string, int>();
+
+        for (int i = 0; i < schemaTable.Rows.Count; i++) {
+            var columnName = schemaTable.Rows[i]["ColumnName"].ToString();
+            var columnIndex = (int)schemaTable.Rows[i]["ColumnOrdinal"];
+            columnIndexes[columnName] = columnIndex;            
+        }
+
+        var newRow = new object[selectedColumns.Count];
+        for (int i = 0; i < selectedColumns.Count; i++) {
+            var columnName = selectedColumns[i];
+            var columnIndex = columnIndexes[columnName];
+            newRow[i] = row[columnIndex];
+            _logger.LogInformation($"Added column {columnName} with value {newRow[i]} to the new row");
+        }
+
+        return newRow;
     }
 
     private List<object[]> FilterData(List<object[]> wrapperData, DbCommand command) {

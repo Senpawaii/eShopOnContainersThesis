@@ -44,11 +44,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
-                    // TODO: instead of getting this data, call a clean method on the wrapper wit the client ID
-                    //_dataWrapper.SingletonWrappedCatalogItems.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_objects_to_remove);
-                    //_dataWrapper.SingletonWrappedCatalogBrands.TryGetValue(clientID,out ConcurrentBag<object[]> catalog_brands_to_remove);
-                    //_dataWrapper.SingletonWrappedCatalogTypes.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_types_to_remove);
-
                     // Flush the Wrapper Data into the Database
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
 
@@ -190,59 +185,10 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _logger.LogInformation($"ClientID {clientID} Saving changes to database");
                     await dbContext.SaveChangesAsync();
                 }
-
-                // Flush the wrapped brands to the database
-                // if(catalogBrandToFlush != null) {
-                //     if(onlyUpdate) {
-                //         foreach(var catalogBrand in catalogBrandToFlush) {
-                //             dbContext.CatalogBrands.Update(catalogBrand);
-                //         }
-                //     }
-                //     else {
-                //         foreach(var catalogBrand in catalogBrandToFlush) {
-                //             dbContext.CatalogBrands.Add(catalogBrand);
-                //         }
-                //     }
-                //     await dbContext.SaveChangesAsync();
-                // }
-
-                // // Flush the wrapped types to the database
-                // if(catalogTypeToFlush != null) {
-                //     if(onlyUpdate) {
-                //         foreach(var catalogType in catalogTypeToFlush) {
-                //             dbContext.CatalogTypes.Update(catalogType);
-                //         }
-                //     }
-                //     else {
-                //         foreach(var catalogType in catalogTypeToFlush) {
-                //             dbContext.CatalogTypes.Add(catalogType);
-                //         }
-                //     }
-                //     await dbContext.SaveChangesAsync();
-                // }
-
-                // await _dataWrapper.FlushDataToDatabase(clientID, dbContext, onlyUpdate);
             }
             _logger.LogInformation($"Flushed Wrapper Data for clientID: {clientID}");
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _dataWrapper.CleanWrappedObjects(clientID);            
-            // Clear the stored objects in the wrapper with this clientID
-            //_dataWrapper.SingletonRemoveFunctionalityObjects(clientID);
-
-            //// Remove the wrapped items from the proposed set
-            //if (catalog_objects_to_remove != null) {
-            //    _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_objects_to_remove, "Catalog");
-            //}
-            //if (catalog_brands_to_remove != null) {
-            //    _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_brands_to_remove, "CatalogBrand");
-            //}
-            //if (catalog_types_to_remove != null) {
-            //    _dataWrapper.SingletonRemoveWrappedItemsFromProposedSetV2(clientID, catalog_types_to_remove, "CatalogType");
-            //}
-
-            //// Remove the client session from the proposed state
-            //_dataWrapper.SingletonRemoveProposedFunctionality(clientID);
-
         }
 
     }
