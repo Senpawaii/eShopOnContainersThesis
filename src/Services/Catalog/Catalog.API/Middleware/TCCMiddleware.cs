@@ -28,18 +28,15 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             // To differentiate from a regular call, check for the clientID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
                 // Start timer
-                Stopwatch stopwatch = new Stopwatch();
-                stopwatch.Start();
-
                 _request_metadata.ClientID = clientID;
 
                 // Initially set the read-only flag to true. Update it as write operations are performed.
                 _request_metadata.ReadOnly = true;
 
                 string currentUri = ctx.Request.GetUri().ToString();
-                _logger.LogInformation($"ClientID: {clientID} - Current URI: {currentUri}");
+                // _logger.LogInformation($"ClientID: {clientID} - Current URI: {currentUri}");
                 if (currentUri.Contains("commit")) {
-                    _logger.LogInformation($"Committing clientID: {clientID}");
+                    _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
                     // Start flushing the Wrapper Data into the Database associated with the client session
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -50,9 +47,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     await _next.Invoke(ctx);
                     
                     // Stop timer
-                    stopwatch.Stop();
-                    // Log the time taken to commit
-                    _logger.LogInformation($"Commit time: {stopwatch.ElapsedMilliseconds} ms");
                     return;
                 } 
                 else if(currentUri.Contains("proposeTS")) {
@@ -131,9 +125,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
 
                 // Stop timer
-                stopwatch.Stop();
-                // Log the time taken
-                _logger.LogInformation($"ClientID: {clientID} Propose time: {stopwatch.ElapsedMilliseconds} ms");
             }
             else {
                 // This is not an HTTP request that requires change
@@ -143,8 +134,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
         [Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata, IOptions<CatalogSettings> settings) {
-            _logger.LogInformation($"Flushing Wrapper Data for clientID: {clientID}");
-            
             // Set client state to the in commit
             _dataWrapper.SingletonSetTransactionState(clientID, true);
                 
@@ -155,7 +144,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
             // TODO: Note, if these were Tasks, we could await them all at once
             var catalogItemsToFlush = _dataWrapper.SingletonGetWrappedCatalogItemsToFlush(clientID, onlyUpdate);
-            _logger.LogInformation($"Catalog Items to Flush: {catalogItemsToFlush.Count}: {catalogItemsToFlush}");
+            // _logger.LogInformation($"Catalog Items to Flush: {catalogItemsToFlush.Count}: {catalogItemsToFlush}");
             
             // var catalogBrandToFlush = _dataWrapper.SingletonGetWrappedCatalogBrandsToFlush(clientID, onlyUpdate);
             // var catalogTypeToFlush = _dataWrapper.SingletonGetWrappedCatalogTypesToFlush(clientID, onlyUpdate);
@@ -173,7 +162,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 if(catalogItemsToFlush != null) {
                     if(onlyUpdate) {
                         foreach(var catalogItem in catalogItemsToFlush) {
-                            _logger.LogInformation($"Updating catalog item: {catalogItem}");
+                            // _logger.LogInformation($"Updating catalog item: {catalogItem}");
                             dbContext.CatalogItems.Update(catalogItem);
                         }
                     }
@@ -182,11 +171,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                             dbContext.CatalogItems.Add(catalogItem);
                         }
                     }
-                    _logger.LogInformation($"ClientID {clientID} Saving changes to database");
+                    // _logger.LogInformation($"ClientID {clientID} Saving changes to database");
                     await dbContext.SaveChangesAsync();
                 }
             }
-            _logger.LogInformation($"Flushed Wrapper Data for clientID: {clientID}");
+            // _logger.LogInformation($"Flushed Wrapper Data for clientID: {clientID}");
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _dataWrapper.CleanWrappedObjects(clientID);            
         }
