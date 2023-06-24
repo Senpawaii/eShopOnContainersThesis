@@ -146,14 +146,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
         
-        
         _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
 
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
-        // _logger.LogInformation($"ClientID: {clientID}, Start ReaderExecutingAsync Command Text: {command.CommandText}");
 
         if (clientID == null) {
             // This is a system query
@@ -191,7 +189,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
-                // _logger.LogInformation($"ClientID: {clientID}, Async UPDATE original command text: {command.CommandText}");
+
                 bool transactionState = _wrapper.SingletonGetTransactionState(clientID);
                 if(_settings.Value.Limit1Version) {
                     if (!transactionState) {
@@ -247,12 +245,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 }
                 break;
         }
-
-
-        //_logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-        // Log the command text
-        // _logger.LogInformation($"End ReaderAsync Command Text: {command.CommandText}");
-        
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
     }
 
@@ -285,20 +277,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
         // Get the number of rows being inserted
         int numberRows = command.Parameters.Count / columns.Count;
-        // _logger.LogInformation($"ClientID: {clientID} Number of rows: {numberRows}");
-        // _logger.LogInformation($"ClientID: {clientID}, Columns: {string.Join(",", columns)}, Command: {command.CommandText}");
-        // foreach (DbParameter param in command.Parameters) {
-        //     _logger.LogInformation($"ClientID: {clientID} Parameter: {param.ParameterName}: {param.Value}");
-        // }
         var rowsAffected = 0;
         
         var rows = new List<object[]>();
         for (int i = 0; i < numberRows; i += 1) {
             var row = new object[columns.Count + 1]; // Added Timestamp at the end
-            // log the parameters in command.Parameters
-            // foreach (DbParameter param in command.Parameters) {
-            //     _logger.LogInformation($"ClientID: {clientID} Parameter: {param.ParameterName}: {param.Value}");
-            // }
 
             for(int j = 0; j < columns.Count; j++) {
                 var columnName = columns[j];
@@ -1011,7 +994,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
         //_logger.LogInformation($"Checkpoint 2_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
-        
         var clientID = _request_metadata.ClientID;
         
         if(clientID == null) {
@@ -1045,42 +1027,38 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         while(await result.ReadAsync(cancellationToken)) {
             var rowValues = new List<object>();
             for (int i = 0; i < result.FieldCount; i++) {
-                var fieldType = result.GetFieldType(i);
+                var fieldName = result.GetName(i);
+                var columnIndex = result.GetOrdinal(fieldName);
+                var fieldType = result.GetFieldType(columnIndex);
                 switch(fieldType.Name) {
                     case "Int32":
-                        rowValues.Add(result.GetInt32(i));
+                        rowValues.Add(result.GetInt32(columnIndex));
                         break;
                     case "Int64":
-                        rowValues.Add(result.GetInt64(i));
+                        rowValues.Add(result.GetInt64(columnIndex));
                         break;
                     case "String":
-                        rowValues.Add(result.GetString(i));
+                        rowValues.Add(result.GetString(columnIndex));
                         break;
                     case "Decimal":
-                        rowValues.Add(result.GetDecimal(i));
+                        rowValues.Add(result.GetDecimal(columnIndex));
                         break;
                     case "Boolean":
-                        rowValues.Add(result.GetBoolean(i));
+                        rowValues.Add(result.GetBoolean(columnIndex));
                         break;
                     case "DateTime":
-                        rowValues.Add(result.GetDateTime(i));
+                        rowValues.Add(result.GetDateTime(columnIndex));
                         break;
                     // add additional cases for other data types as needed
                     default:
                         rowValues.Add(null);
                         break;
                 }
-            }
-            // log the rows read
-            foreach(var rowValue in rowValues) {
-                // _logger.LogInformation($"Checkpoint 2_c_0: {rowValue.ToString()}");
+                _logger.LogInformation($"ClientID: {clientID}, FieldName: {fieldName}, FieldType: {fieldType.Name}, FieldValue: {rowValues[i]}, ColumnIndex: {columnIndex}");
             }
 
             newData.Add(rowValues.ToArray());
         }
-
-        // Log the number of read rows
-        //_logger.LogInformation($"Checkpoint 2_c_1: Read {newData.Count} rows from the database");
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
@@ -1097,11 +1075,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     wrapperData = _wrapper.SingletonGetCatalogItemsV2(clientID).ToList();
                     break;
             }
-            //_logger.LogInformation($"Checkpoint 2_c_2: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
             //newData = GroupVersionedObjects(newData, targetTable);
-            //_logger.LogInformation($"Checkpoint 2_c_3: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             wrapperData = GroupVersionedObjects(wrapperData, targetTable);
             //_logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
@@ -1232,7 +1208,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     // }
                 }
             }
-            
         }
         return new WrapperDbDataReader(newData, result, targetTable);
     }
