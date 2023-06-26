@@ -21,10 +21,10 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
+        [Trace]
         public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata, 
-            ITokensContextSingleton _remainingTokens, ISingletonWrapper _data_wrapper, IOptions<DiscountSettings> settings) {
+            ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper, IOptions<DiscountSettings> settings) {
             
-            // Console.WriteLine("Request:" + ctx.Request.Query);
             // To differentiate from a regular call, check for the functionality ID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
                 _request_metadata.ClientID = clientID;
@@ -42,33 +42,8 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
-                    //await Task.Delay(30000);
-
-                    _data_wrapper.Singleton_Wrapped_DiscountItems.TryGetValue(clientID, out ConcurrentBag<object[]> objects_to_remove);
-                    // Log the client ID
-                    // _logger.LogInformation($"Committing items for functionality {clientID}.");
-
-                    // log each individual object being removed
-                    foreach (object[] item in objects_to_remove) {
-                        // _logger.LogInformation($"Removing item: {item[0]}");
-                    }
-                    //_logger.LogInformation($"Committing {objects_to_remove.Count} items for functionality {clientID}.");
-                    // Log the current Time and the client ID
-                    // _logger.LogInformation($"1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
-
                     // Flush the Wrapper Data into the Database
-                    await FlushWrapper(clientID, ticks, _data_wrapper, _request_metadata, settings);
-                    // Log the current Time and the client ID
-                    // _logger.LogInformation($"2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
-
-                    DateTime proposedTS = new DateTime(ticks);
-
-                    // Remove the wrapped items from the proposed set
-                    _data_wrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, objects_to_remove);
-                    // Remove the functionality from the proposed state
-                    _data_wrapper.SingletonRemoveProposedFunctionality(clientID);
-
-                    //_logger.LogInformation($"Cleared {objects_to_remove.Count} items for functionality {clientID}.");
+                    await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
 
                     await _next.Invoke(ctx);
                     return;
@@ -76,13 +51,9 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 else if (currentUri.Contains("proposeTS")) {
                     // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
-                    _data_wrapper.SingletonAddProposedFunctionality(clientID, currentTS);
-                    _data_wrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
-                    await _next.Invoke(ctx);
-                    return;
+                    _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
+                    _dataWrapper.SingletonAddWrappedItemsToProposedSetV2(clientID, currentTS);
                 }
-                // Log the current Time and the client ID
-                // _logger.LogInformation($"0.1D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     // _logger.LogInformation($"Registered timestamp: {timestamp}");
@@ -116,10 +87,6 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     return Task.CompletedTask;
                 });
 
-                // Log the current Time and the client ID
-                // _logger.LogInformation($"0.2D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
-
-
                 // Call the next middleware
                 await _next.Invoke(ctx);
                 // Log the current Time and the client ID
@@ -142,23 +109,14 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 // (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
-                // Log the current Time and the client ID
-                // _logger.LogInformation($"3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
-                    // Log the current Time and the client ID
-                    // _logger.LogInformation($"4D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
-
+                    _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
                     // Propose Timestamp with Tokens to the Coordinator
                     await _coordinatorSvc.SendTokens();
                 }
-                // Log the current Time and the client ID
-                // _logger.LogInformation($"5D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
-
+                // Clean the singleton fields for the current session context
                 _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
-                // Log the current Time and the client ID
-                // _logger.LogInformation($"6D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
-
             }
             else {
                 // This is not an HTTP request that requires change
@@ -166,16 +124,18 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             }
         }
 
+        [Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
-            _logger.LogInformation($"Flushing items for functionality {clientID}.");
             // Set functionality state to the in commit
             _data_wrapper.SingletonSetTransactionState(clientID, true);
 
             // Assign the received commit timestamp to the request scope
             _request_metadata.Timestamp = new DateTime(ticks);
 
+            var onlyUpdate = settings.Value.Limit1Version ? true : false;
+
             // Get stored objects
-            var discountWrapperItems = _data_wrapper.SingletonGetDiscountItems(clientID);
+            var discountWrapperItems = _data_wrapper.SingletonGetWrappedDiscountItemsToFlush(clientID);
 
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
@@ -186,45 +146,22 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 scopedMetadata.Timestamp = _request_metadata.Timestamp;
                 scopedMetadata.Tokens = _request_metadata.Tokens;
                 
-                if (discountWrapperItems != null && discountWrapperItems.Count > 0) {
-                    foreach (object[] item in discountWrapperItems) {
-                        foreach (var i in item) {
-                            // _logger.LogInformation($"Item: {i}");
-                        }
-                        if (settings.Value.Limit1Version) {
-                            DiscountItem newItem = new DiscountItem {
-                                Id = Convert.ToInt32(item[0]),
-                                ItemName = Convert.ToString(item[1]),
-                                ItemBrand = Convert.ToString(item[2]),
-                                ItemType = Convert.ToString(item[3]),
-                                DiscountValue = Convert.ToInt32(item[4]),
-                            };
-
-                            // _logger.LogInformation($"Wrapper is Updating item: {newItem.ItemName}");
-                            dbContext.Discount.Update(newItem);
-                        }
-                        else {
-                            DiscountItem newItem = new DiscountItem {
-                                //Id = Convert.ToInt32(item[0]),
-                                ItemName = Convert.ToString(item[1]),
-                                ItemBrand = Convert.ToString(item[2]),
-                                ItemType = Convert.ToString(item[3]),
-                                DiscountValue = Convert.ToInt32(item[4]),
-                            };
-                            // _logger.LogInformation($"Wrapper is Adding item: {newItem.ItemName}");
-                            dbContext.Discount.Add(newItem);
+                if (discountWrapperItems != null) {
+                    if(onlyUpdate) {
+                        foreach(var discountItem in discountWrapperItems) {
+                            dbContext.Discount.Update(discountItem);
                         }
                     }
-                    try {
-                        await dbContext.SaveChangesAsync();
-                    } catch (Exception exc) {
-                        Console.WriteLine(exc.ToString());
+                    else {
+                        foreach(var discountItem in discountWrapperItems) {
+                            dbContext.Discount.Add(discountItem);
+                        }
                     }
+                    await dbContext.SaveChangesAsync();
                 }
             }
-
-            // Clear the stored objects in the wrapper with this functionality ID
-            _data_wrapper.SingletonRemoveFunctionalityObjects(clientID);
+            // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
+            _data_wrapper.CleanWrappedObjects(clientID);
         }
     }
 

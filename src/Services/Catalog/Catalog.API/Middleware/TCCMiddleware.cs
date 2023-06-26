@@ -27,7 +27,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
             // To differentiate from a regular call, check for the clientID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
-                // Start timer
                 _request_metadata.ClientID = clientID;
 
                 // Initially set the read-only flag to true. Update it as write operations are performed.
@@ -45,8 +44,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
 
                     await _next.Invoke(ctx);
-                    
-                    // Stop timer
                     return;
                 } 
                 else if(currentUri.Contains("proposeTS")) {
@@ -61,9 +58,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _request_metadata.Timestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
                 }
 
-                //_logger.LogInformation($"Checkpoint 1_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
-
                 if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
                     //_logger.LogInformation($"Registered tokens: {tokens}");
                     Int32.TryParse(tokens, out int numTokens);
@@ -75,9 +69,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 var removeTheseParams = new List<string> { "clientID", "timestamp", "tokens" }.AsReadOnly();
 
                 var filteredQueryParams = ctx.Request.Query.ToList().Where(filterKvp => !removeTheseParams.Contains(filterKvp.Key));
-
                 var filteredQueryString = QueryString.Create(filteredQueryParams);
-
                 ctx.Request.QueryString = filteredQueryString;
 
                 // Store the original body stream for restoring the response body back its original stream
@@ -123,8 +115,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 }
                 // Clean the singleton fields for the current session context
                 _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
-
-                // Stop timer
             }
             else {
                 // This is not an HTTP request that requires change
@@ -179,7 +169,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _dataWrapper.CleanWrappedObjects(clientID);            
         }
-
     }
 
     public static class TCCMiddlewareExtension {
