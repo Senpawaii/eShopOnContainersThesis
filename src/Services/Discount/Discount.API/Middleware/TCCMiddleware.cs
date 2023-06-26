@@ -6,6 +6,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using System.Collections.Concurrent;
 using System.Globalization;
 using static System.Net.Mime.MediaTypeNames;
+using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
     public class TCCMiddleware {
@@ -37,7 +38,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {
-                    _logger.LogInformation($"Committing items for functionality {clientID}.");
+                    // _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
                     // Start flushing the Wrapper Data into the Database associated with the functionality
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -52,7 +53,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
-                    _dataWrapper.SingletonAddWrappedItemsToProposedSetV2(clientID, currentTS);
+                    _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
@@ -111,7 +112,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
                 if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
-                    _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
+                    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
                     // Propose Timestamp with Tokens to the Coordinator
                     await _coordinatorSvc.SendTokens();
                 }
@@ -135,7 +136,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             var onlyUpdate = settings.Value.Limit1Version ? true : false;
 
             // Get stored objects
-            var discountWrapperItems = _data_wrapper.SingletonGetWrappedDiscountItemsToFlush(clientID);
+            var discountWrapperItems = _data_wrapper.SingletonGetWrappedDiscountItemsToFlush(clientID, onlyUpdate);
 
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
@@ -154,6 +155,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     }
                     else {
                         foreach(var discountItem in discountWrapperItems) {
+                            // _logger.LogInformation($"ClientID: {clientID}, Adding discount item id: {discountItem.Id}, name: {discountItem.ItemName}, brand: {discountItem.ItemBrand}, type: {discountItem.ItemType}, discount: {discountItem.DiscountValue}");
                             dbContext.Discount.Add(discountItem);
                         }
                     }

@@ -12,7 +12,7 @@ public class WrapperDbDataReader : DbDataReader
     private readonly bool _hasRows;
     private readonly string _tableRead;
     private int _rowIndex = -1;
-    private bool _hasNextResult;
+    private bool _hasNextResult = false;
     private readonly int _recordsAffected = 0;
     private readonly DbDataReader _dataReader;
 
@@ -141,6 +141,12 @@ public class WrapperDbDataReader : DbDataReader
         }
 
         var schemaTable = _dataReader.GetSchemaTable();
+        if (schemaTable.Rows.Count <= ordinal) {
+            // Log the schema rows
+            var row1 = schemaTable.Rows[0];
+            var row2 = schemaTable.Rows[1];
+            throw new InvalidOperationException($"There are fewer schema rows ({schemaTable.Rows.Count}) than the ordinal ({ordinal}) requested. Row 1: {row1["ColumnName"]} - {row1["DataType"]}. Row 2: {row2["ColumnName"]} - {row2["DataType"]}");
+        }
         var row = schemaTable.Rows[ordinal];
         var columnType = (Type)row["DataType"];
         return columnType;

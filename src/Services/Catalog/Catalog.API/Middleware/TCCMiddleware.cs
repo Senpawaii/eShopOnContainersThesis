@@ -35,7 +35,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 string currentUri = ctx.Request.GetUri().ToString();
                 // _logger.LogInformation($"ClientID: {clientID} - Current URI: {currentUri}");
                 if (currentUri.Contains("commit")) {
-                    _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
+                    // _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
                     // Start flushing the Wrapper Data into the Database associated with the client session
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -50,7 +50,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     // Update client session to Proposed State and Store data written in the current session in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
-                    _dataWrapper.SingletonAddWrappedItemsToProposedSetV2(clientID, currentTS);
+                    _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
@@ -109,7 +109,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
                 if(_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {                    
-                    _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
+                    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
                     // Propose Timestamp with Tokens to the Coordinator
                     await _coordinatorSvc.SendTokens();
                 }
@@ -158,6 +158,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     }
                     else {
                         foreach(var catalogItem in catalogItemsToFlush) {
+                            // _logger.LogInformation($"ClientID: {clientID}, Adding catalog item id: {catalogItem.Id}, name: {catalogItem.Name}, brand: {catalogItem.CatalogBrandId}, type: {catalogItem.CatalogTypeId}.");
                             dbContext.CatalogItems.Add(catalogItem);
                         }
                     }

@@ -27,7 +27,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     public DiscountDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<DiscountContext> logger, IOptions<DiscountSettings> settings) {
         _request_metadata = requestMetadata;
-        _wrapper =wrapper;
+        _wrapper = wrapper;
         _logger = logger;
         _settings = settings;
     }
@@ -46,14 +46,9 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         (var commandType, var targetTable) = GetCommandInfo(command);
 
-        if (commandType == UNKNOWN_COMMAND) {
-            return result;
-        }
-
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
 
-        // Check if is this a client session context (ID differs from null)
         if (clientID == null) {
             // This is a system query
             return result;
@@ -64,7 +59,12 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 return result;
             case SELECT_COMMAND:
                 string clientTimestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
-                UpdateSelectCommand(command, targetTable);
+                // _logger.LogInformation("The original received SELECT command text: {0}", command.CommandText);
+                if (_settings.Value.Limit1Version) {
+                    UpdateSelectCommandV2(command, targetTable, clientTimestamp);
+                } else {
+                    UpdateSelectCommand(command, targetTable);
+                }
                 WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp);
                 break;
             case INSERT_COMMAND:
@@ -78,48 +78,62 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                 }
                 else {
+                    // _logger.LogInformation($"ClientID: {clientID} is in commit state. Updating the command text.");
                     // Transaction is in commit state, update the command to store in the database
-                    if(!_settings.Value.Limit1Version) {
-                        UpdateInsertCommand(command, targetTable);
-                    }
-                    else {
-                        // Execute the original command
-                        command.CommandText = _originalCommandText;
-                    }
+                    UpdateInsertCommand(command, targetTable);
                 }
                 break;
             case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
-                // _logger.LogInformation($"ClientID: {clientID}, changing to falso on method: ReaderExecuting, UPDATE");
-
                 _request_metadata.ReadOnly = false;
 
-                // Convert the Update Command into an INSERT command
-                Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
-                // Create a new INSERT COMMAND
-                string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
-                // Add the columns incased in squared brackets
-                insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
-
-                // Add the values
-                insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
-
-                if (columnsToInsert != null) {
-                    command.CommandText = insertCommand;
-                    // Clear the existing parameters
-                    command.Parameters.Clear();
-                    foreach (var column in columnsToInsert) {
-                        // Add the new parameter to the command
-                        DbParameter newParameter = command.CreateParameter();
-                        newParameter.ParameterName = column.Key;
-                        newParameter.Value = column.Value;
-                        command.Parameters.Add(newParameter);
+                bool transactionState = _wrapper.SingletonGetTransactionState(clientID);
+                if(_settings.Value.Limit1Version) {
+                    if(!transactionState) {
+                        // The transaction is not in commit state, add to the wrapper
+                        // _logger.LogInformation($"ClientID: {clientID}, transactionState: {transactionState}, commandText= {command.CommandText}");
+                        var mockReader = StoreDataInWrapperV2(command, UPDATE_COMMAND, targetTable);
+                        result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
+                        break;
+                    } 
+                    else {
+                        // Transaction is in commit state, update the command to store in the database
+                        UpdateUpdateCommand(command, targetTable);
+                        // _logger.LogInformation("Checkpoint command before DB commit: {0}", command.CommandText);
+                        break;
                     }
                 }
+                else {
+                    // Convert the Update Command into an INSERT command
+                    Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
 
-                // If the Transaction is not in commit state, store data in wrapper
-                var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                    // Create a new INSERT COMMAND
+                    var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
+                        .Append(targetTable)
+                        .Append("] (");
+
+                    // Add the columns incased in squared brackets
+                    var columnNames = columnsToInsert.Keys.Select(x => $"[{x}]");
+                    insertCommand.Append(string.Join(", ", columnNames));
+
+                    // Add the values as parameters
+                    var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
+                    var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
+                    insertCommand.Append(") VALUES (")
+                        .Append(string.Join(", ", parameterNames))
+                        .AppendLine(")");
+                    
+                    // Set the parameters on the command
+                    command.Parameters.Clear();
+                    command.Parameters.AddRange(parameters);
+                    
+                    // Set the command text to the INSERT command
+                    command.CommandText = insertCommand.ToString();
+
+                    // If the Transaction is not in commit state, store data in wrapper
+                    var updateToInsertReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
+                    result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                }
                 break;
         }
 
@@ -170,6 +184,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                 }
                 else {
+                    // _logger.LogInformation($"ClientID: {clientID} is in commit state. Updating the command text.");
                     // Transaction is in commit state, update the command to store in the database
                     UpdateInsertCommand(command, targetTable);
                 }
@@ -497,7 +512,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         if(_settings.Value.Limit1Version) {
             command.CommandText += whereCondition;
-            _logger.LogInformation($"Updated Command Text: {command.CommandText}");
+            // _logger.LogInformation($"Updated Command Text: {command.CommandText}");
             return;
         }
 
@@ -594,13 +609,12 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         List<DbParameter> newParameters = new List<DbParameter>();
         if (targetTable == "Discount") {
             UpdateDiscountOp(command, newParameters, timestamp);
+            // _logger.LogInformation($"Updated insert command text.");
         }
 
         // Assign new Parameters and Command text to database command
         command.Parameters.Clear();
         command.Parameters.AddRange(newParameters.ToArray());
-        // Log the parameters values being added to the command
-        //_logger.LogInformation("UpdateInsertCommand: {0}", string.Join(", ", newParameters.Select(p => p.Value)));
         command.CommandText = commandWithTimestamp;
     }
 
@@ -702,150 +716,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         var clientID = _request_metadata.ClientID;
 
         if (clientID == null) {
-            // This is a system transaction
-            return result;
-        }
-
-        // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
-        string targetTable = GetTargetTable(command.CommandText);
-        if (targetTable.IsNullOrEmpty()) {
-            // Unsupported Table (Migration for example)
-            return result;
-        }
-
-        // Check if the command was originally an update command
-        if (_originalCommandText.Contains("UPDATE")) {
-            var newUpdatedData = new List<object[]>();
-            newUpdatedData.Add(new object[] { 1 });
-            return new WrapperDbDataReader(newUpdatedData, result, targetTable);
-        }
-
-        // Check if the command is an INSERT command and has yet to be committed
-        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
-            return result;
-        }
-
-        var newData = new List<object[]>();
-
-        while (result.Read()) {
-            var rowValues = new List<object>();
-            for (int i = 0; i < result.FieldCount; i++) {
-                var fieldType = result.GetFieldType(i);
-                switch (fieldType.Name) {
-                    case "Int32":
-                        rowValues.Add(result.GetInt32(i));
-                        break;
-                    case "Int64":
-                        rowValues.Add(result.GetInt64(i));
-                        break;
-                    case "String":
-                        rowValues.Add(result.GetString(i));
-                        break;
-                    case "Decimal":
-                        rowValues.Add(result.GetDecimal(i));
-                        break;
-                    case "Boolean":
-                        rowValues.Add(result.GetBoolean(i));
-                        break;
-                    case "DateTime":
-                        rowValues.Add(result.GetDateTime(i));
-                        break;
-                    // add additional cases for other data types as needed
-                    default:
-                        rowValues.Add(null);
-                        break;
-                }
-            }
-            newData.Add(rowValues.ToArray());
-        }
-
-        // Read the data from the Wrapper structures
-        if (command.CommandText.Contains("SELECT")) {
-            targetTable = GetTargetTable(command.CommandText);
-            List<object[]> wrapperData = null;
-
-            switch (targetTable) {
-                case "Discount":
-                    wrapperData = _wrapper.SingletonGetDiscountItems(clientID).ToList();
-                    break;
-            }
-
-            // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
-            //newData = GroupVersionedObjects(newData, targetTable);
-            wrapperData = GroupVersionedObjects(wrapperData, targetTable);
-
-            if (wrapperData != null) {
-                if (HasFilterCondition(command.CommandText)) {
-                    // The select query contains a WHERE clause
-                    wrapperData = FilterData(wrapperData, command);
-
-                    if (!HasCountClause(command.CommandText)) {
-                        // Only add the rows if the data from the DB is not a single count product
-                        foreach (var wrapperRow in wrapperData) {
-                            newData.Add(wrapperRow);
-                        }
-                    }
-                    else {
-                        // The select query contains a COUNT clause, so we need to update the count
-                        newData[0][0] = Convert.ToInt32(newData[0][0]) + wrapperData.Count;
-                    }
-                }
-
-                // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
-                newData = GroupVersionedObjects(newData, targetTable);
-
-                (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
-                if (hasOrderBy) {
-                    // The select query has an ORDER BY clause
-                    newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
-                }
-
-                if (HasCountClause(command.CommandText)) {
-                    var wrapperDataCount = wrapperData.Count;
-                    newData[0][0] = Convert.ToInt64(newData[0][0]) + wrapperDataCount;
-                    return new WrapperDbDataReader(newData, result, targetTable);
-                }
-
-                (bool hasTopClause, int nElem) = HasTopClause(command.CommandText);
-                if (hasTopClause) {
-                    // The select query has a take clause
-                    newData = newData.Take(nElem).ToList();
-                }
-
-                // Special Cases: offset and fetch next TODO: fix them, can only be executed after the result are merged
-                (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
-                if (hasOffset) {
-                    // the select query has an offset
-                    newData = OffsetData(command, newData, offsetParam);
-                }
-
-                (bool hasFetchNext, string fetchRowsParam) = HasFetchNextCondition(command.CommandText);
-                if (hasFetchNext) {
-                    // The select query has a fetch next limit
-                    newData = FetchNext(command, newData, fetchRowsParam);
-                }
-
-                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
-                if (hasPartialRowSelection) {
-                    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-                }
-
-            }
-        }
-
-        return new WrapperDbDataReader(newData, result, targetTable);
-    }
-
-    [Trace]
-    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
-        // _logger.LogInformation($"Checkpoint 2_c_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
-        var clientID = _request_metadata.ClientID;
-
-        if (clientID == null) {
             // This is a system transaction or a database initial population
             return result;
         }
+        // _logger.LogInformation($"ClientID {clientID}, executing ReaderExecutedAsync.");
 
         string targetTable = GetTargetTable(command.CommandText);
         if (targetTable.IsNullOrEmpty()) {
@@ -855,6 +729,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         // Check if the command was originally an update command
         if(_originalCommandText.Contains("UPDATE")) {
+            // _logger.LogInformation($"ClientID: {clientID}, update commandText= {_originalCommandText}");
             var newUpdatedData = new List<object[]>();
             newUpdatedData.Add(new object[] { 1 });
             return new WrapperDbDataReader(newUpdatedData, result, targetTable);
@@ -862,15 +737,17 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         // Check if the command is an INSERT command and has yet to be committed
         if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
+            // _logger.LogInformation($"ClientID: {clientID}, insert commandText= {_originalCommandText}");
             return result;
         }
-
+        // _logger.LogInformation($"ClientID: {clientID}, transaction state: {_wrapper.SingletonGetTransactionState(clientID)}, commandText: {command.CommandText}");
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
 
         var newData = new List<object[]>();
-
-        while (await result.ReadAsync(cancellationToken)) {
+        // _logger.LogInformation($"ClientID: {clientID}, starting to read the result of command text: {command.CommandText}");
+        while (result.Read()) {
             var rowValues = new List<object>();
+            // _logger.LogInformation($"ClientID: {clientID}, Number of fields in the result: {result.FieldCount}");
             for (int i = 0; i < result.FieldCount; i++) {
                 var fieldName = result.GetName(i);
                 var columnIndex = result.GetOrdinal(fieldName);
@@ -899,16 +776,217 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         rowValues.Add(null);
                         break;
                 }
-                _logger.LogInformation($"ClientID: {clientID}, FieldName: {fieldName}, FieldType: {fieldType.Name}, FieldValue: {rowValues[i]}, ColumnIndex: {columnIndex}");
+                // _logger.LogInformation($"ClientID: {clientID}, FieldName: {fieldName}, FieldType: {fieldType.Name}, FieldValue: {rowValues[i]}, ColumnIndex: {columnIndex}");
             }
             newData.Add(rowValues.ToArray());
         }
 
+        // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count}");
+        // if(newData.Count > 0) {
+        //     _logger.LogInformation($"ClientID: {clientID}, Number of fields in the newData: {newData[0].Length}");
+        // }
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
             List<object[]> wrapperData = null;
 
-            wrapperData = _wrapper.SingletonGetDiscountItemsV2(clientID).ToList();
+            wrapperData = _wrapper.SingletonGetDiscountItems(clientID).ToList();
+
+            // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
+            //newData = GroupVersionedObjects(newData, targetTable);
+            wrapperData = GroupVersionedObjects(wrapperData, targetTable);
+
+            if (wrapperData.Count > 0) {
+                if (HasFilterCondition(command.CommandText)) {
+                    // The select query contains a WHERE clause
+                    wrapperData = FilterData(wrapperData, command);
+
+                    if (!HasCountClause(command.CommandText)) {
+                        // Only add the rows if the data from the DB is not a single count product
+                        foreach (var wrapperRow in wrapperData) {
+                            newData.Add(wrapperRow);
+                        }
+                    }
+                }
+                // _logger.LogInformation($"9B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
+                // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
+                newData = GroupVersionedObjects(newData, targetTable);
+
+                (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
+                if (hasOrderBy) {
+                    // The select query has an ORDER BY clause
+                    newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
+                }
+
+                (bool hasTopClause, int nElem) = HasTopClause(command.CommandText);
+                if (hasTopClause) {
+                    // The select query has a take clause
+                    newData = newData.Take(nElem).ToList();
+                }
+
+                // Special Cases: offset and fetch next TODO: fix them, can only be executed after the result are merged
+                (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
+                if (hasOffset) {
+                    // the select query has an offset
+                    newData = OffsetData(command, newData, offsetParam);
+                }
+
+                (bool hasFetchNext, string fetchRowsParam) = HasFetchNextCondition(command.CommandText);
+                if (hasFetchNext) {
+                    // The select query has a fetch next limit
+                    newData = FetchNext(command, newData, fetchRowsParam);
+                }
+            }
+            // _logger.LogInformation($"10B: ClientID: {_request_metadata.ClientID}, request readOnly flag: {_request_metadata.ReadOnly}");
+
+            if (HasCountClause(_originalCommandText)) {
+                List<object[]> countedData = new List<object[]>();
+                object[] data = new object[] { newData.Count + wrapperData.Count };
+                countedData.Add(data);
+
+                return new WrapperDbDataReader(countedData, result, targetTable);
+            }
+
+            // Search for partial SELECTION on the original unaltered commandText
+            (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+            if (hasPartialRowSelection) {
+                // foreach (string column in selectedColumns) {
+                //     _logger.LogInformation("The column {0} was selected", column);
+                // }
+
+                // The select query has a partial row selection
+                var originalNumColumns = newData[0].Length;
+                for(int i = 0; i < newData.Count; i++) {
+                    newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable());
+                }
+                // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                // foreach (object value in newData[0]) {
+                //     _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                // }
+            }
+        }
+        if(_settings.Value.Limit1Version) {
+            if (HasCountClause(_originalCommandText) && newData[0][0].Equals(0)) {
+                // _logger.LogInformation("The database count returned 0. Adding 1 to the count for default.");
+                newData.Add(new object[] { 1 });
+            }
+            if(newData.IsNullOrEmpty()) {
+                // _logger.LogInformation("The database + wrapper returned no data");
+                // If newData is empty return a reader with a single default row
+                switch(targetTable) {
+                    case "Discount":
+                        newData.Add(new object[] {
+                            1, // Id
+                            ".NET Bot Black Hoodie", // ItemName
+                            ".NET", // ItemBrand
+                            "Mug", // ItemType
+                            2, // DiscountValue
+                        });
+                        break;
+                }
+                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+                if (hasPartialRowSelection) {
+                    // foreach (string column in selectedColumns) {
+                    //     _logger.LogInformation("The column {0} was selected", column);
+                    // }
+
+                    // The select query has a partial row selection
+                    var originalNumColumns = newData[0].Length;
+                    for(int i = 0; i < newData.Count; i++) {
+                        newData[i] = PartialRowSelection(command.CommandText, newData[i], selectedColumns);
+                    }
+                    // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                    // foreach (object value in newData[0]) {
+                    //     _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                    // }
+                }
+            }
+        }
+
+        return new WrapperDbDataReader(newData, result, targetTable);
+    }
+
+    [Trace]
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
+        // _logger.LogInformation($"Checkpoint 2_c_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+        var clientID = _request_metadata.ClientID;
+
+        if (clientID == null) {
+            // This is a system transaction or a database initial population
+            return result;
+        }
+        // _logger.LogInformation($"ClientID {clientID}, executing ReaderExecutedAsync.");
+
+        string targetTable = GetTargetTable(command.CommandText);
+        if (targetTable.IsNullOrEmpty()) {
+            // Unsupported Table (Migration for example)
+            return result;
+        }
+
+        // Check if the command was originally an update command
+        if(_originalCommandText.Contains("UPDATE")) {
+            // _logger.LogInformation($"ClientID: {clientID}, update commandText= {_originalCommandText}");
+            var newUpdatedData = new List<object[]>();
+            newUpdatedData.Add(new object[] { 1 });
+            return new WrapperDbDataReader(newUpdatedData, result, targetTable);
+        }
+
+        // Check if the command is an INSERT command and has yet to be committed
+        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
+            // _logger.LogInformation($"ClientID: {clientID}, insert commandText= {_originalCommandText}");
+            return result;
+        }
+        // _logger.LogInformation($"ClientID: {clientID}, transaction state: {_wrapper.SingletonGetTransactionState(clientID)}, commandText: {command.CommandText}");
+        // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
+
+        var newData = new List<object[]>();
+        // _logger.LogInformation($"ClientID: {clientID}, starting to read the result of command text: {command.CommandText}");
+        while (await result.ReadAsync(cancellationToken)) {
+            var rowValues = new List<object>();
+            // _logger.LogInformation($"ClientID: {clientID}, Number of fields in the result: {result.FieldCount}");
+            for (int i = 0; i < result.FieldCount; i++) {
+                var fieldName = result.GetName(i);
+                var columnIndex = result.GetOrdinal(fieldName);
+                var fieldType = result.GetFieldType(columnIndex);
+                switch (fieldType.Name) {
+                    case "Int32":
+                        rowValues.Add(result.GetInt32(columnIndex));
+                        break;
+                    case "Int64":
+                        rowValues.Add(result.GetInt64(columnIndex));
+                        break;
+                    case "String":
+                        rowValues.Add(result.GetString(columnIndex));
+                        break;
+                    case "Decimal":
+                        rowValues.Add(result.GetDecimal(columnIndex));
+                        break;
+                    case "Boolean":
+                        rowValues.Add(result.GetBoolean(columnIndex));
+                        break;
+                    case "DateTime":
+                        rowValues.Add(result.GetDateTime(columnIndex));
+                        break;
+                    // add additional cases for other data types as needed
+                    default:
+                        rowValues.Add(null);
+                        break;
+                }
+                // _logger.LogInformation($"ClientID: {clientID}, FieldName: {fieldName}, FieldType: {fieldType.Name}, FieldValue: {rowValues[i]}, ColumnIndex: {columnIndex}");
+            }
+            newData.Add(rowValues.ToArray());
+        }
+
+        // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count}");
+        // if(newData.Count > 0) {
+        //     _logger.LogInformation($"ClientID: {clientID}, Number of fields in the newData: {newData[0].Length}");
+        // }
+        // Read the data from the Wrapper structures
+        if (command.CommandText.Contains("SELECT")) {
+            List<object[]> wrapperData = null;
+
+            wrapperData = _wrapper.SingletonGetDiscountItems(clientID).ToList();
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
             //newData = GroupVersionedObjects(newData, targetTable);
@@ -1128,7 +1206,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             var columnName = selectedColumns[i];
             var columnIndex = columnIndexes[columnName];
             newRow[i] = row[columnIndex];
-            _logger.LogInformation($"Added column {columnName} with value {newRow[i]} to the new row");
+            // _logger.LogInformation($"Added column {columnName} with value {newRow[i]} to the new row");
         }
 
         return newRow;
