@@ -42,12 +42,6 @@ public class GarbageCollectionService : BackgroundService {
     }
 
     private void GarbageCollectDiscountItems(GarbageContext dbContext) {
-        var dateTimeComparer = Comparer<object>.Create((x, y) => {
-            DateTime xValue = (DateTime)x;
-            DateTime yValue = (DateTime)y;
-            return xValue.CompareTo(yValue);
-        });
-
         var uniqueDiscounts = dbContext.DiscountItems.Select(p => new { p.ItemName, p.ItemBrand, p.ItemType }).Distinct().ToList();
 
         // For each unique discount, fetch the number of versions
@@ -57,11 +51,11 @@ public class GarbageCollectionService : BackgroundService {
                 // Get all the Discount rows
                 var discountRows = dbContext.DiscountItems.Where(p => p.ItemName == discount.ItemName && p.ItemBrand == discount.ItemBrand && p.ItemType == discount.ItemType).ToList();
                 
-                // Sort the discount rows by timestamp using dateTimeComparer
-                discountRows.Sort((a, b) => dateTimeComparer.Compare(a.Timestamp, b.Timestamp));
+                // Sort the discount rows by timestamp
+                discountRows.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
 
-                // Remove the oldest versions - MAX_VERSIONS versions
-                var oldestVersions = discountRows.GetRange(0, versions - MAX_VERSIONS);
+                // Remove the oldest versions - MAX_VERSIONS versions, do not remove the first version (the seed version)
+                var oldestVersions = discountRows.GetRange(1, versions - MAX_VERSIONS);
 
                 // Remove the oldest versions
                 dbContext.DiscountItems.RemoveRange(oldestVersions);
