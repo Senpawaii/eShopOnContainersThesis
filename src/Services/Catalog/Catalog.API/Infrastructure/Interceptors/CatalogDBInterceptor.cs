@@ -531,31 +531,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
         // Log the command text
-        //_logger.LogInformation($"Command Text: {command.CommandText}");
+        _logger.LogInformation($"Command Text: {command.CommandText}");
 
         // Get the current client session timeestamp
         DateTime clientTimestamp = _request_metadata.Timestamp;
-
-        // (bool hasPartialRowSelection, List<string> _) = HasPartialRowSelection(command.CommandText);
-        // if (hasPartialRowSelection) {
-        //     // Remove the partial Row Selection
-        //     command.CommandText = RemovePartialRowSelection(command.CommandText);
-        // }
 
         bool hasCount = HasCountClause(command.CommandText);
         if(hasCount) {
             command.CommandText = RemoveCountSelection(command.CommandText);
         }
-
-        // (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
-        
-        // (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
-
-        // Remove the ORDER BY clause and everything after it
-        // if (hasOrderBy) {
-        //     string orderByPattern = @"ORDER\s+BY(.|\n)*";
-        //     command.CommandText = Regex.Replace(command.CommandText, orderByPattern, "");
-        // }
 
         string whereCondition = "";
 
@@ -579,7 +563,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 whereCondition += $" AND [{targetTable}].[Timestamp] <= @clientTimestamp ";
             } 
             else {
-                whereCondition += $" AND [c].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+                whereCondition += $" AND [c].[Timestamp] <= @clientTimestamp ";
             }
         } else {
             whereCondition = $" WHERE [{targetTable}].[Timestamp] <= @clientTimestamp ";
