@@ -1811,11 +1811,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         if (mre != null) {
             // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
             // Log the sleeping...
-            var currentTime = DateTime.UtcNow;
-            _logger.LogInformation($"ClientID={clientID}: Reader is waiting for proposed items to be committed. Will sleep until notified.");
+            //var currentTime = DateTime.UtcNow;
+            //_logger.LogInformation($"ClientID={clientID}: Reader is waiting for proposed items to be committed. Will sleep until notified.");
             mre.WaitOne();
-            var timeSlept = DateTime.UtcNow - currentTime;
-            _logger.LogInformation($"ClientID={clientID}: Was notified! Slept for {timeSlept.TotalMilliseconds} ms.");
+            //var timeSlept = DateTime.UtcNow - currentTime;
+            //_logger.LogInformation($"ClientID={clientID}: Was notified! Slept for {timeSlept.TotalMilliseconds} ms.");
         }
     }
 
