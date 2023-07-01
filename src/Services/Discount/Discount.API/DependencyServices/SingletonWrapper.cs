@@ -148,7 +148,7 @@ public class SingletonWrapper : ISingletonWrapper {
                 foreach (KeyValuePair<WrappedDiscountItem, ConcurrentDictionary<DateTime, string>> proposed_discount_item in filtered_proposed_discount_items) {
                     foreach (DateTime proposedTS in proposed_discount_item.Value.Keys) {
                         if (proposedTS < readerTimestamp) {
-                            Console.WriteLine($"The item {proposed_discount_item.Key.ItemName} has a lower timestamp than the reader's timestamp: {proposedTS.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} < {readerTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}. Proposed ticks: {proposedTS.Ticks}, proposed by client: {proposed_discount_item.Value[proposedTS]}");
+                            // Console.WriteLine($"The item {proposed_discount_item.Key.ItemName} has a lower timestamp than the reader's timestamp: {proposedTS.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} < {readerTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}. Proposed ticks: {proposedTS.Ticks}, proposed by client: {proposed_discount_item.Value[proposedTS]}");
                             // There is at least one proposed discount item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
                             return true;
                         }

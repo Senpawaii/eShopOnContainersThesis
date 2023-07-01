@@ -152,7 +152,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 if(catalogItemsToFlush != null) {
                     if(onlyUpdate) {
                         foreach(var catalogItem in catalogItemsToFlush) {
-                            // _logger.LogInformation($"Updating catalog item: {catalogItem}");
+                            // _logger.LogInformation($"ClientID: {clientID}, (FlushWrapper) Updating catalog item: {catalogItem}");
                             dbContext.CatalogItems.Update(catalogItem);
                         }
                     }
@@ -164,9 +164,14 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     }
                     // _logger.LogInformation($"ClientID {clientID} Saving changes to database");
                     await dbContext.SaveChangesAsync();
+                } 
+                else {
+                    _logger.LogError($"ClientID {clientID} - No catalog items to flush");
                 }
             }
-            // _logger.LogInformation($"Flushed Wrapper Data for clientID: {clientID}");
+            // The items have been committed. Notify all threads waiting on the commit to read
+            _dataWrapper.NotifyReaderThreads(clientID, catalogItemsToFlush);
+
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _dataWrapper.CleanWrappedObjects(clientID);            
         }

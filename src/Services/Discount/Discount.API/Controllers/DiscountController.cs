@@ -39,7 +39,7 @@ public class DiscountController : ControllerBase {
         var discountsT = _discountContext.Discount.Where(i => itemNames.Contains(i.ItemName) && itemBrands.Contains(i.ItemBrand) && itemTypes.Contains(i.ItemType));
         List<DiscountItem> discounts;
         try {
-            _logger.LogInformation("Before ToListAsync()");
+            // _logger.LogInformation("Before ToListAsync()");
             discounts = await discountsT.ToListAsync();
         } catch (Exception e) {
             _logger.LogError(e, "Error occurred while reading discount items from the database");

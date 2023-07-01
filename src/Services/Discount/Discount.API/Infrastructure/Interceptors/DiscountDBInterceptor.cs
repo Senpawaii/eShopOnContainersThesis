@@ -92,7 +92,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     if(!transactionState) {
                         // The transaction is not in commit state, add to the wrapper
                         // _logger.LogInformation($"ClientID: {clientID}, transactionState: {transactionState}, commandText= {command.CommandText}");
-                        var mockReader = StoreDataInWrapperV2(command, UPDATE_COMMAND, targetTable);
+                        Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable); // Get the columns and parameter names
+                        var mockReader = StoreDataInWrapper1RowVersion(command, columnsToInsert, targetTable);
                         result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                         break;
                     } 
@@ -198,7 +199,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     if(!transactionState) {
                         // The transaction is not in commit state, add to the wrapper
                         // _logger.LogInformation($"ClientID: {clientID}, transactionState: {transactionState}, commandText= {command.CommandText}");
-                        var mockReader = StoreDataInWrapperV2(command, UPDATE_COMMAND, targetTable);
+                        Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
+                        var mockReader = StoreDataInWrapper1RowVersion(command, columnsToInsert, targetTable);
                         result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                         break;
                     } 
@@ -243,6 +245,34 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 break;
         }
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
+    }
+
+    private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, Dictionary<string, object> columnNamesAndValues, string targetTable) {
+        var clientID = _request_metadata.ClientID;
+
+        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);  // Get the expected order of the columns
+        // Get the number of rows being inserted
+        var rowsAffected = 0;
+        
+        var rows = new List<object[]>();
+        var row = new object[columnNamesAndValues.Keys.Count + 1]; // Added Timestamp at the end
+
+        foreach(var columnName in columnNamesAndValues.Keys) {
+            var paramValue = columnNamesAndValues[columnName];
+            var correctIndexToStore = standardColumnIndexes[columnName];
+            row[correctIndexToStore] = paramValue;
+        }
+        // Define the uncommitted timestamp as the current time
+        row[^1] = DateTime.UtcNow;
+        rowsAffected++;
+        rows.Append(row);
+        // Log the rows
+        // foreach (object[] row in rows) {
+        //     _logger.LogInformation($"ClientID: {clientID} adding to the wrapper row: {string.Join(", ", row)}");
+        // }
+        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
+        _wrapper.SingletonAddDiscountItem(clientID, rows.ToArray());
+        return mockReader;
     }
 
     [Trace]
@@ -437,14 +467,15 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     [Trace]
     public void AddTimestampToWhereList(DbCommand command, string targetTable, string clientTimestamp) {
-        // Note: If we create a parameter of type DbType.DateTime2, the query will fail: "Failed executing DbCommand...", and I can't find a good explanation for this. 
-        // The exception thrown does not show the actual error. This topic is being followed on: https://github.com/dotnet/efcore/issues/24530 
+        var clientTimestampParameter = new Microsoft.Data.SqlClient.SqlParameter("@clientTimestamp", SqlDbType.DateTime2);
+        clientTimestampParameter.Value = clientTimestamp;
+        command.Parameters.Add(clientTimestampParameter);
         if (command.CommandText.Contains("WHERE")) {
             string pattern = @"WHERE\s+(.*)$";
-            command.CommandText = Regex.Replace(command.CommandText, pattern, "WHERE $1 AND [d].[Timestamp] <= '" + clientTimestamp + "'");
+            command.CommandText = Regex.Replace(command.CommandText, pattern, "WHERE $1 AND [d].[Timestamp] <= @clientTimestamp");
         }
         else {
-            command.CommandText += " WHERE [d].[Timestamp] <= '" + clientTimestamp + "'";
+            command.CommandText += " WHERE [d].[Timestamp] <= @clientTimestamp";
         }
     }
 
@@ -1391,7 +1422,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
         else {
             // The reader is trying to read all items. Wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.
-            _logger.LogInformation($"Reader is trying to read all items. Will wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.");
+            // _logger.LogInformation($"Reader is trying to read all items. Will wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.");
             conditions = null;
         }
 
@@ -1400,7 +1431,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             if (needToWait) {
                 // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
                 // Log the sleeping...
-                _logger.LogInformation($"Reader is waiting for proposed items to be committed. Will sleep for 10ms.");
+                // _logger.LogInformation($"Reader is waiting for proposed items to be committed. Will sleep for 10ms.");
                 Thread.Sleep(10);
             }
             else {

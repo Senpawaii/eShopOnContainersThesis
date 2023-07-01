@@ -85,7 +85,7 @@ public class TCCMiddleware {
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
-            _logger.LogInformation($"Committing transaction for {_request_metadata.ClientID.Value}");
+            // _logger.LogInformation($"Committing transaction for {_request_metadata.ClientID.Value}");
         }
         else {
             _logger.LogError("ClientID not found in the request");

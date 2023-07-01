@@ -31,7 +31,7 @@ public class DiscountService : IDiscountService {
             var uri = $"{_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}";
 
             // Log the request URI
-            _logger.LogInformation($"Sending request to {_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}");
+            // _logger.LogInformation($"Sending request to {_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}");
 
             // Set the request timeout
             _httpClient.Timeout = TimeSpan.FromSeconds(10);

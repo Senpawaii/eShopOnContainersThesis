@@ -452,7 +452,7 @@ public class CatalogController : ControllerBase {
             return generatedPrice; 
         }
         var itemPrice = await items.Select(a => a.Price).FirstAsync();
-        _logger.LogInformation("Catalog Item Price queried: {0}", itemPrice.ToString());
+        // _logger.LogInformation("Catalog Item Price queried: {0}", itemPrice.ToString());
         //_logger.LogInformation("Finished ItemPriceGivenNameBrandType request!");
 
         return itemPrice;

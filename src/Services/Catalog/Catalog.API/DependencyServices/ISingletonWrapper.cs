@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Primitives;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Catalog.API.DependencyServices {
     public interface ISingletonWrapper {
@@ -22,9 +23,10 @@ namespace Catalog.API.DependencyServices {
 
         public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
         public void SingletonRemoveProposedFunctionality(string clientID);
-        public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp);
+        public ManualResetEvent AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
 
         public List<CatalogItem> SingletonGetWrappedCatalogItemsToFlush(string clientID, bool onlyUpdate);
         public void CleanWrappedObjects(string clientID);
+        public void NotifyReaderThreads(string clientID, List<CatalogItem> committedItems);
     }
 }

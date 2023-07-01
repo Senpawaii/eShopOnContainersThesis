@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using YamlDotNet.Serialization;
 using NewRelic.Api.Agent;
+using System.Threading;
 
 namespace Catalog.API.DependencyServices {
     public class SingletonWrapper : ISingletonWrapper {
@@ -20,6 +21,7 @@ namespace Catalog.API.DependencyServices {
         ConcurrentDictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, string>> proposed_catalog_brands = new ConcurrentDictionary<WrappedCatalogBrand, ConcurrentDictionary<DateTime, string>>();
         ConcurrentDictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, string>> proposed_catalog_types = new ConcurrentDictionary<WrappedCatalogType, ConcurrentDictionary<DateTime, string>>();
 
+        ConcurrentDictionary<(WrappedCatalogItem, long), ManualResetEvent> catalog_items_manual_reset_events = new ConcurrentDictionary<(WrappedCatalogItem, long), ManualResetEvent>(); 
         // Store the proposed Timestamp for each functionality in Proposed State
         ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
 
@@ -125,6 +127,7 @@ namespace Catalog.API.DependencyServices {
                     return bag;
                 });
             }
+            // _logger.LogInformation($"CatalogItems for clientID: {wrapped_catalog_items.GetValueOrDefault(clientID, new ConcurrentBag<WrappedCatalogItem>()).Count}");
         }
 
         [Trace]
@@ -197,15 +200,22 @@ namespace Catalog.API.DependencyServices {
             // For each item, add it to the proposed set, adding the proposed timestamp associated
             foreach (WrappedCatalogItem catalog_item_to_propose in catalog_items_to_propose) {
                 // Name: catalog_item_to_propose.Name, BrandId: catalog_item_to_propose.BrandId, TypeId: catalog_item_to_propose.TypeId
-                //WrappedCatalogItem newItem = new WrappedCatalogItem(catalog_item_to_propose.Id, catalog_item_to_propose.Name, catalog_item_to_propose.Description, catalog_item_to_propose.Price, catalog_item_to_propose.PictureFileName, catalog_item_to_propose.CatalogTypeId, catalog_item_to_propose.CatalogBrandId, catalog_item_to_propose.AvailableStock, catalog_item_to_propose.RestockThreshold, catalog_item_to_propose.MaxStockThreshold, catalog_item_to_propose.OnReorder);
+                DateTime proposedTSDate = new DateTime(proposedTS);                
                 proposed_catalog_items.AddOrUpdate(catalog_item_to_propose, _ => {
                     var innerDict = new ConcurrentDictionary<DateTime, string>();
-                    innerDict.TryAdd(new DateTime(proposedTS), clientID);
+                    innerDict.TryAdd(proposedTSDate, clientID);
+                    _logger.LogInformation($"ClientID: {clientID}, inner dict did not exist yet. Adding a new one.");
                     return innerDict;
                 }, (_, value) => {
-                    value.TryAdd(new DateTime(proposedTS), clientID);
+                    value.TryAdd(proposedTSDate, clientID);
+                    _logger.LogInformation($"ClientID: {clientID}, number of items in inner dict: {value.Count}");
                     return value;
                 });
+
+                // Create ManualEvent for catalog Item
+                if(!catalog_items_manual_reset_events.TryAdd((catalog_item_to_propose, proposedTS), new ManualResetEvent(false))) {
+                    _logger.LogError($"ClientID: {clientID} - Could not add ManualResetEvent for catalog item with ID {catalog_item_to_propose.Id}");
+                }
             }
 
             foreach (WrappedCatalogType catalog_type_to_propose in catalog_types_to_propose) {
@@ -268,7 +278,7 @@ namespace Catalog.API.DependencyServices {
         }
 
         [Trace]
-        public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp) {
+        public ManualResetEvent AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
             switch (targetTable) {
                 case "Catalog":
                     // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
@@ -282,9 +292,16 @@ namespace Catalog.API.DependencyServices {
                     foreach (KeyValuePair<WrappedCatalogItem, ConcurrentDictionary<DateTime, string>> proposed_catalog_item in filtered_proposed_catalog_items2) {
                         foreach (DateTime proposedTS in proposed_catalog_item.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
-                                Console.WriteLine($"The item {proposed_catalog_item.Key.Name} has a lower timestamp than the reader's timestamp: {proposedTS.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} < {readerTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}. Proposed ticks: {proposedTS.Ticks}, proposed by client: {proposed_catalog_item.Value[proposedTS]}");
                                 // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
-                                return true;
+                                // Return the Manual reset event to wait for
+                                ManualResetEvent manualResetEvent = catalog_items_manual_reset_events.GetValueOrDefault((proposed_catalog_item.Key, proposedTS.Ticks), null);
+                                if(manualResetEvent != null) {
+                                    return manualResetEvent;
+                                }
+                                else {
+                                    _logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Id} although proposedTS < readerTimestamp.");
+                                }
+                                return null;
                             }
                         }
                     }
@@ -299,7 +316,8 @@ namespace Catalog.API.DependencyServices {
                         foreach (DateTime proposedTS in proposed_catalog_brand.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog brand 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
-                                return true;
+                                // TODO: Complete this method
+                                return null;
                             }
                         }
                     }
@@ -315,14 +333,15 @@ namespace Catalog.API.DependencyServices {
                         foreach (DateTime proposedTS in proposed_catalog_type.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog type 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
-                                return true;
+                                // TODO: Complete this method
+                                return null;
                             }
                         }
                     }
                     break;
             }
 
-            return false;
+            return null;
         }
 
         [Trace]
@@ -430,6 +449,9 @@ namespace Catalog.API.DependencyServices {
                 }
                 return catalogItems;
             }
+            else {
+                // _logger.LogInformation($"ClientID {clientID} does not have any catalog items to flush");
+            }
             // _logger.LogInformation("No items were registered in the wrapper for clientID " + clientID);
             return null;
         }
@@ -445,6 +467,42 @@ namespace Catalog.API.DependencyServices {
 
             // Clean up the proposed functionality state
             SingletonRemoveProposedFunctionality(clientID);
+        }
+
+        [Trace]
+        public void NotifyReaderThreads(string clientID, List<CatalogItem> committedItems) {
+            foreach(CatalogItem item in committedItems) {
+                // Locate the WrappedCatalogItem associated with the committed item
+                WrappedCatalogItem wrappedItem = new WrappedCatalogItem {
+                    Id = item.Id,
+                    CatalogBrandId = item.CatalogBrandId,
+                    CatalogTypeId = item.CatalogTypeId,
+                    Description = item.Description,
+                    Name = item.Name,
+                    PictureFileName = item.PictureFileName,
+                    Price = item.Price,
+                    AvailableStock = item.AvailableStock,
+                    MaxStockThreshold = item.MaxStockThreshold,
+                    OnReorder = item.OnReorder,
+                    RestockThreshold = item.RestockThreshold
+                };
+                // Get proposed timestamp for the wrapped item for client with ID clientID
+                var proposedTS = proposed_functionalities.GetValueOrDefault(clientID, 0);
+
+                if(proposedTS == 0) {
+                    _logger.LogError($"ClientID: {clientID} - DateTime 0: Could not find proposed timestamp for client {clientID}");
+                }
+
+                ManualResetEvent manualResetEvent = catalog_items_manual_reset_events.GetValueOrDefault((wrappedItem, proposedTS), null);
+                if(manualResetEvent != null) {
+                    _logger.LogInformation($"ClientID: {clientID} - Notifying ManualResetEvent for catalog item with ID {wrappedItem.Id} and proposed TS {proposedTS}");
+                    manualResetEvent.Set();
+                }
+                else {
+                    _logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {wrappedItem.Id} with proposed TS {proposedTS}");
+                }
+            }
+            // TODO: a thread should clear the manual reset events dictionary from time to time to avoid unnecessary memory consumption
         }
     }
 
