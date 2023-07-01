@@ -286,3 +286,11 @@ src/**/inf.yaml
 # ignore all pending benchmark testing scrips
 *.lua
 *wrk2.py
+
+# ignore all documented reports
+*.pdf
+*.png
+
+# ignore all testing logs
+testing_scripts/logs/*
+testing_scripts/k6_logs/*
