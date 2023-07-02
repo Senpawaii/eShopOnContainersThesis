@@ -370,11 +370,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //    columns.Add(match.Groups[1].Value);
         //}
 
-        var columns = new List<string>(matches.Count);
-        int index = 0;
-        foreach (Match match in matches) {
-            columns[index++] = match.Groups[1].Value;
-        }
+        var columns = new List<string>(Enumerable.Range(0, matches.Count)
+                        .Select(i => matches[i].Groups[1].Value));
 
         sw.Stop();
         Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
