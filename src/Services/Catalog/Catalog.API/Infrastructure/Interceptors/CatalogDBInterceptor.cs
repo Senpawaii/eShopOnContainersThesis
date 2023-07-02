@@ -343,8 +343,32 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
         Timespans2.Add(sw.Elapsed);
         sw.Restart();
-        
-        var standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
+
+        var columnIndexes = new Dictionary<string, int>();  // Get the expected order of the columns
+        switch (targetTable) {
+            case "CatalogBrand":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("Brand", 1);
+                break;
+            case "Catalog":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("CatalogBrandId", 1);
+                columnIndexes.Add("CatalogTypeId", 2);
+                columnIndexes.Add("Description", 3);
+                columnIndexes.Add("Name", 4);
+                columnIndexes.Add("PictureFileName", 5);
+                columnIndexes.Add("Price", 6);
+                columnIndexes.Add("AvailableStock", 7);
+                columnIndexes.Add("MaxStockThreshold", 8);
+                columnIndexes.Add("OnReorder", 9);
+                columnIndexes.Add("RestockThreshold", 10);
+                break;
+            case "CatalogType":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("Type", 1);
+                break;
+        }
+
         int numberRows = command.Parameters.Count / columns.Count; // Number of rows being inserted
 
         sw.Stop();
@@ -354,11 +378,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         var rows = new object[numberRows][];
         for (int i = 0; i < numberRows; i+=1) {
-            var row = new object[standardColumnIndexes.Count + 1]; // Added Timestamp at the end
+            var row = new object[columnIndexes.Count + 1]; // Added Timestamp at the end
             for (int j = 0; j < columns.Count; j++) {
                 var columnName = columns[j];
                 var paramValue = command.Parameters["@" + columnName].Value;
-                var correctIndexToStore = standardColumnIndexes[columnName];
+                var correctIndexToStore = columnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
             }
             // Define the uncommitted timestamp as the current time
