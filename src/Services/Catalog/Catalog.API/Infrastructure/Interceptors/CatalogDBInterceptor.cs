@@ -41,53 +41,29 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
     private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
 
-    private static readonly List<string> columnIndexesBrand = new List<string> {
-        "Id",
-        "Brand"
+    private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
+        { "Id", 0 },
+        { "Brand", 1 }
     };
 
-    private static readonly List<string> columnIndexesItem = new List<string> {
-        "Id",
-        "CatalogBrandId",
-        "CatalogTypeId",
-        "Description",
-        "Name",
-        "PictureFileName",
-        "Price",
-        "AvailableStock",
-        "MaxStockThreshold",
-        "OnReorder",
-        "RestockThreshold"
+    private static readonly Dictionary<string, int> columnIndexesItem = new Dictionary<string, int> {
+        { "Id", 0 },
+        { "CatalogBrandId", 1 },
+        { "CatalogTypeId", 2 },
+        { "Description", 3 },
+        { "Name", 4 },
+        { "PictureFileName", 5 },
+        { "Price", 6 },
+        { "AvailableStock", 7 },
+        { "MaxStockThreshold", 8 },
+        { "OnReorder", 9 },
+        { "RestockThreshold", 10 }
     };
 
-    private static readonly List<string> columnIndexesType = new List<string> {
-          "Id",
-          "Type"
+    private static readonly Dictionary<string, int> columnIndexesType = new Dictionary<string, int> {
+          { "Id", 0 },
+          { "Type", 1 }
     };
-
-    //private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
-    //    { "Id", 0 },
-    //    { "Brand", 1 }
-    //};
-
-    //private static readonly Dictionary<string, int> columnIndexesItem = new Dictionary<string, int> {
-    //    { "Id", 0 },
-    //    { "CatalogBrandId", 1 },
-    //    { "CatalogTypeId", 2 },
-    //    { "Description", 3 },
-    //    { "Name", 4 },
-    //    { "PictureFileName", 5 },
-    //    { "Price", 6 },
-    //    { "AvailableStock", 7 },
-    //    { "MaxStockThreshold", 8 },
-    //    { "OnReorder", 9 },
-    //    { "RestockThreshold", 10 }
-    //};
-
-    //private static readonly Dictionary<string, int> columnIndexesType = new Dictionary<string, int> {
-    //      { "Id", 0 },
-    //      { "Type", 1 }
-    //};
 
     // Benchmarking stuff
     public static ConcurrentBag<TimeSpan> Timespans = new ConcurrentBag<TimeSpan>();
@@ -372,36 +348,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     [Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
-        Stopwatch sw;
-        sw = Stopwatch.StartNew();
-
         var clientID = _request_metadata.ClientID;
         var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Compiled Regex patterns to get the column names
         var matches = regex.Matches(command.CommandText); // Each match includes a column name
         
-        sw.Stop();
-        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-        Timespans.Add(sw.Elapsed);
-        sw.Restart();
-
         var columns = new List<string>(Enumerable.Range(0, matches.Count)
                         .Select(i => matches[i].Groups[1].Value));
-
-        sw.Stop();
-        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
-        Timespans2.Add(sw.Elapsed);
-        sw.Restart();
-
         int numberRows = command.Parameters.Count / columns.Count; // Number of rows being inserted
-
-        sw.Stop();
-        Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
-        Timespans3.Add(sw.Elapsed);
-        sw.Restart();
-
         var rows = new object[numberRows][];
-        //Dictionary<string, int> columnIndexes = null;
-        List<string> columnIndexes = null;
+        Dictionary<string, int> columnIndexes = null;
 
         int columnCount = 0;
         switch(targetTable) {
@@ -424,8 +379,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             for (int j = 0; j < columns.Count; j++) {
                 var columnName = columns[j];
                 var paramValue = command.Parameters["@" + columnName].Value;
-                //var correctIndexToStore = columnIndexes[columnName];
-                var correctIndexToStore = columnIndexes.IndexOf(columnName);
+                var correctIndexToStore = columnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
             }
             // Define the uncommitted timestamp as the current time
@@ -433,23 +387,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             rows[i] = row;
         }
 
-        sw.Stop();
-        Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
-        Timespans4.Add(sw.Elapsed);
-        sw.Restart();
-
         var rowsAffected = rows.GetLength(0);
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
-
-        sw.Stop();
-        Console.WriteLine("Elapsed time 5: {0}", sw.Elapsed);
-        Timespans5.Add(sw.Elapsed);
-        // Log the average time
-        _logger.LogInformation($"Average time 1: {Average(Timespans)}");
-        _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
-        _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
-        _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
-        _logger.LogInformation($"Average time 5: {Average(Timespans5)}");
 
         switch (targetTable) {
             case "CatalogBrand":
