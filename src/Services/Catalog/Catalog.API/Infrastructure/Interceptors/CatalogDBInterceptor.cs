@@ -317,12 +317,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         var clientID = _request_metadata.ClientID;
         
-        sw = Stopwatch.StartNew(); // Test also with the regex compiled
-        //var regex = new Regex(operation == UPDATE_COMMAND ? @"\[(\w+)\] = (@\w+)" : @"(?:, |\()\[(\w+)\]"); // Regex to get the column names
         var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
         var matches = regex.Matches(command.CommandText); // Each match includes a column name
-        sw.Stop();
-        Console.WriteLine("   {0} matches in {1}", matches.Count, sw.Elapsed);
+
 
         //var regex = new Regex(regexPattern);
         //var columns = new List<string>(); // List of column names
@@ -336,8 +333,23 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // Get the number of rows being inserted
         int numberRows = command.Parameters.Count / columns.Count;
         //var rowsAffected = 0;
-        
-        //var rows = new List<object[]>();
+
+
+        // Copilot answer: 
+        //var rows = new object[numberRows, standardColumnIndexes.Count + 1]; // Added Timestamp at the end
+        //for (int i = 0; i < numberRows; i += 1) {
+        //    for (int j = 0; j < columns.Count; j++) {
+        //        var columnName = columns[j]; var paramValue = command.Parameters["@" + columnName].Value; var correctIndexToStore = standardColumnIndexes[columnName];
+        //        rows[i, correctIndexToStore] = paramValue;
+        //    }
+
+        //    // Define the uncommitted timestamp as the current time
+        //    rows[i, ^1] = DateTime.UtcNow;
+        //}
+        //// Rows will be later used for insertion.
+
+        sw = Stopwatch.StartNew(); 
+
         var rows = new List<object[]>(numberRows);
         for (int i = 0; i < numberRows; i += 1) {
             var row = new object[standardColumnIndexes.Count + 1]; // Added Timestamp at the end
@@ -355,18 +367,34 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             rows.Add(row);
             //rowsAffected++;
         }
+        var rowsA = rows.ToArray();
+        sw.Stop();
+        Console.WriteLine("Elapsed time: {0}", sw.Elapsed);
+        
         var rowsAffected = rows.Count;
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
+        //switch (targetTable) {
+        //    case "CatalogBrand":
+        //        _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
+        //        break;
+        //    case "CatalogType":
+        //        _wrapper.SingletonAddCatalogType(clientID, rows.ToArray());
+        //        break;
+        //    case "Catalog":
+        //        _wrapper.SingletonAddCatalogItem(clientID, rows.ToArray());
+        //        break;
+        //}
+
         switch (targetTable) {
             case "CatalogBrand":
-                _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
+                _wrapper.SingletonAddCatalogBrand(clientID, rowsA);
                 break;
             case "CatalogType":
-                _wrapper.SingletonAddCatalogType(clientID, rows.ToArray());
+                _wrapper.SingletonAddCatalogType(clientID, rowsA);
                 break;
             case "Catalog":
-                _wrapper.SingletonAddCatalogItem(clientID, rows.ToArray());
+                _wrapper.SingletonAddCatalogItem(clientID, rowsA);
                 break;
         }
         return mockReader;
