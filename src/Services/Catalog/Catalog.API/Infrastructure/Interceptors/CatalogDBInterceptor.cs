@@ -39,6 +39,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
     private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
+    public static ConcurrentBag<TimeSpan> Timespans = new ConcurrentBag<TimeSpan>();
+
+    public static TimeSpan Average(IEnumerable<TimeSpan> spans) {
+        return TimeSpan.FromSeconds(spans.Select(s => s.TotalSeconds).Average());
+    }
 
     public CatalogDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<CatalogContext> logger, IOptions<CatalogSettings> settings) {
         _request_metadata = requestMetadata;
@@ -370,7 +375,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         var rowsA = rows.ToArray();
         sw.Stop();
         Console.WriteLine("Elapsed time: {0}", sw.Elapsed);
-        
+        Timespans.Add(sw.Elapsed);
+        // Log the average time
+        _logger.LogInformation($"Average time: {Average(Timespans)}");
+
         var rowsAffected = rows.Count;
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
