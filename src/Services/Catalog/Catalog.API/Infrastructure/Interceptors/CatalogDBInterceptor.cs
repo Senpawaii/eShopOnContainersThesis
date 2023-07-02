@@ -35,6 +35,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
 
+    private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
+    private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
+
     public CatalogDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<CatalogContext> logger, IOptions<CatalogSettings> settings) {
         _request_metadata = requestMetadata;
         _wrapper = wrapper;
@@ -308,41 +311,43 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
-        // _logger.LogInformation($"ClientID: {clientID} Command text: " + command.CommandText);
-        string regexPattern;
-        if( operation == UPDATE_COMMAND) {
-            regexPattern = @"\[(\w+)\] = (@\w+)";
-        }
-        else if(operation == INSERT_COMMAND) {
-            regexPattern = @"(?:, |\()\[(\w+)\]";
-        } 
-        else {
-            _logger.LogError($"Operation not supported, command text: {command.CommandText}");
-            regexPattern = "";
-        }
+        var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
+        
+        //if( operation == UPDATE_COMMAND) {
+        //    regexPattern = @"\[(\w+)\] = (@\w+)";
+        //}
+        //else if(operation == INSERT_COMMAND) {
+        //    regexPattern = @"(?:, |\()\[(\w+)\]";
+        //} 
+        //else {
+        //    _logger.LogError($"Operation not supported, command text: {command.CommandText}");
+        //    regexPattern = "";
+        //}
 
         // Get the number of columns in each row to be inserted
-        var regex = new Regex(regexPattern);
+        //var regex = new Regex(regexPattern);
         var matches = regex.Matches(command.CommandText); // Each match includes a column name
-        
-        var columns = new List<string>(); // List of column names
 
-        for(int i = 0; i < matches.Count; i++) {
+        //var columns = new List<string>(); // List of column names
+        var columns = new List<string>(matches.Count);
+
+        for (int i = 0; i < matches.Count; i++) {
             columns.Add(matches[i].Groups[1].Value);
         }
 
-        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
+        var standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
         // Get the number of rows being inserted
         int numberRows = command.Parameters.Count / columns.Count;
-        var rowsAffected = 0;
+        //var rowsAffected = 0;
         
-        var rows = new List<object[]>();
+        //var rows = new List<object[]>();
+        var rows = new List<object[]>(numberRows);
         for (int i = 0; i < numberRows; i += 1) {
-            var row = new object[columns.Count + 1]; // Added Timestamp at the end
+            var row = new object[standardColumnIndexes.Count + 1]; // Added Timestamp at the end
 
             for(int j = 0; j < columns.Count; j++) {
                 var columnName = columns[j];
-                var paramValue = command.Parameters["@"+columnName].Value;
+                var paramValue = command.Parameters["@" + columnName].Value;
                 var correctIndexToStore = standardColumnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
                 //_logger.LogInformation($"Row: {columnName}: {paramValue}");
@@ -351,12 +356,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             // Define the uncommitted timestamp as the current time
             row[^1] = DateTime.UtcNow;
             rows.Add(row);
-            rowsAffected++;
+            //rowsAffected++;
         }
-        // Log the rows
-        // foreach (object[] row in rows) {
-        //     _logger.LogInformation($"ClientID: {clientID} adding to the wrapper row: {string.Join(", ", row)}");
-        // }
+        var rowsAffected = rows.Count;
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
         switch (targetTable) {
