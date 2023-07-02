@@ -26,6 +26,8 @@ using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Text;
 using Microsoft.Data.SqlClient;
+using System.Diagnostics;
+using System.Runtime.ConstrainedExecution;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -310,24 +312,19 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     [Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
+        Stopwatch sw;
+
+
         var clientID = _request_metadata.ClientID;
         //var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
+        
+        sw = Stopwatch.StartNew(); // Test also with the regex compiled
         var regex = new Regex(operation == UPDATE_COMMAND ? @"\[(\w+)\] = (@\w+)" : @"(?:, |\()\[(\w+)\]"); // Regex to get the column names
-        //if( operation == UPDATE_COMMAND) {
-        //    regexPattern = @"\[(\w+)\] = (@\w+)";
-        //}
-        //else if(operation == INSERT_COMMAND) {
-        //    regexPattern = @"(?:, |\()\[(\w+)\]";
-        //} 
-        //else {
-        //    _logger.LogError($"Operation not supported, command text: {command.CommandText}");
-        //    regexPattern = "";
-        //}
-
-        // Get the number of columns in each row to be inserted
-        //var regex = new Regex(regexPattern);
         var matches = regex.Matches(command.CommandText); // Each match includes a column name
+        sw.Stop();
+        Console.WriteLine("   {0} matches in {1}", matches.Count, sw.Elapsed);
 
+        //var regex = new Regex(regexPattern);
         //var columns = new List<string>(); // List of column names
         var columns = new List<string>(matches.Count);
 
