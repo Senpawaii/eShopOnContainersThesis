@@ -41,6 +41,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
     private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
     public static ConcurrentBag<TimeSpan> Timespans = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans2 = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans3 = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans4 = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans5 = new ConcurrentBag<TimeSpan>();
 
     public static TimeSpan Average(IEnumerable<TimeSpan> spans) {
         return TimeSpan.FromSeconds(spans.Select(s => s.TotalSeconds).Average());
@@ -324,14 +328,29 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         var clientID = _request_metadata.ClientID;
         var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
         var matches = regex.Matches(command.CommandText); // Each match includes a column name
-
+        
+        sw.Stop();
+        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+        Timespans.Add(sw.Elapsed);
+        sw.Restart();
+        
         var columns = new List<string>(matches.Count);
         for (int i = 0; i < matches.Count; i++) {
             columns.Add(matches[i].Groups[1].Value);
         }
 
+        sw.Stop();
+        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+        Timespans2.Add(sw.Elapsed);
+        sw.Restart();
+        
         var standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
         int numberRows = command.Parameters.Count / columns.Count; // Number of rows being inserted
+
+        sw.Stop();
+        Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
+        Timespans3.Add(sw.Elapsed);
+        sw.Restart();
 
         var rows = new object[numberRows][];
         for (int i = 0; i < numberRows; i+=1) {
@@ -346,15 +365,24 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             row[^1] = DateTime.UtcNow;
             rows[i] = row;
         }
-        
+
+        sw.Stop();
+        Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
+        Timespans4.Add(sw.Elapsed);
+        sw.Restart();
+
         var rowsAffected = rows.GetLength(0);
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
         sw.Stop();
-        Console.WriteLine("Elapsed time: {0}", sw.Elapsed);
-        Timespans.Add(sw.Elapsed);
+        Console.WriteLine("Elapsed time 5: {0}", sw.Elapsed);
+        Timespans5.Add(sw.Elapsed);
         // Log the average time
-        _logger.LogInformation($"Average time: {Average(Timespans)}");
+        _logger.LogInformation($"Average time 1: {Average(Timespans)}");
+        _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
+        _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
+        _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
+        _logger.LogInformation($"Average time 5: {Average(Timespans5)}");
 
         switch (targetTable) {
             case "CatalogBrand":
