@@ -40,6 +40,32 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
     private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
+        { "Id", 0 },
+        { "Brand", 1 }
+    };
+
+    private static readonly Dictionary<string, int> columnIndexesItem = new Dictionary<string, int> {
+        { "Id", 0 },
+        { "CatalogBrandId", 1 },
+        { "CatalogTypeId", 2 },
+        { "Description", 3 },
+        { "Name", 4 },
+        { "PictureFileName", 5 },
+        { "Price", 6 },
+        { "AvailableStock", 7 },
+        { "MaxStockThreshold", 8 },
+        { "OnReorder", 9 },
+        { "RestockThreshold", 10 }
+    };
+
+    private static readonly Dictionary<string, int> columnIndexesType = new Dictionary<string, int> {
+          { "Id", 0 },
+          { "Type", 1 }
+    };
+
+    // Benchmarking stuff
     public static ConcurrentBag<TimeSpan> Timespans = new ConcurrentBag<TimeSpan>();
     public static ConcurrentBag<TimeSpan> Timespans2 = new ConcurrentBag<TimeSpan>();
     public static ConcurrentBag<TimeSpan> Timespans3 = new ConcurrentBag<TimeSpan>();
@@ -344,30 +370,30 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Timespans2.Add(sw.Elapsed);
         sw.Restart();
 
-        var columnIndexes = new Dictionary<string, int>();  // Get the expected order of the columns
-        switch (targetTable) {
-            case "CatalogBrand":
-                columnIndexes.Add("Id", 0);
-                columnIndexes.Add("Brand", 1);
-                break;
-            case "Catalog":
-                columnIndexes.Add("Id", 0);
-                columnIndexes.Add("CatalogBrandId", 1);
-                columnIndexes.Add("CatalogTypeId", 2);
-                columnIndexes.Add("Description", 3);
-                columnIndexes.Add("Name", 4);
-                columnIndexes.Add("PictureFileName", 5);
-                columnIndexes.Add("Price", 6);
-                columnIndexes.Add("AvailableStock", 7);
-                columnIndexes.Add("MaxStockThreshold", 8);
-                columnIndexes.Add("OnReorder", 9);
-                columnIndexes.Add("RestockThreshold", 10);
-                break;
-            case "CatalogType":
-                columnIndexes.Add("Id", 0);
-                columnIndexes.Add("Type", 1);
-                break;
-        }
+        //var columnIndexes = new Dictionary<string, int>();  // Get the expected order of the columns
+        //switch (targetTable) {
+        //    case "CatalogBrand":
+        //        columnIndexes.Add("Id", 0);
+        //        columnIndexes.Add("Brand", 1);
+        //        break;
+        //    case "Catalog":
+        //        columnIndexes.Add("Id", 0);
+        //        columnIndexes.Add("CatalogBrandId", 1);
+        //        columnIndexes.Add("CatalogTypeId", 2);
+        //        columnIndexes.Add("Description", 3);
+        //        columnIndexes.Add("Name", 4);
+        //        columnIndexes.Add("PictureFileName", 5);
+        //        columnIndexes.Add("Price", 6);
+        //        columnIndexes.Add("AvailableStock", 7);
+        //        columnIndexes.Add("MaxStockThreshold", 8);
+        //        columnIndexes.Add("OnReorder", 9);
+        //        columnIndexes.Add("RestockThreshold", 10);
+        //        break;
+        //    case "CatalogType":
+        //        columnIndexes.Add("Id", 0);
+        //        columnIndexes.Add("Type", 1);
+        //        break;
+        //}
 
         int numberRows = command.Parameters.Count / columns.Count; // Number of rows being inserted
 
@@ -377,8 +403,25 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         sw.Restart();
 
         var rows = new object[numberRows][];
+        Dictionary<string, int> columnIndexes = null;
+        int columnCount = 0;
+        switch(targetTable) {
+            case "CatalogBrand":
+                columnIndexes = columnIndexesBrand;
+                columnCount = columnIndexesBrand.Count;
+                break;
+            case "CatalogType":
+                columnIndexes = columnIndexesType;
+                columnCount = columnIndexesType.Count;
+                break;
+            case "Catalog":
+                columnIndexes = columnIndexesItem;
+                columnCount = columnIndexesItem.Count;
+                break;
+        }
+
         for (int i = 0; i < numberRows; i+=1) {
-            var row = new object[columnIndexes.Count + 1]; // Added Timestamp at the end
+            var row = new object[columnCount + 1]; // Added Timestamp at the end
             for (int j = 0; j < columns.Count; j++) {
                 var columnName = columns[j];
                 var paramValue = command.Parameters["@" + columnName].Value;
