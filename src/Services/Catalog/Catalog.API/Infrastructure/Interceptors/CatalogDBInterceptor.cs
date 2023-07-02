@@ -359,41 +359,21 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
         Timespans.Add(sw.Elapsed);
         sw.Restart();
-        
+
+        //var columns = new List<string>(matches.Count);
+        //for (int i = 0; i < matches.Count; i++) {
+        //    columns.Add(matches[i].Groups[1].Value);
+        //}
+
         var columns = new List<string>(matches.Count);
-        for (int i = 0; i < matches.Count; i++) {
-            columns.Add(matches[i].Groups[1].Value);
+        foreach (Match match in matches) {
+            columns.Add(match.Groups[1].Value);
         }
 
         sw.Stop();
         Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
         Timespans2.Add(sw.Elapsed);
         sw.Restart();
-
-        //var columnIndexes = new Dictionary<string, int>();  // Get the expected order of the columns
-        //switch (targetTable) {
-        //    case "CatalogBrand":
-        //        columnIndexes.Add("Id", 0);
-        //        columnIndexes.Add("Brand", 1);
-        //        break;
-        //    case "Catalog":
-        //        columnIndexes.Add("Id", 0);
-        //        columnIndexes.Add("CatalogBrandId", 1);
-        //        columnIndexes.Add("CatalogTypeId", 2);
-        //        columnIndexes.Add("Description", 3);
-        //        columnIndexes.Add("Name", 4);
-        //        columnIndexes.Add("PictureFileName", 5);
-        //        columnIndexes.Add("Price", 6);
-        //        columnIndexes.Add("AvailableStock", 7);
-        //        columnIndexes.Add("MaxStockThreshold", 8);
-        //        columnIndexes.Add("OnReorder", 9);
-        //        columnIndexes.Add("RestockThreshold", 10);
-        //        break;
-        //    case "CatalogType":
-        //        columnIndexes.Add("Id", 0);
-        //        columnIndexes.Add("Type", 1);
-        //        break;
-        //}
 
         int numberRows = command.Parameters.Count / columns.Count; // Number of rows being inserted
 
