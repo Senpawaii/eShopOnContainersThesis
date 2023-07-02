@@ -35,8 +35,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
 
-    private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
-    private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
+    //private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
+    //private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
 
     public CatalogDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<CatalogContext> logger, IOptions<CatalogSettings> settings) {
         _request_metadata = requestMetadata;
@@ -311,8 +311,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
-        var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
-        
+        //var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
+        var regex = new Regex(operation == UPDATE_COMMAND ? @"\[(\w+)\] = (@\w+)" : @"(?:, |\()\[(\w+)\]"); // Regex to get the column names
         //if( operation == UPDATE_COMMAND) {
         //    regexPattern = @"\[(\w+)\] = (@\w+)";
         //}
