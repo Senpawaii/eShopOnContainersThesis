@@ -365,9 +365,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //    columns.Add(matches[i].Groups[1].Value);
         //}
 
+        //var columns = new List<string>(matches.Count);
+        //foreach (Match match in matches) {
+        //    columns.Add(match.Groups[1].Value);
+        //}
+
         var columns = new List<string>(matches.Count);
+        int index = 0;
         foreach (Match match in matches) {
-            columns.Add(match.Groups[1].Value);
+            columns[index++] = match.Groups[1].Value;
         }
 
         sw.Stop();
