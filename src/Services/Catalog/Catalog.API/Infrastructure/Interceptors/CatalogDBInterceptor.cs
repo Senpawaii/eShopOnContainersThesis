@@ -533,7 +533,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
         // Log the command text
-        _logger.LogInformation($"Command Text: {command.CommandText}");
+        //_logger.LogInformation($"Command Text: {command.CommandText}");
 
         // Get the current client session timeestamp
         DateTime clientTimestamp = _request_metadata.Timestamp;
