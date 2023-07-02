@@ -28,6 +28,7 @@ using System.Text;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 using System.Runtime.ConstrainedExecution;
+using Microsoft.Extensions.ObjectPool;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -340,26 +341,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //var rowsAffected = 0;
 
         sw = Stopwatch.StartNew();
-
-        // Copilot answer: 
-        var rows = new object[numberRows, standardColumnIndexes.Count + 1]; // Added Timestamp at the end
-        for (int i = 0; i < numberRows; i += 1) {
-            for (int j = 0; j < columns.Count; j++) {
-                var columnName = columns[j]; var paramValue = command.Parameters["@" + columnName].Value; var correctIndexToStore = standardColumnIndexes[columnName];
-                rows[i, correctIndexToStore] = paramValue;
-            }
-
-            // Define the uncommitted timestamp as the current time
-            rows[i, columns.Count] = DateTime.UtcNow;
-        }
-        //// Rows will be later used for insertion.
-
-
         //var rows = new List<object[]>(numberRows);
         //for (int i = 0; i < numberRows; i += 1) {
         //    var row = new object[standardColumnIndexes.Count + 1]; // Added Timestamp at the end
 
-        //    for(int j = 0; j < columns.Count; j++) {
+        //    for (int j = 0; j < columns.Count; j++) {
         //        var columnName = columns[j];
         //        var paramValue = command.Parameters["@" + columnName].Value;
         //        var correctIndexToStore = standardColumnIndexes[columnName];
@@ -372,7 +358,23 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //    rows.Add(row);
         //    //rowsAffected++;
         //}
-        //var rowsA = rows.ToArray();
+
+
+        var rows = new object[numberRows][];
+        for (int i = 0; i < numberRows; i+=1) {
+            var row = new object[standardColumnIndexes.Count + 1]; // Added Timestamp at the end
+            for (int j = 0; j < columns.Count; j++) {
+                var columnName = columns[j];
+                var paramValue = command.Parameters["@" + columnName].Value;
+                var correctIndexToStore = standardColumnIndexes[columnName];
+                row[correctIndexToStore] = paramValue;
+                //_logger.LogInformation($"Row: {columnName}: {paramValue}");
+
+            }
+            // Define the uncommitted timestamp as the current time
+            row[^1] = DateTime.UtcNow;
+            rows[i] = row;
+        }
 
 
         sw.Stop();
@@ -381,15 +383,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // Log the average time
         _logger.LogInformation($"Average time: {Average(Timespans)}");
 
-        // Convert the bidimensional array of rows to an array[]
-        
-        List<object[]> jaggedArray = Enumerable.Range(0, rows.GetLength(0))
-            .Select(x => Enumerable.Range(0, rows.GetLength(1))
-                .Select(y => rows[x, y]).ToArray())
-            .ToList();
+        // Convert the rows to list of row
+        var rowsL = rows.ToList();
 
         var rowsAffected = rows.GetLength(0);
-        var mockReader = new MockDbDataReader(jaggedArray, rowsAffected, targetTable);
+
+
+        var mockReader = new MockDbDataReader(rowsL, rowsAffected, targetTable);
 
         //switch (targetTable) {
         //    case "CatalogBrand":
@@ -405,13 +405,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         switch (targetTable) {
             case "CatalogBrand":
-                _wrapper.SingletonAddCatalogBrand(clientID, jaggedArray);
+                _wrapper.SingletonAddCatalogBrand(clientID, rows);
                 break;
             case "CatalogType":
-                _wrapper.SingletonAddCatalogType(clientID, jaggedArray);
+                _wrapper.SingletonAddCatalogType(clientID, rows);
                 break;
             case "Catalog":
-                _wrapper.SingletonAddCatalogItem(clientID, jaggedArray);
+                _wrapper.SingletonAddCatalogItem(clientID, rows);
                 break;
         }
         return mockReader;
