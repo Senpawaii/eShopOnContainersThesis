@@ -319,43 +319,19 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
         Stopwatch sw;
-
+        sw = Stopwatch.StartNew();
 
         var clientID = _request_metadata.ClientID;
-        
         var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
         var matches = regex.Matches(command.CommandText); // Each match includes a column name
 
-        //var regex = new Regex(regexPattern);
-        //var columns = new List<string>(); // List of column names
         var columns = new List<string>(matches.Count);
-
         for (int i = 0; i < matches.Count; i++) {
             columns.Add(matches[i].Groups[1].Value);
         }
 
         var standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
         int numberRows = command.Parameters.Count / columns.Count; // Number of rows being inserted
-
-        sw = Stopwatch.StartNew();
-        //var rows = new List<object[]>(numberRows);
-        //for (int i = 0; i < numberRows; i += 1) {
-        //    var row = new object[standardColumnIndexes.Count + 1]; // Added Timestamp at the end
-
-        //    for (int j = 0; j < columns.Count; j++) {
-        //        var columnName = columns[j];
-        //        var paramValue = command.Parameters["@" + columnName].Value;
-        //        var correctIndexToStore = standardColumnIndexes[columnName];
-        //        row[correctIndexToStore] = paramValue;
-        //        //_logger.LogInformation($"Row: {columnName}: {paramValue}");
-
-        //    }
-        //    // Define the uncommitted timestamp as the current time
-        //    row[^1] = DateTime.UtcNow;
-        //    rows.Add(row);
-        //    //rowsAffected++;
-        //}
-
 
         var rows = new object[numberRows][];
         for (int i = 0; i < numberRows; i+=1) {
@@ -365,38 +341,20 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 var paramValue = command.Parameters["@" + columnName].Value;
                 var correctIndexToStore = standardColumnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
-                //_logger.LogInformation($"Row: {columnName}: {paramValue}");
             }
             // Define the uncommitted timestamp as the current time
             row[^1] = DateTime.UtcNow;
             rows[i] = row;
         }
-
+        
+        var rowsAffected = rows.GetLength(0);
+        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
         sw.Stop();
         Console.WriteLine("Elapsed time: {0}", sw.Elapsed);
         Timespans.Add(sw.Elapsed);
         // Log the average time
         _logger.LogInformation($"Average time: {Average(Timespans)}");
-
-        // Convert the rows to list of row
-        //var rowsL = rows.ToList();
-
-        var rowsAffected = rows.GetLength(0);
-
-        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
-
-        //switch (targetTable) {
-        //    case "CatalogBrand":
-        //        _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
-        //        break;
-        //    case "CatalogType":
-        //        _wrapper.SingletonAddCatalogType(clientID, rows.ToArray());
-        //        break;
-        //    case "Catalog":
-        //        _wrapper.SingletonAddCatalogItem(clientID, rows.ToArray());
-        //        break;
-        //}
 
         switch (targetTable) {
             case "CatalogBrand":
