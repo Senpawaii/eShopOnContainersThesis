@@ -41,29 +41,53 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
     private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
 
-    private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
-        { "Id", 0 },
-        { "Brand", 1 }
+    private static readonly List<string> columnIndexesBrand = new List<string> {
+        "Id",
+        "Brand"
     };
 
-    private static readonly Dictionary<string, int> columnIndexesItem = new Dictionary<string, int> {
-        { "Id", 0 },
-        { "CatalogBrandId", 1 },
-        { "CatalogTypeId", 2 },
-        { "Description", 3 },
-        { "Name", 4 },
-        { "PictureFileName", 5 },
-        { "Price", 6 },
-        { "AvailableStock", 7 },
-        { "MaxStockThreshold", 8 },
-        { "OnReorder", 9 },
-        { "RestockThreshold", 10 }
+    private static readonly List<string> columnIndexesItem = new List<string> {
+        "Id",
+        "CatalogBrandId",
+        "CatalogTypeId",
+        "Description",
+        "Name",
+        "PictureFileName",
+        "Price",
+        "AvailableStock",
+        "MaxStockThreshold",
+        "OnReorder",
+        "RestockThreshold"
     };
 
-    private static readonly Dictionary<string, int> columnIndexesType = new Dictionary<string, int> {
-          { "Id", 0 },
-          { "Type", 1 }
+    private static readonly List<string> columnIndexesType = new List<string> {
+          "Id",
+          "Type"
     };
+
+    //private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
+    //    { "Id", 0 },
+    //    { "Brand", 1 }
+    //};
+
+    //private static readonly Dictionary<string, int> columnIndexesItem = new Dictionary<string, int> {
+    //    { "Id", 0 },
+    //    { "CatalogBrandId", 1 },
+    //    { "CatalogTypeId", 2 },
+    //    { "Description", 3 },
+    //    { "Name", 4 },
+    //    { "PictureFileName", 5 },
+    //    { "Price", 6 },
+    //    { "AvailableStock", 7 },
+    //    { "MaxStockThreshold", 8 },
+    //    { "OnReorder", 9 },
+    //    { "RestockThreshold", 10 }
+    //};
+
+    //private static readonly Dictionary<string, int> columnIndexesType = new Dictionary<string, int> {
+    //      { "Id", 0 },
+    //      { "Type", 1 }
+    //};
 
     // Benchmarking stuff
     public static ConcurrentBag<TimeSpan> Timespans = new ConcurrentBag<TimeSpan>();
@@ -352,23 +376,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         sw = Stopwatch.StartNew();
 
         var clientID = _request_metadata.ClientID;
-        var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
+        var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Compiled Regex patterns to get the column names
         var matches = regex.Matches(command.CommandText); // Each match includes a column name
         
         sw.Stop();
         Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
         Timespans.Add(sw.Elapsed);
         sw.Restart();
-
-        //var columns = new List<string>(matches.Count);
-        //for (int i = 0; i < matches.Count; i++) {
-        //    columns.Add(matches[i].Groups[1].Value);
-        //}
-
-        //var columns = new List<string>(matches.Count);
-        //foreach (Match match in matches) {
-        //    columns.Add(match.Groups[1].Value);
-        //}
 
         var columns = new List<string>(Enumerable.Range(0, matches.Count)
                         .Select(i => matches[i].Groups[1].Value));
@@ -386,7 +400,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         sw.Restart();
 
         var rows = new object[numberRows][];
-        Dictionary<string, int> columnIndexes = null;
+        //Dictionary<string, int> columnIndexes = null;
+        List<string> columnIndexes = null;
+
         int columnCount = 0;
         switch(targetTable) {
             case "CatalogBrand":
@@ -408,7 +424,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             for (int j = 0; j < columns.Count; j++) {
                 var columnName = columns[j];
                 var paramValue = command.Parameters["@" + columnName].Value;
-                var correctIndexToStore = columnIndexes[columnName];
+                //var correctIndexToStore = columnIndexes[columnName];
+                var correctIndexToStore = columnIndexes.IndexOf(columnName);
                 row[correctIndexToStore] = paramValue;
             }
             // Define the uncommitted timestamp as the current time
