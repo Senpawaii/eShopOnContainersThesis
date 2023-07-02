@@ -326,7 +326,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Regex to get the column names
         var matches = regex.Matches(command.CommandText); // Each match includes a column name
 
-
         //var regex = new Regex(regexPattern);
         //var columns = new List<string>(); // List of column names
         var columns = new List<string>(matches.Count);
@@ -336,9 +335,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
 
         var standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
-        // Get the number of rows being inserted
-        int numberRows = command.Parameters.Count / columns.Count;
-        //var rowsAffected = 0;
+        int numberRows = command.Parameters.Count / columns.Count; // Number of rows being inserted
 
         sw = Stopwatch.StartNew();
         //var rows = new List<object[]>(numberRows);
@@ -369,7 +366,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 var correctIndexToStore = standardColumnIndexes[columnName];
                 row[correctIndexToStore] = paramValue;
                 //_logger.LogInformation($"Row: {columnName}: {paramValue}");
-
             }
             // Define the uncommitted timestamp as the current time
             row[^1] = DateTime.UtcNow;
@@ -384,12 +380,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         _logger.LogInformation($"Average time: {Average(Timespans)}");
 
         // Convert the rows to list of row
-        var rowsL = rows.ToList();
+        //var rowsL = rows.ToList();
 
         var rowsAffected = rows.GetLength(0);
 
-
-        var mockReader = new MockDbDataReader(rowsL, rowsAffected, targetTable);
+        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
         //switch (targetTable) {
         //    case "CatalogBrand":

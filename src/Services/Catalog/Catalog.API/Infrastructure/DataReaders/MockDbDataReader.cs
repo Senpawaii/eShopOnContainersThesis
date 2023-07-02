@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.DataReaders;
 public class MockDbDataReader : DbDataReader {
-    private readonly List<object[]> _rows;
+    private readonly IEnumerable<object[]> _rows;
     private readonly int _recordsAffected;
     private readonly string _targetTable;
     private readonly bool _executedOnDatabase = false;
@@ -12,22 +12,22 @@ public class MockDbDataReader : DbDataReader {
     private readonly bool _hasRows;
 
 
-    public MockDbDataReader(List<object[]> rows, int recordsAffected, string targetTable) {
+    public MockDbDataReader(IEnumerable<object[]> rows, int recordsAffected, string targetTable) {
         _rows = rows;
         _recordsAffected = recordsAffected;
         _targetTable = targetTable;
-        _hasRows = _rows != null && _rows.Count > 0;
+        _hasRows = _rows != null && _rows.Count() > 0;
 
     }
 
     public override bool Read() {
         _rowIndex++;
-        return (_rowIndex < _rows.Count);
+        return (_rowIndex < _rows.Count());
     }
 
     public bool ExecutedRequestOnDatabase => _executedOnDatabase;
 
-    public override int FieldCount => _rows[0].Length;
+    public override int FieldCount => _rows.ElementAt(0).Length;
 
     public override int Depth => throw new NotImplementedException();
 
@@ -42,11 +42,11 @@ public class MockDbDataReader : DbDataReader {
     public override object this[int ordinal] => throw new NotImplementedException();
 
     public override bool IsDBNull(int ordinal) {
-        return (_rows[_rowIndex][ordinal] == DBNull.Value);
+        return (_rows.ElementAt(_rowIndex)[ordinal] == DBNull.Value);
     }
 
     public override object GetValue(int ordinal) {
-        return _rows[_rowIndex];
+        return _rows.ElementAt(_rowIndex)[ordinal];
     }
 
     public override bool GetBoolean(int ordinal) {
@@ -54,7 +54,7 @@ public class MockDbDataReader : DbDataReader {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
-        var value = _rows[_rowIndex][ordinal];
+        var value = _rows.ElementAt(_rowIndex)[ordinal];
         return Convert.ToBoolean(value);
     }
 
@@ -103,7 +103,7 @@ public class MockDbDataReader : DbDataReader {
         if (ordinal < 0 || ordinal >= FieldCount) {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
-        var value = _rows[_rowIndex][ordinal];
+        var value = _rows.ElementAt(_rowIndex)[ordinal];
         return Convert.ToDecimal(value);
     }
 
@@ -182,7 +182,7 @@ public class MockDbDataReader : DbDataReader {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
-        var value = _rows[_rowIndex][ordinal];
+        var value = _rows.ElementAt(_rowIndex)[ordinal];
         return Convert.ToInt16(value);
     }
 
@@ -191,7 +191,7 @@ public class MockDbDataReader : DbDataReader {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
-        var value = _rows[_rowIndex][ordinal];
+        var value = _rows.ElementAt(_rowIndex)[ordinal];
         return Convert.ToInt32(value);
     }
 
@@ -200,7 +200,7 @@ public class MockDbDataReader : DbDataReader {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
-        var value = _rows[_rowIndex][ordinal];
+        var value = _rows.ElementAt(_rowIndex)[ordinal];
         return Convert.ToInt64(value);
     }
 
@@ -266,7 +266,7 @@ public class MockDbDataReader : DbDataReader {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
 
-        var value = _rows[_rowIndex][ordinal];
+        var value = _rows.ElementAt(_rowIndex)[ordinal];
         return Convert.ToString(value);
     }
 
@@ -279,7 +279,7 @@ public class MockDbDataReader : DbDataReader {
 
         // Check if there's another result set
         // (in this example, we assume there's only one result set)
-        if (_rowIndex >= _rows.Count - 1) {
+        if (_rowIndex >= _rows.Count() - 1) {
             return false;
         }
 
