@@ -42,6 +42,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
     private static readonly Regex GetTargetTableRegex = new Regex(@"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]", RegexOptions.Compiled);
     private static readonly Regex GetSelectedColumnsRegex = new Regex(@"SELECT\s+(.*?)\s+FROM", RegexOptions.Compiled);
+    private static readonly Regex GetWhereConditionsRegex = new Regex(@"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
         { "Id", 0 },
@@ -531,9 +532,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         if (command.CommandText.Contains("WHERE")) {
             // Extract where condition
-            string regex_pattern = @"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)";
-            Match match = Regex.Match(command.CommandText, regex_pattern);
-            
+
+            //string regex_pattern = @"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)";
+            //Match match = Regex.Match(command.CommandText, regex_pattern);
+            Match match = GetWhereConditionsRegex.Match(command.CommandText);
+
+
+
             whereCondition = match.Groups[1].Value;
             // // Remove the where condition from the command
             command.CommandText = command.CommandText.Replace(whereCondition, "");
