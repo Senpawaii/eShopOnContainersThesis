@@ -71,6 +71,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public static ConcurrentBag<TimeSpan> Timespans3 = new ConcurrentBag<TimeSpan>();
     public static ConcurrentBag<TimeSpan> Timespans4 = new ConcurrentBag<TimeSpan>();
     public static ConcurrentBag<TimeSpan> Timespans5 = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans6 = new ConcurrentBag<TimeSpan>();
 
     public static TimeSpan Average(IEnumerable<TimeSpan> spans) {
         return TimeSpan.FromSeconds(spans.Select(s => s.TotalSeconds).Average());
@@ -411,7 +412,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public (int, string) GetCommandInfo(DbCommand command) {
         Stopwatch sw = Stopwatch.StartNew();
 
-        sw.Start();
         var commandType = GetCommandType(command);
 
         switch(commandType) {
@@ -452,18 +452,32 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     [Trace]
     private int GetCommandType(DbCommand command) {
+        Stopwatch sw = Stopwatch.StartNew();
+
         var commandText = command.CommandText.ToUpperInvariant();
 
         if (commandText.Contains("INSERT ")) {
+            sw.Stop();
+            Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
+            Timespans4.Add(sw.Elapsed);
+            _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
             return INSERT_COMMAND;
         }
         else if (commandText.Contains("UPDATE ")) {
+            sw.Stop();
+            Console.WriteLine("Elapsed time 5: {0}", sw.Elapsed);
+            Timespans5.Add(sw.Elapsed);
+            _logger.LogInformation($"Average time 5: {Average(Timespans5)}");
             return UPDATE_COMMAND;
         }
         else if (commandText.Contains("DELETE ")) {
             return DELETE_COMMAND;
         }
         else if (commandText.Contains("SELECT ")) {
+            sw.Stop();
+            Console.WriteLine("Elapsed time 6: {0}", sw.Elapsed);
+            Timespans6.Add(sw.Elapsed);
+            _logger.LogInformation($"Average time 6: {Average(Timespans6)}");
             return SELECT_COMMAND;
         }
         else {
