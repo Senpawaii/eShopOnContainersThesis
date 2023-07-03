@@ -412,7 +412,26 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public (int, string) GetCommandInfo(DbCommand command) {
         Stopwatch sw = Stopwatch.StartNew();
 
-        var commandType = GetCommandType(command);
+        //var commandType = GetCommandType(command);
+        int commandType;
+        
+        var commandText = command.CommandText;
+        if (commandText.Contains("SELECT ")) {
+            commandType = SELECT_COMMAND;
+        }
+        else if (commandText.Contains("INSERT ")) {
+            commandType = INSERT_COMMAND;
+        }
+        else if (commandText.Contains("UPDATE ")) {
+            commandType = UPDATE_COMMAND;
+        }
+        else if (commandText.Contains("DELETE ")) {
+            commandType = DELETE_COMMAND;
+        }
+        else {
+            commandType = UNKNOWN_COMMAND;
+        }
+
         sw.Stop();
         Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
         Timespans4.Add(sw.Elapsed);
