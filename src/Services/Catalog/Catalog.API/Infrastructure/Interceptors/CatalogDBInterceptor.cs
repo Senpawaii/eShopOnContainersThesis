@@ -437,10 +437,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case INSERT_COMMAND:
                 return (INSERT_COMMAND, targetTable);
             case SELECT_COMMAND:
-                List<string> exceptionTables = new List<string>() {
-                    "__EFMigrationsHistory"
-                };
-                if (!exceptionTables.Contains(targetTable)) {
+                if (targetTable != null && targetTable != "__EFMigrationsHistory") {
                     sw.Stop();
                     Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
                     Timespans2.Add(sw.Elapsed);
