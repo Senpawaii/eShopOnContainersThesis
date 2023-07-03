@@ -421,7 +421,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 sw.Stop();
                 Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
                 Timespans.Add(sw.Elapsed);
-                _logger.LogInformation($"Average time : {Average(Timespans)}");
+                _logger.LogInformation($"Average time 1: {Average(Timespans)}");
                 
                 return (INSERT_COMMAND, targetTable);
             case SELECT_COMMAND:
@@ -433,7 +433,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     sw.Stop();
                     Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
                     Timespans2.Add(sw.Elapsed);
-                    _logger.LogInformation($"Average time : {Average(Timespans2)}");
+                    _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
 
                     return (SELECT_COMMAND, targetTable);
                 }
@@ -443,7 +443,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 sw.Stop();
                 Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
                 Timespans3.Add(sw.Elapsed);
-                _logger.LogInformation($"Average time : {Average(Timespans3)}");
+                _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
 
                 return (UPDATE_COMMAND, targetTable);
         }
