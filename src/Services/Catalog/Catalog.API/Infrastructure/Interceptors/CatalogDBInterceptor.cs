@@ -413,8 +413,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Stopwatch sw = Stopwatch.StartNew();
 
         var commandType = GetCommandType(command);
-
-        switch(commandType) {
+        sw.Stop();
+        Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
+        Timespans4.Add(sw.Elapsed);
+        _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
+        sw.Restart();
+        switch (commandType) {
             case INSERT_COMMAND:
                 string targetTable = GetTargetTable(command.CommandText);
                 
@@ -452,30 +456,14 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     [Trace]
     private int GetCommandType(DbCommand command) {
-        Stopwatch sw = Stopwatch.StartNew();
-
-        //var commandText = command.CommandText.ToUpperInvariant();
         var commandText = command.CommandText;
-
         if (commandText.Contains("SELECT ")) {
-            sw.Stop();
-            Console.WriteLine("Elapsed time 6: {0}", sw.Elapsed);
-            Timespans6.Add(sw.Elapsed);
-            _logger.LogInformation($"Average time 6: {Average(Timespans6)}");
             return SELECT_COMMAND;
         } 
         else if(commandText.Contains("INSERT ")) {
-            sw.Stop();
-            Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
-            Timespans4.Add(sw.Elapsed);
-            _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
             return INSERT_COMMAND;
         }
         else if (commandText.Contains("UPDATE ")) {
-            sw.Stop();
-            Console.WriteLine("Elapsed time 5: {0}", sw.Elapsed);
-            Timespans5.Add(sw.Elapsed);
-            _logger.LogInformation($"Average time 5: {Average(Timespans5)}");
             return UPDATE_COMMAND;
         }
         else if (commandText.Contains("DELETE ")) {
