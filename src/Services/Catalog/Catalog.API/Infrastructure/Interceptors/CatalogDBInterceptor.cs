@@ -498,20 +498,22 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Stopwatch sw = new Stopwatch();
         Stopwatch entire = new Stopwatch();
         sw.Start();
-        entire.Start();
+        //entire.Start();
         // Log the command text
         //_logger.LogInformation($"Command Text: {command.CommandText}");
 
         // Get the current client session timeestamp
         DateTime clientTimestamp = _request_metadata.Timestamp;
 
-        bool hasCount = HasCountClause(command.CommandText);
-        if (hasCount) {
-            command.CommandText = RemoveCountSelection(command.CommandText);
-        }
-        //if(command.CommandText.Contains("COUNT")) {
+        //bool hasCount = HasCountClause(command.CommandText);
+        //if (hasCount) {
         //    command.CommandText = RemoveCountSelection(command.CommandText);
         //}
+        if (command.CommandText.Contains("COUNT")) { // We need to remove to be able to group with wrapper data after recceiving the data from the database
+            string pattern = @"SELECT\s+(.*?)\s+FROM";
+            string replacement = "SELECT * FROM";
+            command.CommandText = Regex.Replace(command.CommandText, pattern, replacement);
+        }
 
         sw.Stop();
         Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
@@ -586,14 +588,14 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
             Timespans4.Add(sw.Elapsed);
         }
-        entire.Stop();
-        Console.WriteLine("Elapsed time entire: {0}", entire.Elapsed);
-        Timespans5.Add(entire.Elapsed);
+        //entire.Stop();
+        //Console.WriteLine("Elapsed time entire: {0}", entire.Elapsed);
+        //Timespans5.Add(entire.Elapsed);
         _logger.LogInformation($"Average time 1: {Average(Timespans)}");
         _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
         _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
         _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
-        _logger.LogInformation($"Average time entire: {Average(Timespans5)}");
+        //_logger.LogInformation($"Average time entire: {Average(Timespans5)}");
     }
 
     [Trace]
