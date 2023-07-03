@@ -123,7 +123,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
                     // If the Transaction is not in commit state, store data in wrapper
-                    var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                    var mockReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                 }
                 else {
@@ -236,7 +236,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
                     // If the Transaction is not in commit state, store data in wrapper
-                    var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                    var mockReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                 }
                 else {
@@ -404,70 +404,70 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
-    [Trace]
-    private MockDbDataReader StoreDataInWrapper(DbCommand command, int operation, string targetTable) {
-        var clientID = _request_metadata.ClientID;
-        // _logger.LogInformation("Command text: " + command.CommandText);
-        string regexPattern;
-        if (operation == INSERT_COMMAND) {
-            regexPattern = @"\[(\w+)\]";
-        } else {
-            regexPattern = @"\[(\w+)\] = (@\w+)";
-        }
+    //[Trace]
+    //private MockDbDataReader StoreDataInWrapper(DbCommand command, int operation, string targetTable) {
+    //    var clientID = _request_metadata.ClientID;
+    //    // _logger.LogInformation("Command text: " + command.CommandText);
+    //    string regexPattern;
+    //    if (operation == INSERT_COMMAND) {
+    //        regexPattern = @"\[(\w+)\]";
+    //    } else {
+    //        regexPattern = @"\[(\w+)\] = (@\w+)";
+    //    }
 
-        // Get the number of columns in each row to be inserted
-        var regex = new Regex(regexPattern);
-        var matches = regex.Matches(command.CommandText);
+    //    // Get the number of columns in each row to be inserted
+    //    var regex = new Regex(regexPattern);
+    //    var matches = regex.Matches(command.CommandText);
 
-        var columns = new List<string>();
+    //    var columns = new List<string>();
 
-        // Discard the first match, it is the table name
-        for(int i = 1; i < matches.Count; i++) {
-            columns.Add(matches[i].Groups[1].Value);
-        }
+    //    // Discard the first match, it is the table name
+    //    for(int i = 1; i < matches.Count; i++) {
+    //        columns.Add(matches[i].Groups[1].Value);
+    //    }
 
-        //var columns = matches[0].Groups["columnNames"].Value.Split(", ");
-        //for(int i = 0; i < columns.Length; i++) {
-        //    columns[i] = columns[i].Trim('[', ']');
-        //}
+    //    //var columns = matches[0].Groups["columnNames"].Value.Split(", ");
+    //    //for(int i = 0; i < columns.Length; i++) {
+    //    //    columns[i] = columns[i].Trim('[', ']');
+    //    //}
 
-        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);
+    //    Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);
 
-        // Get the number of rows being inserted
-        int numberRows = command.Parameters.Count / columns.Count;
-        var rowsAffected = 0;
+    //    // Get the number of rows being inserted
+    //    int numberRows = command.Parameters.Count / columns.Count;
+    //    var rowsAffected = 0;
 
-        var rows = new List<object[]>();
-        for (int i = 0; i < numberRows; i += 1) {
-            var row = new object[columns.Count + 1]; // Added Timestamp at the end
-            for(int j = 0; j < columns.Count; j++) {
-                var columnName = columns[j];
-                var paramValue = command.Parameters[(i * columns.Count) + j].Value;
-                var correctIndexToStore = standardColumnIndexes[columnName];
-                row[correctIndexToStore] = paramValue;
-            }
-            // Define the uncommitted timestamp as the current time
-            row[^1] = DateTime.UtcNow;
-            rows.Add(row);
-            rowsAffected++;
-        }
+    //    var rows = new List<object[]>();
+    //    for (int i = 0; i < numberRows; i += 1) {
+    //        var row = new object[columns.Count + 1]; // Added Timestamp at the end
+    //        for(int j = 0; j < columns.Count; j++) {
+    //            var columnName = columns[j];
+    //            var paramValue = command.Parameters[(i * columns.Count) + j].Value;
+    //            var correctIndexToStore = standardColumnIndexes[columnName];
+    //            row[correctIndexToStore] = paramValue;
+    //        }
+    //        // Define the uncommitted timestamp as the current time
+    //        row[^1] = DateTime.UtcNow;
+    //        rows.Add(row);
+    //        rowsAffected++;
+    //    }
 
-        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
+    //    var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
-        // Store the data in the wrapper
-        switch (targetTable) {
-            case "CatalogBrand":
-                _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
-                break;
-            case "CatalogType":
-                _wrapper.SingletonAddCatalogType(clientID, rows.ToArray());
-                break;
-            case "Catalog":
-                _wrapper.SingletonAddCatalogItem(clientID, rows.ToArray());
-                break;
-        }
-        return mockReader;
-    }
+    //    // Store the data in the wrapper
+    //    switch (targetTable) {
+    //        case "CatalogBrand":
+    //            _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
+    //            break;
+    //        case "CatalogType":
+    //            _wrapper.SingletonAddCatalogType(clientID, rows.ToArray());
+    //            break;
+    //        case "Catalog":
+    //            _wrapper.SingletonAddCatalogItem(clientID, rows.ToArray());
+    //            break;
+    //    }
+    //    return mockReader;
+    //}
 
     [Trace]
     public (int, string) GetCommandInfo(DbCommand command) {
