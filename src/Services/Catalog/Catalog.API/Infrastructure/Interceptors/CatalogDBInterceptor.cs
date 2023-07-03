@@ -497,9 +497,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
         Stopwatch sw = new Stopwatch();
-        Stopwatch entire = new Stopwatch();
         sw.Start();
-        //entire.Start();
         // Log the command text
         //_logger.LogInformation($"Command Text: {command.CommandText}");
 
@@ -518,7 +516,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Timespans.Add(sw.Elapsed);
         sw.Restart();
 
-        string whereCondition;
 
         // Create new SQL Parameter for clientTimestamp
         var clientTimestampParameter = new Microsoft.Data.SqlClient.SqlParameter("@clientTimestamp", SqlDbType.DateTime2);
@@ -530,25 +527,34 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Timespans2.Add(sw.Elapsed);
         sw.Restart();
 
+        var whereConditionBuilder = new StringBuilder();
+        var commandTextBuilder = new StringBuilder(command.CommandText);
+
         if (command.CommandText.Contains("WHERE")) {
             // Extract where condition
             string regex_pattern = @"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)";
             Match match = Regex.Match(command.CommandText, regex_pattern);
-            
-            whereCondition = match.Groups[1].Value;
-            // // Remove the where condition from the command
-            command.CommandText = command.CommandText.Replace(whereCondition, "");
+
+            whereConditionBuilder.Append(match.Groups[1].Value);
+            //whereCondition = match.Groups[1].Value;
+
+            //command.CommandText = command.CommandText.Replace(whereCondition, "");
+            commandTextBuilder.Replace(whereConditionBuilder.ToString(), "");
             // _logger.LogInformation("Command Text before replacement: {0}", command.CommandText);
 
             if(!_settings.Value.Limit1Version) {
-                whereCondition = whereCondition.Replace("[c]", $"[{targetTable}]");
-                whereCondition += $" AND [{targetTable}].[Timestamp] <= @clientTimestamp ";
+                whereConditionBuilder.Replace("[c]", $"[{targetTable}]");
+                whereConditionBuilder.Append($" AND [{targetTable}].[Timestamp] <= @clientTimestamp ");
+                //whereCondition = whereCondition.Replace("[c]", $"[{targetTable}]");
+                //whereCondition += $" AND [{targetTable}].[Timestamp] <= @clientTimestamp ";
             } 
             else {
-                whereCondition += $" AND [c].[Timestamp] <= @clientTimestamp ";
+                whereConditionBuilder.Append(" AND [c].[Timestamp] <= @clientTimestamp ");
+                //whereCondition += $" AND [c].[Timestamp] <= @clientTimestamp ";
             }
         } else {
-            whereCondition = $" WHERE [{targetTable}].[Timestamp] <= @clientTimestamp ";
+            whereConditionBuilder.Append(" WHERE [{targetTable}].[Timestamp] <= @clientTimestamp ");
+            //whereCondition = $" WHERE [{targetTable}].[Timestamp] <= @clientTimestamp ";
         }
 
         sw.Stop();
@@ -559,41 +565,47 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         if (_settings.Value.Limit1Version) { 
             // There is only 1 version, so we don't need to join with the max timestamp, as the timestamp is already the max
             // log the command text
-            command.CommandText += whereCondition;
-            // _logger.LogInformation($"Updated Command Text: {command.CommandText}");
+            //command.CommandText += whereCondition;
+            commandTextBuilder.Append(whereConditionBuilder);
             return;
         }
         else {
             // There are multiple versions, so we need to join with the max timestamp, to get the latest version that respects the client timestamp
             switch (targetTable) {
                 case "CatalogBrand":
-                    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
-                    command.CommandText += whereCondition;
-                    command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
+                    commandTextBuilder.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
+                    commandTextBuilder.Append(whereConditionBuilder);
+                    commandTextBuilder.Append("GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp");
+                    //command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
+                    //command.CommandText += whereCondition;
+                    //command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
                     break;
                 case "CatalogType":
-                    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogType.Type, max(CatalogType.Timestamp) as max_timestamp FROM CatalogType");
-                    command.CommandText += whereCondition;
-                    command.CommandText += "GROUP BY CatalogType.Type) d on c.Type = d.Type AND c.Timestamp = d.max_timestamp";
+                    commandTextBuilder.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogType.Type, max(CatalogType.Timestamp) as max_timestamp FROM CatalogType");
+                    commandTextBuilder.Append(whereConditionBuilder);
+                    commandTextBuilder.Append("GROUP BY CatalogType.Type) d on c.Type = d.Type AND c.Timestamp = d.max_timestamp");
+                    //command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogType.Type, max(CatalogType.Timestamp) as max_timestamp FROM CatalogType");
+                    //command.CommandText += whereCondition;
+                    //command.CommandText += "GROUP BY CatalogType.Type) d on c.Type = d.Type AND c.Timestamp = d.max_timestamp";
                     break;
                 case "Catalog":
-                    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId, max(Catalog.Timestamp) as max_timestamp FROM Catalog");
-                    command.CommandText += whereCondition;
-                    command.CommandText += "GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp";
+                    commandTextBuilder.Replace("AS [c]", $"AS [c] JOIN (SELECT Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId, max(Catalog.Timestamp) as max_timestamp FROM Catalog");
+                    commandTextBuilder.Append(whereConditionBuilder);
+                    commandTextBuilder.Append("GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp");
+                    //command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId, max(Catalog.Timestamp) as max_timestamp FROM Catalog");
+                    //command.CommandText += whereCondition;
+                    //command.CommandText += "GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp";
                     break;
             }
+            command.CommandText = commandTextBuilder.ToString();
             sw.Stop();
             Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
             Timespans4.Add(sw.Elapsed);
         }
-        //entire.Stop();
-        //Console.WriteLine("Elapsed time entire: {0}", entire.Elapsed);
-        //Timespans5.Add(entire.Elapsed);
         _logger.LogInformation($"Average time 1: {Average(Timespans)}");
         _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
         _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
         _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
-        //_logger.LogInformation($"Average time entire: {Average(Timespans5)}");
     }
 
     [Trace]
