@@ -40,6 +40,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
     private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
+    private static readonly Regex GetTargetTableRegex = new Regex(@"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
         { "Id", 0 },
@@ -412,9 +413,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public (int, string) GetCommandInfo(DbCommand command) {
         Stopwatch sw = Stopwatch.StartNew();
 
-        //var commandType = GetCommandType(command);
         int commandType;
-        
         var commandText = command.CommandText;
         if (commandText.Contains("SELECT ")) {
             commandType = SELECT_COMMAND;
@@ -437,9 +436,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Timespans4.Add(sw.Elapsed);
         _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
         sw.Restart();
+
+
+        var match = GetTargetTableRegex.Match(command.CommandText);
+        string targetTable = match.Success ? match.Groups["Target"].Value : null;
         switch (commandType) {
             case INSERT_COMMAND:
-                string targetTable = GetTargetTable(command.CommandText);
+                //targetTable = GetTargetTable(command.CommandText);
                 
                 sw.Stop();
                 Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
@@ -448,7 +451,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 
                 return (INSERT_COMMAND, targetTable);
             case SELECT_COMMAND:
-                targetTable = GetTargetTable(command.CommandText);
+                //targetTable = GetTargetTable(command.CommandText);
                 List<string> exceptionTables = new List<string>() {
                     "__EFMigrationsHistory"
                 };
@@ -462,7 +465,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 }
                 break;
             case UPDATE_COMMAND:
-                targetTable = GetTargetTable(command.CommandText);
+                //targetTable = GetTargetTable(command.CommandText);
                 sw.Stop();
                 Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
                 Timespans3.Add(sw.Elapsed);
