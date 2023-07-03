@@ -471,6 +471,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // _logger.LogInformation($"Updated Command Text: {command.CommandText}");
     }
 
+    // Not performance-tested
     public void AddTimestampToWhereList(DbCommand command, string targetTable, string clientTimestamp) {
         // Note: If we create a parameter of type DbType.DateTime2, the query will fail: "Failed executing DbCommand...", and I can't find a good explanation for this. 
         // The exception thrown does not show the actual error. This topic is being followed on: https://github.com/dotnet/efcore/issues/24530 
@@ -488,20 +489,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
     }
     
-    public void AddTimestampToColumnList(DbCommand command) {
-        string pattern = @"SELECT\s+(.*?)\s+FROM";
-        command.CommandText = Regex.Replace(command.CommandText, pattern, "SELECT $1, [c].[Timestamp] FROM");
-    }
+    //public void AddTimestampToColumnList(DbCommand command) {
+    //    string pattern = @"SELECT\s+(.*?)\s+FROM";
+    //    command.CommandText = Regex.Replace(command.CommandText, pattern, "SELECT $1, [c].[Timestamp] FROM");
+    //}
 
 
-    
+    // Performance tested
     [Trace]
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
-        Stopwatch sw = new Stopwatch();
-        sw.Start();
-        // Log the command text
-        //_logger.LogInformation($"Command Text: {command.CommandText}");
-
         // Get the current client session timeestamp
         DateTime clientTimestamp = _request_metadata.Timestamp;
 
@@ -512,37 +508,18 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             command.CommandText = GetSelectedColumnsRegex.Replace(command.CommandText, replacement);
         }
 
-        sw.Stop();
-        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-        Timespans.Add(sw.Elapsed);
-        sw.Restart();
-
-
         // Create new SQL Parameter for clientTimestamp
         var clientTimestampParameter = new Microsoft.Data.SqlClient.SqlParameter("@clientTimestamp", SqlDbType.DateTime2);
         clientTimestampParameter.Value = clientTimestamp;
         command.Parameters.Add(clientTimestampParameter);
 
-        sw.Stop();
-        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
-        Timespans2.Add(sw.Elapsed);
-        sw.Restart();
-
         string whereCondition;
-
         if (command.CommandText.Contains("WHERE")) {
             // Extract where condition
-
-            //string regex_pattern = @"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)";
-            //Match match = Regex.Match(command.CommandText, regex_pattern);
             Match match = GetWhereConditionsRegex.Match(command.CommandText);
-
-
-
             whereCondition = match.Groups[1].Value;
-            // // Remove the where condition from the command
+            // Remove the where condition from the command
             command.CommandText = command.CommandText.Replace(whereCondition, "");
-            // _logger.LogInformation("Command Text before replacement: {0}", command.CommandText);
 
             if(!_settings.Value.Limit1Version) {
                 whereCondition = whereCondition.Replace("[c]", $"[{targetTable}]");
@@ -554,17 +531,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         } else {
             whereCondition = $" WHERE [{targetTable}].[Timestamp] <= @clientTimestamp ";
         }
-
-        sw.Stop();
-        Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
-        Timespans3.Add(sw.Elapsed);
-        sw.Restart();
-
         if (_settings.Value.Limit1Version) { 
             // There is only 1 version, so we don't need to join with the max timestamp, as the timestamp is already the max
-            // log the command text
             command.CommandText += whereCondition;
-            // _logger.LogInformation($"Updated Command Text: {command.CommandText}");
             return;
         }
         else {
@@ -586,32 +555,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     command.CommandText += "GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp";
                     break;
             }
-            sw.Stop();
-            Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
-            Timespans4.Add(sw.Elapsed);
         }
-        _logger.LogInformation($"Average time 1: {Average(Timespans)}");
-        _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
-        _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
-        _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
     }
 
-    [Trace]
-    private string RemovePartialRowSelection(string commandText) {
-        string pattern = @"SELECT\s+(.*?)\s+FROM";
-        string replacement = "SELECT * FROM";
-        string result = Regex.Replace(commandText, pattern, replacement);
-        return result;
-    }
-    
-    [Trace]
-    private string RemoveCountSelection(string commandText) {
-
-        string pattern = @"SELECT\s+(.*?)\s+FROM";
-        string replacement = "SELECT * FROM";
-        string result = Regex.Replace(commandText, pattern, replacement);
-        return result;
-    }
 
     [Trace]
     private void UpdateUpdateCommand(DbCommand command, string targetTable, string clientID) {
