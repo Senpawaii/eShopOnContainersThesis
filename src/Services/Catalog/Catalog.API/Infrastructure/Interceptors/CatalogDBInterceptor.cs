@@ -41,6 +41,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
     private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
     private static readonly Regex GetTargetTableRegex = new Regex(@"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]", RegexOptions.Compiled);
+    private static readonly Regex GetSelectedColumnsRegex = new Regex(@"SELECT\s+(.*?)\s+FROM", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
         { "Id", 0 },
@@ -505,14 +506,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // Get the current client session timeestamp
         DateTime clientTimestamp = _request_metadata.Timestamp;
 
-        //bool hasCount = HasCountClause(command.CommandText);
-        //if (hasCount) {
-        //    command.CommandText = RemoveCountSelection(command.CommandText);
-        //}
         if (command.CommandText.Contains("COUNT")) { // We need to remove to be able to group with wrapper data after recceiving the data from the database
-            string pattern = @"SELECT\s+(.*?)\s+FROM";
+            //string pattern = @"SELECT\s+(.*?)\s+FROM";
             string replacement = "SELECT * FROM";
-            command.CommandText = Regex.Replace(command.CommandText, pattern, replacement);
+            //command.CommandText = Regex.Replace(command.CommandText, pattern, replacement);
+            command.CommandText = GetSelectedColumnsRegex.Replace(command.CommandText, replacement);
         }
 
         sw.Stop();
