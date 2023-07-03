@@ -409,10 +409,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
 
+    // Performance-tested
     [Trace]
     public (int, string) GetCommandInfo(DbCommand command) {
-        Stopwatch sw = Stopwatch.StartNew();
-
         int commandType;
         var commandText = command.CommandText;
         if (commandText.Contains("SELECT ")) {
@@ -438,11 +437,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 return (INSERT_COMMAND, targetTable);
             case SELECT_COMMAND:
                 if (targetTable != null && targetTable != "__EFMigrationsHistory") {
-                    sw.Stop();
-                    Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
-                    Timespans2.Add(sw.Elapsed);
-                    _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
-
                     return (SELECT_COMMAND, targetTable);
                 }
                 break;
@@ -452,26 +446,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return (UNKNOWN_COMMAND, null);
     }
 
-    [Trace]
-    private int GetCommandType(DbCommand command) {
-        var commandText = command.CommandText;
-        if (commandText.Contains("SELECT ")) {
-            return SELECT_COMMAND;
-        } 
-        else if(commandText.Contains("INSERT ")) {
-            return INSERT_COMMAND;
-        }
-        else if (commandText.Contains("UPDATE ")) {
-            return UPDATE_COMMAND;
-        }
-        else if (commandText.Contains("DELETE ")) {
-            return DELETE_COMMAND;
-        }
-        else {
-            return UNKNOWN_COMMAND;
-        }
-    }
-
     /* ========== UPDATE READ QUERIES ==========*/
     /// <summary>
     /// Updates the Read queries for Item Count, Brands and Types command, adding a filter for the client session Timestamp (DateTime). 
@@ -479,6 +453,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     /// "SELECT COUNT_BIG(*) ..."; "SELECT ... FROM [CatalogBrand] ..."; "SELECT ... FROM [CatalogType] ..."
     /// </summary>
     /// <param name="command"></param>
+    
+    // Not performance-tested
     [Trace]
     public void UpdateSelectCommandV2(DbCommand command, string targetTable, string clientTimestamp) {
         // Check if the SELECT includes a "*" or a column list
@@ -519,6 +495,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     
     [Trace]
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
+        Stopwatch sw = new Stopwatch();
         // Log the command text
         //_logger.LogInformation($"Command Text: {command.CommandText}");
 
@@ -526,17 +503,30 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         DateTime clientTimestamp = _request_metadata.Timestamp;
 
         bool hasCount = HasCountClause(command.CommandText);
-        if(hasCount) {
+        if (hasCount) {
             command.CommandText = RemoveCountSelection(command.CommandText);
         }
+        //if(command.CommandText.Contains("COUNT")) {
+        //    command.CommandText = RemoveCountSelection(command.CommandText);
+        //}
 
-        string whereCondition = "";
+        sw.Stop();
+        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+        Timespans.Add(sw.Elapsed);
+        sw.Restart();
+
+        string whereCondition;
 
         // Create new SQL Parameter for clientTimestamp
         var clientTimestampParameter = new Microsoft.Data.SqlClient.SqlParameter("@clientTimestamp", SqlDbType.DateTime2);
         clientTimestampParameter.Value = clientTimestamp;
         command.Parameters.Add(clientTimestampParameter);
-        
+
+        sw.Stop();
+        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+        Timespans2.Add(sw.Elapsed);
+        sw.Restart();
+
         if (command.CommandText.Contains("WHERE")) {
             // Extract where condition
             string regex_pattern = @"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)";
@@ -557,8 +547,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         } else {
             whereCondition = $" WHERE [{targetTable}].[Timestamp] <= @clientTimestamp ";
         }
-        
-        if(_settings.Value.Limit1Version) { 
+
+        sw.Stop();
+        Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
+        Timespans3.Add(sw.Elapsed);
+        sw.Restart();
+
+        if (_settings.Value.Limit1Version) { 
             // There is only 1 version, so we don't need to join with the max timestamp, as the timestamp is already the max
             // log the command text
             command.CommandText += whereCondition;
@@ -584,7 +579,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     command.CommandText += "GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp";
                     break;
             }
+            sw.Stop();
+            Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
+            Timespans4.Add(sw.Elapsed);
+            sw.Restart();
         }
+        _logger.LogInformation($"Average time 1: {Average(Timespans)}");
+        _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
+        _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
+        _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
     }
 
     [Trace]
