@@ -454,9 +454,17 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private int GetCommandType(DbCommand command) {
         Stopwatch sw = Stopwatch.StartNew();
 
-        var commandText = command.CommandText.ToUpperInvariant();
+        //var commandText = command.CommandText.ToUpperInvariant();
+        var commandText = command.CommandText;
 
-        if (commandText.Contains("INSERT ")) {
+        if (commandText.Contains("SELECT ")) {
+            sw.Stop();
+            Console.WriteLine("Elapsed time 6: {0}", sw.Elapsed);
+            Timespans6.Add(sw.Elapsed);
+            _logger.LogInformation($"Average time 6: {Average(Timespans6)}");
+            return SELECT_COMMAND;
+        } 
+        else if(commandText.Contains("INSERT ")) {
             sw.Stop();
             Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
             Timespans4.Add(sw.Elapsed);
@@ -472,13 +480,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
         else if (commandText.Contains("DELETE ")) {
             return DELETE_COMMAND;
-        }
-        else if (commandText.Contains("SELECT ")) {
-            sw.Stop();
-            Console.WriteLine("Elapsed time 6: {0}", sw.Elapsed);
-            Timespans6.Add(sw.Elapsed);
-            _logger.LogInformation($"Average time 6: {Average(Timespans6)}");
-            return SELECT_COMMAND;
         }
         else {
             return UNKNOWN_COMMAND;
