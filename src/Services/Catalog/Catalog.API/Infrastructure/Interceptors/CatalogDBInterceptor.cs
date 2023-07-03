@@ -496,6 +496,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
         Stopwatch sw = new Stopwatch();
+        Stopwatch entire = new Stopwatch();
         // Log the command text
         //_logger.LogInformation($"Command Text: {command.CommandText}");
 
@@ -582,12 +583,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             sw.Stop();
             Console.WriteLine("Elapsed time 4: {0}", sw.Elapsed);
             Timespans4.Add(sw.Elapsed);
-            sw.Restart();
         }
+        entire.Stop();
+        Console.WriteLine("Elapsed time entire: {0}", entire.Elapsed);
+        Timespans5.Add(entire.Elapsed);
+        sw.Stop();
         _logger.LogInformation($"Average time 1: {Average(Timespans)}");
         _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
         _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
         _logger.LogInformation($"Average time 4: {Average(Timespans4)}");
+        _logger.LogInformation($"Average time entire: {Average(Timespans5)}");
     }
 
     [Trace]
