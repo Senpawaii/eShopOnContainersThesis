@@ -307,6 +307,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return new ValueTask<InterceptionResult<DbDataReader>>(result);;
     }
 
+    // Not performance-tested
     private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, Dictionary<string, object> columnNamesAndValues, string targetTable) {
         var clientID = _request_metadata.ClientID;
 
@@ -346,6 +347,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
+    // Performance-tested
     [Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
@@ -404,78 +406,23 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
-    //[Trace]
-    //private MockDbDataReader StoreDataInWrapper(DbCommand command, int operation, string targetTable) {
-    //    var clientID = _request_metadata.ClientID;
-    //    // _logger.LogInformation("Command text: " + command.CommandText);
-    //    string regexPattern;
-    //    if (operation == INSERT_COMMAND) {
-    //        regexPattern = @"\[(\w+)\]";
-    //    } else {
-    //        regexPattern = @"\[(\w+)\] = (@\w+)";
-    //    }
-
-    //    // Get the number of columns in each row to be inserted
-    //    var regex = new Regex(regexPattern);
-    //    var matches = regex.Matches(command.CommandText);
-
-    //    var columns = new List<string>();
-
-    //    // Discard the first match, it is the table name
-    //    for(int i = 1; i < matches.Count; i++) {
-    //        columns.Add(matches[i].Groups[1].Value);
-    //    }
-
-    //    //var columns = matches[0].Groups["columnNames"].Value.Split(", ");
-    //    //for(int i = 0; i < columns.Length; i++) {
-    //    //    columns[i] = columns[i].Trim('[', ']');
-    //    //}
-
-    //    Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);
-
-    //    // Get the number of rows being inserted
-    //    int numberRows = command.Parameters.Count / columns.Count;
-    //    var rowsAffected = 0;
-
-    //    var rows = new List<object[]>();
-    //    for (int i = 0; i < numberRows; i += 1) {
-    //        var row = new object[columns.Count + 1]; // Added Timestamp at the end
-    //        for(int j = 0; j < columns.Count; j++) {
-    //            var columnName = columns[j];
-    //            var paramValue = command.Parameters[(i * columns.Count) + j].Value;
-    //            var correctIndexToStore = standardColumnIndexes[columnName];
-    //            row[correctIndexToStore] = paramValue;
-    //        }
-    //        // Define the uncommitted timestamp as the current time
-    //        row[^1] = DateTime.UtcNow;
-    //        rows.Add(row);
-    //        rowsAffected++;
-    //    }
-
-    //    var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
-
-    //    // Store the data in the wrapper
-    //    switch (targetTable) {
-    //        case "CatalogBrand":
-    //            _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
-    //            break;
-    //        case "CatalogType":
-    //            _wrapper.SingletonAddCatalogType(clientID, rows.ToArray());
-    //            break;
-    //        case "Catalog":
-    //            _wrapper.SingletonAddCatalogItem(clientID, rows.ToArray());
-    //            break;
-    //    }
-    //    return mockReader;
-    //}
 
     [Trace]
     public (int, string) GetCommandInfo(DbCommand command) {
+        Stopwatch sw = Stopwatch.StartNew();
+
+        sw.Start();
         var commandType = GetCommandType(command);
 
         switch(commandType) {
             case INSERT_COMMAND:
                 string targetTable = GetTargetTable(command.CommandText);
+                
+                sw.Stop();
+                Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+                Timespans.Add(sw.Elapsed);
+                _logger.LogInformation($"Average time : {Average(Timespans)}");
+                
                 return (INSERT_COMMAND, targetTable);
             case SELECT_COMMAND:
                 targetTable = GetTargetTable(command.CommandText);
@@ -483,11 +430,21 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     "__EFMigrationsHistory"
                 };
                 if (!exceptionTables.Contains(targetTable)) {
+                    sw.Stop();
+                    Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+                    Timespans2.Add(sw.Elapsed);
+                    _logger.LogInformation($"Average time : {Average(Timespans2)}");
+
                     return (SELECT_COMMAND, targetTable);
                 }
                 break;
             case UPDATE_COMMAND:
                 targetTable = GetTargetTable(command.CommandText);
+                sw.Stop();
+                Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
+                Timespans3.Add(sw.Elapsed);
+                _logger.LogInformation($"Average time : {Average(Timespans3)}");
+
                 return (UPDATE_COMMAND, targetTable);
         }
         return (UNKNOWN_COMMAND, null);
