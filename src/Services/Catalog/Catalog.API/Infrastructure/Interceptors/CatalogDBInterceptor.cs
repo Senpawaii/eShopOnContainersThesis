@@ -792,16 +792,81 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
 
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
+        //Stopwatch sw = new Stopwatch();
+        //sw.Start();
+        //StringBuilder newCommandTextBuilder = new StringBuilder($"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}] (");
+        //int numberRows;
+        //switch(targetTable) {
+        //    case "Catalog":
+        //        newCommandTextBuilder.Append("[Id], [AvailableStock], [CatalogBrandId], [CatalogTypeId], [Description], [MaxStockThreshold], [Name], [OnReorder], [PictureFileName], [Price], [RestockThreshold], [Timestamp]) VALUES ");
+        //        numberRows = command.Parameters.Count / 11; // Do not include Timestamp column in count
+        //        for(int i = 0; i < numberRows; i++) {
+        //            newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2}, @p{12 * i + 3}, @p{12 * i + 4}, @p{12 * i + 5}, @p{12 * i + 6}, @p{12 * i + 7}, @p{12 * i + 8}, @p{12 * i + 9}, @p{12 * i + 10}, @p{12 * i + 11})");
+        //            if (i != numberRows - 1) {
+        //                newCommandTextBuilder.Append(", ");
+        //            }
+        //            else {
+        //                newCommandTextBuilder.Append(";");
+        //            }
+        //        }
+        //        break;
+        //    case "CatalogBrand":
+        //        newCommandTextBuilder.Append("[Id], [Brand], [Timestamp]) VALUES ");
+        //        numberRows = command.Parameters.Count / 2; // Do not include Timestamp column in count
+        //        for (int i = 0; i < numberRows; i++) {
+        //            newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2})");
+        //            if (i != numberRows - 1) {
+        //                newCommandTextBuilder.Append(", ");
+        //            }
+        //            else {
+        //                newCommandTextBuilder.Append(";");
+        //            }
+        //        }
+        //        break;
+        //    case "CatalogType":
+        //        newCommandTextBuilder.Append("[Id], [Type], [Timestamp]) VALUES ");
+        //        numberRows = command.Parameters.Count / 2; // Do not include Timestamp column in count
+        //        for (int i = 0; i < numberRows; i++) {
+        //            newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2})");
+        //            if (i != numberRows - 1) {
+        //                newCommandTextBuilder.Append(", ");
+        //            }
+        //            else {
+        //                newCommandTextBuilder.Append(';');
+        //            }
+        //        }
+        //        break;
+        //    default:
+        //        throw new Exception("Invalid target table");
+        //}
+        //Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+        //Timespans.Add(sw.Elapsed);
+        //sw.Stop();
+        //return newCommandTextBuilder.ToString();
+
+
         Stopwatch sw = new Stopwatch();
         sw.Start();
         StringBuilder newCommandTextBuilder = new StringBuilder($"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}] (");
         int numberRows;
-        switch(targetTable) {
+        List<string> columns = new List<string>();
+        switch (targetTable) {
             case "Catalog":
-                newCommandTextBuilder.Append("[Id], [AvailableStock], [CatalogBrandId], [CatalogTypeId], [Description], [MaxStockThreshold], [Name], [OnReorder], [PictureFileName], [Price], [RestockThreshold], [Timestamp]) VALUES ");
-                numberRows = command.Parameters.Count / 11; // Do not include Timestamp column in count
-                for(int i = 0; i < numberRows; i++) {
-                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2}, @p{12 * i + 3}, @p{12 * i + 4}, @p{12 * i + 5}, @p{12 * i + 6}, @p{12 * i + 7}, @p{12 * i + 8}, @p{12 * i + 9}, @p{12 * i + 10}, @p{12 * i + 11})");
+                columns = new List<string> { "Id", "AvailableStock", "CatalogBrandId", "CatalogTypeId", "Description", "MaxStockThreshold", "Name", "OnReorder", "PictureFileName", "Price", "RestockThreshold", "Timestamp" };
+                numberRows = command.Parameters.Count / columns.Count;
+
+                newCommandTextBuilder.Append(string.Join(", ", columns.Select(c => $"[{c}]")));
+                newCommandTextBuilder.Append(") VALUES ");
+
+                for (int i = 0; i < numberRows; i++) {
+                    newCommandTextBuilder.Append("(");
+                    for (int j = 0; j < columns.Count; j++) {
+                        newCommandTextBuilder.Append($"@p{columns.Count * i + j}");
+                        if (j != columns.Count - 1) {
+                            newCommandTextBuilder.Append(", ");
+                        }
+                    }
+                    newCommandTextBuilder.Append($")");
                     if (i != numberRows - 1) {
                         newCommandTextBuilder.Append(", ");
                     }
@@ -811,10 +876,23 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 }
                 break;
             case "CatalogBrand":
-                newCommandTextBuilder.Append("[Id], [Brand], [Timestamp]) VALUES ");
-                numberRows = command.Parameters.Count / 2; // Do not include Timestamp column in count
+            case "CatalogType":
+                columns = new List<string> { "Id", targetTable == "CatalogBrand" ? "Brand" : "Type", "Timestamp" };
+                numberRows = command.Parameters.Count / columns.Count;
+
+                newCommandTextBuilder.Append(string.Join(", ", columns.Select(c => $"[{c}]")));
+                newCommandTextBuilder.Append($"VALUES ");
                 for (int i = 0; i < numberRows; i++) {
-                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2})");
+                    newCommandTextBuilder.Append("(");
+
+                    for (int j = 0; j < columns.Count; j++) {
+                        newCommandTextBuilder.Append($"@p{columns.Count * i + j}");
+                        if (j != columns.Count - 1) {
+                            newCommandTextBuilder.Append(", ");
+                        }
+                    }
+
+                    newCommandTextBuilder.Append(")");
                     if (i != numberRows - 1) {
                         newCommandTextBuilder.Append(", ");
                     }
@@ -823,28 +901,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     }
                 }
                 break;
-            case "CatalogType":
-                newCommandTextBuilder.Append("[Id], [Type], [Timestamp]) VALUES ");
-                numberRows = command.Parameters.Count / 2; // Do not include Timestamp column in count
-                for (int i = 0; i < numberRows; i++) {
-                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2})");
-                    if (i != numberRows - 1) {
-                        newCommandTextBuilder.Append(", ");
-                    }
-                    else {
-                        newCommandTextBuilder.Append(';');
-                    }
-                }
-                break;
             default:
                 throw new Exception("Invalid target table");
         }
-        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
         Timespans.Add(sw.Elapsed);
         sw.Stop();
         return newCommandTextBuilder.ToString();
-
-        
     }
 
     //private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
