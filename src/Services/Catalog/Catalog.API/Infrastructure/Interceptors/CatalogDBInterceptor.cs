@@ -272,8 +272,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     }
                 } 
                 else {
+                    Stopwatch sw = new Stopwatch();
+                    sw.Start();
                     // Convert the Update Command into an INSERT command
                     Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
+
+
+                    sw.Stop();
+                    Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+                    Timespans.Add(sw.Elapsed);
+                    _logger.LogInformation($"Average time : {Average(Timespans)}");
                     // _logger.LogInformation("Checkpoint 1");
                     // Create a new INSERT command
                     var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
@@ -613,10 +621,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     /* ========== UPDATE WRITE QUERIES ==========*/
+    // Performance-tested
     [Trace]
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
-        Stopwatch sw;
-
         // Get the timestamp received from the Coordinator
         string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
@@ -624,32 +631,18 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         string commandWithTimestamp;
         commandWithTimestamp = UpdateInsertCommandText(command, targetTable);
 
-        sw = Stopwatch.StartNew();
         // Generate new list of parameters
         List<DbParameter> newParameters = new List<DbParameter>();
         if(targetTable == "Catalog") {
             UpdateItemOp(command, newParameters, timestamp);
-            // _logger.LogInformation($"Updated insert command text.");
         } 
         else {
             UpdateBrandOrTypeOp(command, newParameters, timestamp);
         }
-        sw.Stop();
-        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
-        Timespans2.Add(sw.Elapsed);
-        sw.Restart();
-
         // Assign new Parameters and Command text to database command
         command.Parameters.Clear();
         command.Parameters.AddRange(newParameters.ToArray());
         command.CommandText = commandWithTimestamp;
-        sw.Stop();
-        Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
-        Timespans3.Add(sw.Elapsed);
-        _logger.LogInformation($"Average time 1: {Average(Timespans)}");
-        _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
-        _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
-
     }
 
     [Trace]
@@ -683,6 +676,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return columns;
     }
 
+    // Performance-tested
     [Trace]
     private static void UpdateItemOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
         int numObjectsToInsert = command.Parameters.Count / 11;
@@ -759,10 +753,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             generatedParameters.Add(onReorderParam);
             generatedParameters.Add(restockThresholdParam);
             generatedParameters.Add(timeStampParam);
-
         }
     }
 
+    // Performance-tested
     [Trace]
     private static void UpdateBrandOrTypeOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
         int numObjectsToInsert = command.Parameters.Count / 2;
@@ -790,10 +784,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
     }
 
-
+    // Performance-tested
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
-        Stopwatch sw = new Stopwatch();
-        sw.Start();
         StringBuilder newCommandTextBuilder = new StringBuilder($"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}] (");
         int numberRows;
         switch(targetTable) {
@@ -839,9 +831,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             default:
                 throw new Exception("Invalid target table");
         }
-        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-        Timespans.Add(sw.Elapsed);
-        sw.Stop();
         return newCommandTextBuilder.ToString();
     }
 
