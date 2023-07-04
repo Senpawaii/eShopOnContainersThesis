@@ -282,6 +282,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
                     Timespans.Add(sw.Elapsed);
                     _logger.LogInformation($"Average time : {Average(Timespans)}");
+                    _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
                     // _logger.LogInformation("Checkpoint 1");
                     // Create a new INSERT command
                     var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
@@ -647,8 +648,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     [Trace]
     private Dictionary<string, object> UpdateToInsert(DbCommand command, string targetTable) {
-        var regex = new Regex(@"\[(\w+)\] = (@\w+)");
-        var matches = regex.Matches(command.CommandText);
+        Stopwatch sw = Stopwatch.StartNew();
+
+        //var regex = new Regex(@"\[(\w+)\] = (@\w+)");
+        //var matches = regex.Matches(command.CommandText);
+        var matches = StoreInWrapperV2UpdateRegex.Matches(command.CommandText);
 
         var columns = new Dictionary<string, object>();
 
@@ -657,21 +661,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             var paramterValue = command.Parameters[parameterName].Value;
             columns[matches[i].Groups[1].Value] = paramterValue;
         }
-
-        //string valuesP = "";
-        //var parameters = new List<DbParameter>();
-        //for (int i = 0; i < columns.Count; i++) {
-        //    valuesP += $"@p{i}";
-        //    parameters.Add(command.Parameters[i]);
-        //    if (i != columns.Count - 1) {
-        //        valuesP += ", ";
-        //    } else {
-        //        valuesP += ")";
-        //    }
-        //}
-        //command.CommandText = "SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [" + targetTable + "] (" + string.Join(", ", columns) + ") VALUES (" + valuesP;
-        //command.Parameters.Clear();
-        //command.Parameters.AddRange(parameters.ToArray());
+        sw.Stop();
+        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+        Timespans2.Add(sw.Elapsed);
 
         return columns;
     }
