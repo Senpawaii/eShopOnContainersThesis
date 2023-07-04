@@ -617,7 +617,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
         Stopwatch sw;
 
-        sw = Stopwatch.StartNew();
         // Get the timestamp received from the Coordinator
         string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
@@ -625,11 +624,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         string commandWithTimestamp;
         commandWithTimestamp = UpdateInsertCommandText(command, targetTable);
 
-        sw.Stop();
-        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-        Timespans.Add(sw.Elapsed);
-        sw.Restart();
-
+        sw = Stopwatch.StartNew();
         // Generate new list of parameters
         List<DbParameter> newParameters = new List<DbParameter>();
         if(targetTable == "Catalog") {
@@ -796,47 +791,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
 
-    [Trace]
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
-        //string updatedCommandText;
-        //int numberColumns;
-        //Console.WriteLine("Command: {0}", command.CommandText);
-        //// Update the CommandText to include the Timestamp column and parameter for each entry
-        //if (targetTable == "CatalogType") {
-        //    numberColumns = 3;
-        //    updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogType\]\s+\(\s*\[Id\],\s*\[Type\]\s*", "$0, [Timestamp]");
-        //}
-        //else if(targetTable == "CatalogBrand") {
-        //    numberColumns = 3;
-        //    updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogBrand\]\s+\(\s*\[Id\],\s*\[Brand\]\s*", "$0, [Timestamp]");
-        //}
-        //else {
-        //    numberColumns = 12;
-        //    updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Catalog\]\s+\(\s*\[Id\],\s*\[AvailableStock\],\s*\[CatalogBrandId\],\s*\[CatalogTypeId\],\s*\[Description\],\s*\[MaxStockThreshold\],\s*\[Name\],\s*\[OnReorder\],\s*\[PictureFileName\],\s*\[Price\],\s*\[RestockThreshold\]\s*", "$0, [Timestamp]");
-        //}
-
-        //// 
-        //var regex = new Regex(@"\(@p\d+[,\s@p\d]*@p(?<LastIndexOfRow>\d+)\)");
-        //var matches = regex.Matches(command.CommandText);
-        //int numRows = matches.Count;
-        //updatedCommandText = updatedCommandText.Replace(updatedCommandText.Substring(updatedCommandText.IndexOf("VALUES ")), "VALUES ");
-
-        //for(int i = 0; i < numRows; i++) {
-        //    switch(numberColumns) {
-        //        case 3:
-        //            updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2})";
-        //            break;
-        //        case 12:
-        //            updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2}, @p{numberColumns * i + 3}, @p{numberColumns * i + 4}, @p{numberColumns * i + 5}, @p{numberColumns * i + 6}, @p{numberColumns * i + 7}, @p{numberColumns * i + 8}, @p{numberColumns * i + 9}, @p{numberColumns * i + 10}, @p{numberColumns * i + 11})";
-        //            break;
-        //    }
-        //    if (i != numRows - 1) {
-        //        updatedCommandText += ", ";
-        //    } else {
-        //        updatedCommandText += ";";
-        //    }
-        //}
-        //return updatedCommandText;
+        Stopwatch sw = new Stopwatch();
 
         StringBuilder newCommandTextBuilder = new StringBuilder($"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}] (");
         int numberRows;
@@ -883,6 +839,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             default:
                 throw new Exception("Invalid target table");
         }
+        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+        Timespans.Add(sw.Elapsed);
+        sw.Stop();
         return newCommandTextBuilder.ToString();
 
         
