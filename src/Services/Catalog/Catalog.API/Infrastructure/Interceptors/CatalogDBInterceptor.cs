@@ -558,7 +558,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
     }
 
-
+    // Not performance-tested
     [Trace]
     private void UpdateUpdateCommand(DbCommand command, string targetTable, string clientID) {
         Stopwatch sw;
@@ -592,6 +592,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
     }
 
+    // Not performance-tested
     [Trace]
     private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
         string updatedCommandText;
@@ -614,12 +615,20 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     /* ========== UPDATE WRITE QUERIES ==========*/
     [Trace]
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
+        Stopwatch sw;
+
+        sw = Stopwatch.StartNew();
         // Get the timestamp received from the Coordinator
         string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
         // Replace Command Text to account for new parameter
         string commandWithTimestamp;
         commandWithTimestamp = UpdateInsertCommandText(command, targetTable);
+
+        sw.Stop();
+        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+        Timespans.Add(sw.Elapsed);
+        sw.Restart();
 
         // Generate new list of parameters
         List<DbParameter> newParameters = new List<DbParameter>();
@@ -630,11 +639,22 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         else {
             UpdateBrandOrTypeOp(command, newParameters, timestamp);
         }
+        sw.Stop();
+        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+        Timespans2.Add(sw.Elapsed);
+        sw.Restart();
 
         // Assign new Parameters and Command text to database command
         command.Parameters.Clear();
         command.Parameters.AddRange(newParameters.ToArray());
         command.CommandText = commandWithTimestamp;
+        sw.Stop();
+        Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
+        Timespans3.Add(sw.Elapsed);
+        _logger.LogInformation($"Average time 1: {Average(Timespans)}");
+        _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
+        _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
+
     }
 
     [Trace]
