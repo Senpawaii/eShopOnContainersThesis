@@ -793,7 +793,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
         Stopwatch sw = new Stopwatch();
-
+        sw.Start();
         StringBuilder newCommandTextBuilder = new StringBuilder($"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}] (");
         int numberRows;
         switch(targetTable) {
