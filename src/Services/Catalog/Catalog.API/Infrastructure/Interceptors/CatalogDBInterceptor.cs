@@ -798,45 +798,94 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     [Trace]
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
-        string updatedCommandText;
-        int numberColumns;
-        Console.WriteLine("Command: {0}", command.CommandText);
-        // Update the CommandText to include the Timestamp column and parameter for each entry
-        if (targetTable == "CatalogType") {
-            numberColumns = 3;
-            updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogType\]\s+\(\s*\[Id\],\s*\[Type\]\s*", "$0, [Timestamp]");
-        }
-        else if(targetTable == "CatalogBrand") {
-            numberColumns = 3;
-            updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogBrand\]\s+\(\s*\[Id\],\s*\[Brand\]\s*", "$0, [Timestamp]");
-        }
-        else {
-            numberColumns = 12;
-            updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Catalog\]\s+\(\s*\[Id\],\s*\[AvailableStock\],\s*\[CatalogBrandId\],\s*\[CatalogTypeId\],\s*\[Description\],\s*\[MaxStockThreshold\],\s*\[Name\],\s*\[OnReorder\],\s*\[PictureFileName\],\s*\[Price\],\s*\[RestockThreshold\]\s*", "$0, [Timestamp]");
-        }
+        //string updatedCommandText;
+        //int numberColumns;
+        //Console.WriteLine("Command: {0}", command.CommandText);
+        //// Update the CommandText to include the Timestamp column and parameter for each entry
+        //if (targetTable == "CatalogType") {
+        //    numberColumns = 3;
+        //    updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogType\]\s+\(\s*\[Id\],\s*\[Type\]\s*", "$0, [Timestamp]");
+        //}
+        //else if(targetTable == "CatalogBrand") {
+        //    numberColumns = 3;
+        //    updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogBrand\]\s+\(\s*\[Id\],\s*\[Brand\]\s*", "$0, [Timestamp]");
+        //}
+        //else {
+        //    numberColumns = 12;
+        //    updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Catalog\]\s+\(\s*\[Id\],\s*\[AvailableStock\],\s*\[CatalogBrandId\],\s*\[CatalogTypeId\],\s*\[Description\],\s*\[MaxStockThreshold\],\s*\[Name\],\s*\[OnReorder\],\s*\[PictureFileName\],\s*\[Price\],\s*\[RestockThreshold\]\s*", "$0, [Timestamp]");
+        //}
 
-        // 
-        var regex = new Regex(@"\(@p\d+[,\s@p\d]*@p(?<LastIndexOfRow>\d+)\)");
-        var matches = regex.Matches(command.CommandText);
-        int numRows = matches.Count;
-        updatedCommandText = updatedCommandText.Replace(updatedCommandText.Substring(updatedCommandText.IndexOf("VALUES ")), "VALUES ");
+        //// 
+        //var regex = new Regex(@"\(@p\d+[,\s@p\d]*@p(?<LastIndexOfRow>\d+)\)");
+        //var matches = regex.Matches(command.CommandText);
+        //int numRows = matches.Count;
+        //updatedCommandText = updatedCommandText.Replace(updatedCommandText.Substring(updatedCommandText.IndexOf("VALUES ")), "VALUES ");
 
-        for(int i = 0; i < numRows; i++) {
-            switch(numberColumns) {
-                case 3:
-                    updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2})";
-                    break;
-                case 12:
-                    updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2}, @p{numberColumns * i + 3}, @p{numberColumns * i + 4}, @p{numberColumns * i + 5}, @p{numberColumns * i + 6}, @p{numberColumns * i + 7}, @p{numberColumns * i + 8}, @p{numberColumns * i + 9}, @p{numberColumns * i + 10}, @p{numberColumns * i + 11})";
-                    break;
-            }
-            if (i != numRows - 1) {
-                updatedCommandText += ", ";
-            } else {
-                updatedCommandText += ";";
-            }
+        //for(int i = 0; i < numRows; i++) {
+        //    switch(numberColumns) {
+        //        case 3:
+        //            updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2})";
+        //            break;
+        //        case 12:
+        //            updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2}, @p{numberColumns * i + 3}, @p{numberColumns * i + 4}, @p{numberColumns * i + 5}, @p{numberColumns * i + 6}, @p{numberColumns * i + 7}, @p{numberColumns * i + 8}, @p{numberColumns * i + 9}, @p{numberColumns * i + 10}, @p{numberColumns * i + 11})";
+        //            break;
+        //    }
+        //    if (i != numRows - 1) {
+        //        updatedCommandText += ", ";
+        //    } else {
+        //        updatedCommandText += ";";
+        //    }
+        //}
+        //return updatedCommandText;
+
+        StringBuilder newCommandTextBuilder = new StringBuilder($"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}] (");
+        int numberRows;
+        switch(targetTable) {
+            case "Catalog":
+                newCommandTextBuilder.Append("[Id], [AvailableStock], [CatalogBrandId], [CatalogTypeId], [Description], [MaxStockThreshold], [Name], [OnReorder], [PictureFileName], [Price], [RestockThreshold], [Timestamp]) VALUES ");
+                numberRows = command.Parameters.Count / 11; // Do not include Timestamp column in count
+                for(int i = 0; i < numberRows; i++) {
+                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2}, @p{12 * i + 3}, @p{12 * i + 4}, @p{12 * i + 5}, @p{12 * i + 6}, @p{12 * i + 7}, @p{12 * i + 8}, @p{12 * i + 9}, @p{12 * i + 10}, @p{12 * i + 11})");
+                    if (i != numberRows - 1) {
+                        newCommandTextBuilder.Append(", ");
+                    }
+                    else {
+                        newCommandTextBuilder.Append(";");
+                    }
+                }
+                break;
+            case "CatalogBrand":
+                newCommandTextBuilder.Append("[Id], [Brand], [Timestamp]) VALUES ");
+                numberRows = command.Parameters.Count / 2; // Do not include Timestamp column in count
+                for (int i = 0; i < numberRows; i++) {
+                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2})");
+                    if (i != numberRows - 1) {
+                        newCommandTextBuilder.Append(", ");
+                    }
+                    else {
+                        newCommandTextBuilder.Append(";");
+                    }
+                }
+                break;
+            case "CatalogType":
+                newCommandTextBuilder.Append("[Id], [Type], [Timestamp]) VALUES ");
+                numberRows = command.Parameters.Count / 2; // Do not include Timestamp column in count
+                for (int i = 0; i < numberRows; i++) {
+                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2})");
+                    if (i != numberRows - 1) {
+                        newCommandTextBuilder.Append(", ");
+                    }
+                    else {
+                        newCommandTextBuilder.Append(';');
+                    }
+                }
+                break;
+            default:
+                throw new Exception("Invalid target table");
         }
-        return updatedCommandText;
+        return newCommandTextBuilder.ToString();
+
+        
     }
 
     //private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
