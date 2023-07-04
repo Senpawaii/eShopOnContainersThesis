@@ -283,6 +283,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     Timespans.Add(sw.Elapsed);
                     _logger.LogInformation($"Average time : {Average(Timespans)}");
                     _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
+                    _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
                     // _logger.LogInformation("Checkpoint 1");
                     // Create a new INSERT command
                     var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
@@ -653,7 +654,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //var regex = new Regex(@"\[(\w+)\] = (@\w+)");
         //var matches = regex.Matches(command.CommandText);
         var matches = StoreInWrapperV2UpdateRegex.Matches(command.CommandText);
-
+        sw.Stop();
+        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+        Timespans2.Add(sw.Elapsed);
+        sw.Restart();
         var columns = new Dictionary<string, object>();
 
         for (int i = 0; i < matches.Count; i++) {
@@ -662,8 +666,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             columns[matches[i].Groups[1].Value] = paramterValue;
         }
         sw.Stop();
-        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
-        Timespans2.Add(sw.Elapsed);
+        Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
+        Timespans3.Add(sw.Elapsed);
+
 
         return columns;
     }
