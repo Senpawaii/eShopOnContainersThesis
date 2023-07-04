@@ -799,8 +799,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     [Trace]
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
         string updatedCommandText;
-        int numberColumns = 0;
-
+        int numberColumns;
+        Console.WriteLine("Command: {0}", command.CommandText);
         // Update the CommandText to include the Timestamp column and parameter for each entry
         if (targetTable == "CatalogType") {
             numberColumns = 3;
