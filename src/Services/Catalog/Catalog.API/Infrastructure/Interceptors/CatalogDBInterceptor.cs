@@ -44,6 +44,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     private static readonly Regex GetTargetTableRegex = new Regex(@"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]", RegexOptions.Compiled);
     private static readonly Regex GetSelectedColumnsRegex = new Regex(@"SELECT\s+(.*?)\s+FROM", RegexOptions.Compiled);
     private static readonly Regex GetWhereConditionsRegex = new Regex(@"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)", RegexOptions.Compiled);
+    private static readonly Regex GetWhereConditionsColumnAndValueRegex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
         { "Id", 0 },
@@ -1737,11 +1738,21 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
   
     [Trace]
     private List<Tuple<string, string>> GetWhereConditions(DbCommand command) {
+        Stopwatch sw = new Stopwatch();
+
+        sw.Start();
+
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
 
         // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
         Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
         MatchCollection matches = regex.Matches(command.CommandText);
+
+        sw.Stop();
+        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+        Timespans.Add(sw.Elapsed);
+        sw.Restart();
+
         foreach (Match match in matches) {
             // Get the column name and the parameter name
             string columnName = match.Groups["columnName"].Value;
@@ -1756,6 +1767,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             Tuple<string, string> condition = new Tuple<string, string>(columnName, parameterValue.ToString());
             conditions.Add(condition);
         }
+        sw.Stop();
+        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+        Timespans2.Add(sw.Elapsed);
+        _logger.LogInformation($"Average time : {Average(Timespans)}");
+        _logger.LogInformation($"Average time 2 : {Average(Timespans2)}");
         return conditions;
     }
 
