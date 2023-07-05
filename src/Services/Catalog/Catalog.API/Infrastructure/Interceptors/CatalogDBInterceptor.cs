@@ -660,10 +660,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         sw.Restart();
         var columns = new Dictionary<string, object>();
 
-        for (int i = 0; i < matches.Count; i++) {
-            string parameterName = matches[i].Groups[2].Value;
+        //for (int i = 0; i < matches.Count; i++) {
+        //    string parameterName = matches[i].Groups[2].Value;
+        //    var paramterValue = command.Parameters[parameterName].Value;
+        //    columns[matches[i].Groups[1].Value] = paramterValue;
+        //}
+
+        foreach (Match match in matches) {
+            string parameterName = match.Groups[2].Value;
             var paramterValue = command.Parameters[parameterName].Value;
-            columns[matches[i].Groups[1].Value] = paramterValue;
+            columns[match.Groups[1].Value] = paramterValue;
         }
         sw.Stop();
         Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
