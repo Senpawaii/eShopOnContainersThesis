@@ -307,6 +307,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     
                     var parameterNames = columnsToInsert.Select(x => x.Value.ParameterName).ToArray();
                     var parameters = columnsToInsert.Select(x => x.Value).ToArray();
+                    _logger.LogInformation(clientID + " " + string.Join(", ", columnsToInsert.Select(x => $"{x.Key}: {x.Value.ParameterName} -> {x.Value.Value}")));
 
                     insertCommand.Append(") VALUES (")
                         .Append(string.Join(", ", parameterNames))
