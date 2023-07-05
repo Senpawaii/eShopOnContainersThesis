@@ -220,7 +220,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
-
         if (clientID == null) {
             // This is a system query
             return new ValueTask<InterceptionResult<DbDataReader>>(result);
@@ -237,7 +236,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 } else {
                     UpdateSelectCommand(command, targetTable);
                 }
-                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp);
+                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp, targetTable);
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
@@ -255,7 +254,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     UpdateInsertCommand(command, targetTable);
                 }
                 break;
-            case UPDATE_COMMAND:
+            case UPDATE_COMMAND: // Performance-tested
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
 
@@ -277,55 +276,34 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         break;
                     }
                 } 
-                else {
-                    Stopwatch sw = new Stopwatch();
-                    sw.Start();
-                    // Convert the Update Command into an INSERT command
+                else { // TODO: Technically we don't need to build a new INSERT command as we only store the data in the wrapper and supress the DB access. Point of improvement.
+                    // Get the columns and parameter names that are being updated
                     Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command);
 
-
-                    sw.Stop();
-                    Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-                    Timespans.Add(sw.Elapsed);
-                    _logger.LogInformation($"Average time : {Average(Timespans)}");
-                    _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
-                    _logger.LogInformation($"Average time 3: {Average(Timespans3)}");
-                    // _logger.LogInformation("Checkpoint 1");
                     // Create a new INSERT command
                     var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
                         .Append(targetTable)
                         .Append("] (");
-                    // _logger.LogInformation("Checkpoint 2");
+                    
                     // Add the columns incased in squared brackets
                     var columnNames = columnsToInsert.Keys.Select(x => $"[{x}]");
                     insertCommand.Append(string.Join(", ", columnNames));
-                    // _logger.LogInformation("Checkpoint 3");
-                    // Add the values as parameters
-
-                    //var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
-                    //var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
                     
+                    // Add the parameters
                     var parameterNames = columnsToInsert.Select(x => x.Value.ParameterName).ToArray();
                     var parameters = columnsToInsert.Select(x => x.Value).ToArray();
-                    _logger.LogInformation(clientID + " " + string.Join(", ", columnsToInsert.Select(x => $"{x.Key}: {x.Value.ParameterName} -> {x.Value.Value}")));
-
                     insertCommand.Append(") VALUES (")
                         .Append(string.Join(", ", parameterNames))
                         .Append(")");
-                    // _logger.LogInformation("Checkpoint 4");
-                    // _logger.LogInformation("Parameters Names: {0}", string.Join(", ", parameters.Select(x => $"{x.ParameterName}: {x.Value}")));
                     
-                    // Set the parameters on the command
+                    // Add the parameters to the command
                     command.Parameters.Clear();
                     command.Parameters.AddRange(parameters);
-                    // _logger.LogInformation("Checkpoint 5");
-                    // Set the command text to the INSERT command
                     command.CommandText = insertCommand.ToString();
-                    // _logger.LogInformation($"ClientID: {clientID}, async UPODATE to INSERT new insertCommand: {insertCommand.ToString()}");
-                    // _logger.LogInformation($"ClientID: {clientID}, Async UPDATE to INSERT command text: {command.CommandText}");
-                    // If the Transaction is not in commit state, store data in wrapper
+                    
+                    // Store data in wrapper
                     var updateToInsertReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
-                    // _logger.LogInformation("Checkpoint 6");
+                    // Supress the command and return the mock reader
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
                 }
                 break;
@@ -659,25 +637,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         command.CommandText = commandWithTimestamp;
     }
 
+    // Performance-Tested
     [Trace]
     private Dictionary<string, SqlParameter> UpdateToInsert(DbCommand command) {
-        Stopwatch sw = Stopwatch.StartNew();
-
-        //var regex = new Regex(@"\[(\w+)\] = (@\w+)");
-        //var matches = regex.Matches(command.CommandText);
         var matches = StoreInWrapperV2UpdateRegex.Matches(command.CommandText);
-        sw.Stop();
-        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
-        Timespans2.Add(sw.Elapsed);
-        sw.Restart();
         var columns = new Dictionary<string, SqlParameter>();
-
-        //for (int i = 0; i < matches.Count; i++) {
-        //    string parameterName = matches[i].Groups[2].Value;
-        //    var paramterValue = command.Parameters[parameterName].Value;
-        //    columns[matches[i].Groups[1].Value] = paramterValue;
-        //}
-
+        
         foreach (Match match in matches) {
             string parameterName = match.Groups[2].Value;
             string columnName = match.Groups[1].Value;
@@ -685,11 +650,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             sqlParameter.ParameterName = $"@{columnName}";
             columns[columnName] = sqlParameter;
         }
-        sw.Stop();
-        Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
-        Timespans3.Add(sw.Elapsed);
-
-
         return columns;
     }
 
@@ -850,23 +810,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
         return newCommandTextBuilder.ToString();
     }
-
-    //private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
-    //    string updatedCommandText;
-    //    if (targetTable == "CatalogType") {
-    //        updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogType\]\s+SET\s*\[Type\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
-    //    }
-    //    else if (targetTable == "CatalogBrand") {
-    //        updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogBrand\]\s+SET\s*\[Brand\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
-    //    }
-    //    else {
-    //        // Update the CommandText to include the Timestamp column and parameter for each entry
-    //        updatedCommandText = Regex.Replace(command.CommandText, @"\[RestockThreshold] = @p\d*", "$0, [Timestamp] = @p{}");
-    //    }
-    //    var regex = new Regex(@"WHERE\s*\[Id\]\s*=\s*@p\d+");
-    //    updatedCommandText = regex.Replace(updatedCommandText, "$0 AND [Timestamp] = @p2");
-    //    return updatedCommandText;
-    //}
 
     [Trace]
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
@@ -1761,13 +1704,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     [Trace]
-    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp) {
+    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp, string targetTable) {
         // The cases where this applies are:
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
 
         DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
-        string targetTable = GetTargetTable(command.CommandText);
 
         List<Tuple<string, string>> conditions;
         if (HasFilterCondition(command.CommandText)) {
