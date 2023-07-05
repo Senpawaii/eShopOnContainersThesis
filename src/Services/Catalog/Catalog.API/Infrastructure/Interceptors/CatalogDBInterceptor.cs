@@ -29,6 +29,7 @@ using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 using System.Runtime.ConstrainedExecution;
 using Microsoft.Extensions.ObjectPool;
+using SqlParameter = Microsoft.Data.SqlClient.SqlParameter;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -145,7 +146,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     if (!transactionState) {
                         // Transaction is not in commit state, add to the wrapper
                         // _logger.LogInformation(command.CommandText);
-                        Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable); // Get the columns and parameter names
+                        Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command); // Get the columns and parameter names
                         var mockReader = StoreDataInWrapper1RowVersion(command, columnsToInsert, targetTable);
                         result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                         break;
@@ -161,7 +162,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 } 
                 else {
                     // Convert the Update Command into an INSERT command
-                    Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
+                    Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command);
                     // _logger.LogInformation("Checkpoint 1");
                     // Create a new INSERT command
                     var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
@@ -173,8 +174,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     insertCommand.Append(string.Join(", ", columnNames));
                     // _logger.LogInformation("Checkpoint 3");
                     // Add the values as parameters
-                    var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
-                    var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
+
+                    //var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
+                    //var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
+
+                    var parameterNames = columnsToInsert.Select(x => x.Value.ParameterName).ToArray();
+                    var parameters = columnsToInsert.Select(x => x.Value).ToArray();
+
                     insertCommand.Append(") VALUES (")
                         .Append(string.Join(", ", parameterNames))
                         .Append(")");
@@ -257,7 +263,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 if(_settings.Value.Limit1Version) {
                     if (!transactionState) {
                         // Transaction is not in commit state, add to the wrapper
-                        Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable); // Get the columns and parameter names
+                        Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command); // Get the columns and parameter names
                         var mockReader = StoreDataInWrapper1RowVersion(command, columnsToInsert, targetTable);
                         result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                         break;
@@ -275,7 +281,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     Stopwatch sw = new Stopwatch();
                     sw.Start();
                     // Convert the Update Command into an INSERT command
-                    Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
+                    Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command);
 
 
                     sw.Stop();
@@ -295,8 +301,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     insertCommand.Append(string.Join(", ", columnNames));
                     // _logger.LogInformation("Checkpoint 3");
                     // Add the values as parameters
-                    var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
-                    var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
+
+                    //var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
+                    //var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
+                    
+                    var parameterNames = columnsToInsert.Select(x => x.Value.ParameterName).ToArray();
+                    var parameters = columnsToInsert.Select(x => x.Value).ToArray();
+
                     insertCommand.Append(") VALUES (")
                         .Append(string.Join(", ", parameterNames))
                         .Append(")");
@@ -322,7 +333,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     // Not performance-tested
-    private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, Dictionary<string, object> columnNamesAndValues, string targetTable) {
+    private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, Dictionary<string, SqlParameter> columnNamesAndParameters, string targetTable) {
         var clientID = _request_metadata.ClientID;
 
         Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
@@ -330,12 +341,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         var rowsAffected = 0;
         
         var rows = new List<object[]>();
-        var row = new object[columnNamesAndValues.Keys.Count + 1]; // Added Timestamp at the end
+        var row = new object[columnNamesAndParameters.Keys.Count + 1]; // Added Timestamp at the end
 
-        foreach(var columnName in columnNamesAndValues.Keys) {
-            var paramValue = columnNamesAndValues[columnName];
+        foreach(var columnName in columnNamesAndParameters.Keys) {
+            var sqlParameter = columnNamesAndParameters[columnName];
             var correctIndexToStore = standardColumnIndexes[columnName];
-            row[correctIndexToStore] = paramValue;
+            row[correctIndexToStore] = sqlParameter.Value;
         }
         // Define the uncommitted timestamp as the current time
         row[^1] = DateTime.UtcNow;
@@ -648,7 +659,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     [Trace]
-    private Dictionary<string, object> UpdateToInsert(DbCommand command, string targetTable) {
+    private Dictionary<string, SqlParameter> UpdateToInsert(DbCommand command) {
         Stopwatch sw = Stopwatch.StartNew();
 
         //var regex = new Regex(@"\[(\w+)\] = (@\w+)");
@@ -658,7 +669,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
         Timespans2.Add(sw.Elapsed);
         sw.Restart();
-        var columns = new Dictionary<string, object>();
+        var columns = new Dictionary<string, SqlParameter>();
 
         //for (int i = 0; i < matches.Count; i++) {
         //    string parameterName = matches[i].Groups[2].Value;
@@ -668,8 +679,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         foreach (Match match in matches) {
             string parameterName = match.Groups[2].Value;
-            var paramterValue = command.Parameters[parameterName].Value;
-            columns[match.Groups[1].Value] = paramterValue;
+            SqlParameter sqlParameter = (SqlParameter)command.Parameters[parameterName];
+            sqlParameter.ParameterName = $"@{parameterName}";
+            columns[match.Groups[1].Value] = sqlParameter;
         }
         sw.Stop();
         Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
