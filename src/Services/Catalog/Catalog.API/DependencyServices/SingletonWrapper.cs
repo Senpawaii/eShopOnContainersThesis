@@ -301,9 +301,9 @@ namespace Catalog.API.DependencyServices {
 
         //[Trace]
         public ManualResetEvent AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
-            Stopwatch sw = new Stopwatch();
+            //Stopwatch sw = new Stopwatch();
 
-            sw.Start();
+            //sw.Start();
 
             switch (targetTable) {
                 case "Catalog":
@@ -322,11 +322,11 @@ namespace Catalog.API.DependencyServices {
                                 // Return the Manual reset event to wait for
                                 ManualResetEvent manualResetEvent = catalog_items_manual_reset_events.GetValueOrDefault((proposed_catalog_item.Key, proposedTS.Ticks), null);
 
-                                sw.Stop();
-                                Timespans.Append(sw.Elapsed);
-                                Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-                                Timespans.Add(sw.Elapsed);
-                                _logger.LogInformation($"Average time : {Average(Timespans)}");
+                                //sw.Stop();
+                                //Timespans.Append(sw.Elapsed);
+                                //Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+                                //Timespans.Add(sw.Elapsed);
+                                //_logger.LogInformation($"Average time : {Average(Timespans)}");
 
                                 return manualResetEvent ?? null;
                             }
@@ -368,11 +368,11 @@ namespace Catalog.API.DependencyServices {
                     break;
             }
 
-            sw.Stop();
-            Timespans.Append(sw.Elapsed);
-            Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-            Timespans.Add(sw.Elapsed);
-            _logger.LogInformation($"Average time : {Average(Timespans)}");
+            //sw.Stop();
+            //Timespans.Append(sw.Elapsed);
+            //Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+            //Timespans.Add(sw.Elapsed);
+            //_logger.LogInformation($"Average time : {Average(Timespans)}");
             return null;
         }
 

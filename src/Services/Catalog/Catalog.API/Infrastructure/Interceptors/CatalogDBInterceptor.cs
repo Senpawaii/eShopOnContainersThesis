@@ -1706,7 +1706,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
    //[Trace]
     private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp, string targetTable) {
-        Stopwatch sw = new Stopwatch();
+        //Stopwatch sw = new Stopwatch();
 
         // The cases where this applies are:
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
@@ -1715,30 +1715,30 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
         List<Tuple<string, string>> conditions = (command.CommandText.IndexOf("WHERE") != -1) ? GetWhereConditions(command) : null;
 
-        sw.Start();
+        //sw.Start();
 
         var mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
         
-        sw.Stop();
-        Timespans.Append(sw.Elapsed);
-        Console.WriteLine("Elapsed time Catalog: {0}", sw.Elapsed);
-        Timespans.Add(sw.Elapsed);
+        //sw.Stop();
+        //Timespans.Append(sw.Elapsed);
+        //Console.WriteLine("Elapsed time Catalog: {0}", sw.Elapsed);
+        //Timespans.Add(sw.Elapsed);
 
         while (mre != null) {
             // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
             mre.WaitOne();
 
-            sw.Start();
+            //sw.Start();
             
             mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
 
-            sw.Stop();
-            Timespans.Append(sw.Elapsed);
-            Console.WriteLine("Elapsed time Catalog: {0}", sw.Elapsed);
-            Timespans.Add(sw.Elapsed);
+            //sw.Stop();
+            //Timespans.Append(sw.Elapsed);
+            //Console.WriteLine("Elapsed time Catalog: {0}", sw.Elapsed);
+            //Timespans.Add(sw.Elapsed);
 
         }
-        _logger.LogInformation($"Average time Catalog: {Average(Timespans)}");
+        //_logger.LogInformation($"Average time Catalog: {Average(Timespans)}");
     }
 
 
