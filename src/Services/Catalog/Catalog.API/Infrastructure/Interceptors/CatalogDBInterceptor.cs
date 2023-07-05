@@ -1745,8 +1745,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
 
         // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
-        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
-        MatchCollection matches = regex.Matches(command.CommandText);
+        //Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
+        MatchCollection matches = GetWhereConditionsColumnAndValueRegex.Matches(command.CommandText);
 
         sw.Stop();
         Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
