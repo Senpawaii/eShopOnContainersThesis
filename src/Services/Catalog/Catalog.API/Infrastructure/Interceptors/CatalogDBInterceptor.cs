@@ -1709,19 +1709,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // The cases where this applies are:
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
-
+        
         DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
-
         List<Tuple<string, string>> conditions = (command.CommandText.IndexOf("WHERE") != -1) ? GetWhereConditions(command) : null;
-        //if (HasFilterCondition(command.CommandText)) {
-        //    // Get the conditions of the WHERE clause, for now we only support equality conditions. Conditions are in the format: <columnName, value>
-        //    conditions = GetWhereConditions(command);
-        //}
-        //else {
-        //    // The reader is trying to read all items. Wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.
-        //    conditions = null;
-        //}
-
         var mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
         while(mre != null) {
             // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.

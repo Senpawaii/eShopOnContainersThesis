@@ -8,9 +8,17 @@ using System.Linq;
 using YamlDotNet.Serialization;
 using NewRelic.Api.Agent;
 using System.Threading;
+using System.Diagnostics;
 
 namespace Catalog.API.DependencyServices {
     public class SingletonWrapper : ISingletonWrapper {
+        // Benchmarking stuff
+        public static ConcurrentBag<TimeSpan> Timespans = new ConcurrentBag<TimeSpan>();
+
+        public static TimeSpan Average(IEnumerable<TimeSpan> spans) {
+            return TimeSpan.FromSeconds(spans.Select(s => s.TotalSeconds).Average());
+        }
+
         public ILogger<SingletonWrapper> _logger;
 
         ConcurrentDictionary<string, ConcurrentBag<CatalogItem>> wrapped_catalog_items = new ConcurrentDictionary<string, ConcurrentBag<CatalogItem>>();
@@ -293,6 +301,10 @@ namespace Catalog.API.DependencyServices {
 
         [Trace]
         public ManualResetEvent AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
+            Stopwatch sw = new Stopwatch();
+
+            sw.Start();
+
             switch (targetTable) {
                 case "Catalog":
                     // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
@@ -303,19 +315,20 @@ namespace Catalog.API.DependencyServices {
                         // _logger.LogInformation($"There are left {filtered_proposed_catalog_items2.Count} items after applying the filters, namely items with ID {string.Join(",", filtered_proposed_catalog_items2.Keys.Select(x => x.Id))}");
                     }
                     // Check if the there any proposed catalog items 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<ProposedCatalogItem, ConcurrentDictionary<DateTime, string>> proposed_catalog_item in filtered_proposed_catalog_items2) {
+                    foreach (var proposed_catalog_item in filtered_proposed_catalog_items2) {
                         foreach (DateTime proposedTS in proposed_catalog_item.Value.Keys) {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
                                 // Return the Manual reset event to wait for
                                 ManualResetEvent manualResetEvent = catalog_items_manual_reset_events.GetValueOrDefault((proposed_catalog_item.Key, proposedTS.Ticks), null);
-                                if(manualResetEvent != null) {
-                                    return manualResetEvent;
-                                }
-                                else {
-                                    //_logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name} although proposedTS < readerTimestamp.");
-                                }
-                                return null;
+
+                                sw.Stop();
+                                Timespans.Append(sw.Elapsed);
+                                Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+                                Timespans.Add(sw.Elapsed);
+                                _logger.LogInformation($"Average time : {Average(Timespans)}");
+
+                                return manualResetEvent ?? null;
                             }
                         }
                     }
@@ -355,6 +368,11 @@ namespace Catalog.API.DependencyServices {
                     break;
             }
 
+            sw.Stop();
+            Timespans.Append(sw.Elapsed);
+            Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+            Timespans.Add(sw.Elapsed);
+            _logger.LogInformation($"Average time : {Average(Timespans)}");
             return null;
         }
 
