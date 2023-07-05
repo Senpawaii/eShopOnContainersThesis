@@ -1712,66 +1712,42 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
 
-        List<Tuple<string, string>> conditions;
-        if (HasFilterCondition(command.CommandText)) {
-            // Get the conditions of the WHERE clause, for now we only support equality conditions. Conditions are in the format: <columnName, value>
-            conditions = GetWhereConditions(command);
-        }
-        else {
-            // The reader is trying to read all items. Wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.
-            // _logger.LogInformation($"Reader is trying to read all items. Will wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.");
-            conditions = null;
-        }
+        List<Tuple<string, string>> conditions = (command.CommandText.IndexOf("WHERE") != -1) ? GetWhereConditions(command) : null;
+        //if (HasFilterCondition(command.CommandText)) {
+        //    // Get the conditions of the WHERE clause, for now we only support equality conditions. Conditions are in the format: <columnName, value>
+        //    conditions = GetWhereConditions(command);
+        //}
+        //else {
+        //    // The reader is trying to read all items. Wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.
+        //    conditions = null;
+        //}
 
         var mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
-        if (mre != null) {
+        while(mre != null) {
             // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
-            // Log the sleeping...
-            //var currentTime = DateTime.UtcNow;
-            //_logger.LogInformation($"ClientID={clientID}: Reader is waiting for proposed items to be committed. Will sleep until notified.");
             mre.WaitOne();
-            //var timeSlept = DateTime.UtcNow - currentTime;
-            //_logger.LogInformation($"ClientID={clientID}: Was notified! Slept for {timeSlept.TotalMilliseconds} ms.");
+            mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
         }
     }
 
-  
+    
+    // Performance-tested
     [Trace]
     private List<Tuple<string, string>> GetWhereConditions(DbCommand command) {
-        Stopwatch sw = new Stopwatch();
-
-        sw.Start();
-
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
-
+        
         // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
-        //Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
         MatchCollection matches = GetWhereConditionsColumnAndValueRegex.Matches(command.CommandText);
-
-        sw.Stop();
-        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-        Timespans.Add(sw.Elapsed);
-        sw.Restart();
-
         foreach (Match match in matches) {
-            // Get the column name and the parameter name
             string columnName = match.Groups["columnName"].Value;
-            if(columnName == "Timestamp") {
-                // Ignore the Timestamp column
+            if(columnName == "Timestamp") { // Timestamp is not considered as a condition
                 continue;
             }
             string parameterName = match.Groups["paramValue2"].Value;
             var parameterValue = command.Parameters[parameterName].Value;
-            _logger.LogInformation("Parameter name: " + parameterName + " Parameter value: " + parameterValue.ToString() + " Column name: " + columnName);
-            // Add the condition to the list
             Tuple<string, string> condition = new Tuple<string, string>(columnName, parameterValue.ToString());
             conditions.Add(condition);
         }
-        sw.Stop();
-        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
-        Timespans2.Add(sw.Elapsed);
-        _logger.LogInformation($"Average time : {Average(Timespans)}");
-        _logger.LogInformation($"Average time 2 : {Average(Timespans2)}");
         return conditions;
     }
 
