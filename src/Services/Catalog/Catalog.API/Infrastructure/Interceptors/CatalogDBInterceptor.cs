@@ -119,7 +119,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 } else {
                     UpdateSelectCommand(command, targetTable);
                 }
-                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp);
+                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp, targetTable);
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
@@ -268,7 +268,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                         break;
                     } 
                     else {
-                        // _logger.LogInformation($"ClientID {clientID} is in commit state");
+                        // This is only reached for the 1 version system. 
                         // Transaction is in commit state, update the row in the database
                         UpdateUpdateCommand(command, targetTable, clientID);
                         // _logger.LogInformation($"ClientID {clientID} updated the command text to: {command.CommandText}");
