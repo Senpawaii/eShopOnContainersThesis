@@ -680,9 +680,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         foreach (Match match in matches) {
             string parameterName = match.Groups[2].Value;
+            string columnName = match.Groups[1].Value;
             SqlParameter sqlParameter = (SqlParameter)command.Parameters[parameterName];
-            sqlParameter.ParameterName = $"@{parameterName}";
-            columns[match.Groups[1].Value] = sqlParameter;
+            sqlParameter.ParameterName = $"@{columnName}";
+            columns[columnName] = sqlParameter;
         }
         sw.Stop();
         Console.WriteLine("Elapsed time 3: {0}", sw.Elapsed);
