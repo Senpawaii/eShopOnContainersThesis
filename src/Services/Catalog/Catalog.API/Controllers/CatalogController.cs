@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
-using NewRelic.Api.Agent;
+//using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Controllers;
 
@@ -27,7 +27,7 @@ public class CatalogController : ControllerBase {
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(IEnumerable<CatalogItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
-    [Trace]
+    //[Trace]
     public async Task<IActionResult> ItemsAsync([FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0, string ids = null) {
         // _logger.LogInformation($"Checkpoint 2: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         
@@ -131,7 +131,7 @@ public class CatalogController : ControllerBase {
     [HttpGet]
     [Route("items/type/{catalogTypeId}/brand/{catalogBrandId:int?}")]
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
-    [Trace]
+   //[Trace]
     public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsByTypeIdAndBrandIdAsync(int catalogTypeId, int? catalogBrandId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0) {
         var root = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
@@ -158,7 +158,7 @@ public class CatalogController : ControllerBase {
     [HttpGet]
     [Route("items/type/all/brand/{catalogBrandId:int?}")]
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
-    [Trace]
+   //[Trace]
     public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsByBrandIdAsync(int? catalogBrandId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0) {
         var root = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
@@ -200,7 +200,7 @@ public class CatalogController : ControllerBase {
     [HttpPut]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     [ProducesResponseType((int)HttpStatusCode.Created)]
-    [Trace]
+   //[Trace]
     public async Task<ActionResult> UpdateProductPriceAsync([FromBody] CatalogItem productToUpdate) {
         // Log all updated catalog item paramaters
         // _logger.LogInformation($"Body Catalog Item: {productToUpdate.Id} with the following parameters: {productToUpdate.Name}, {productToUpdate.Description}, {productToUpdate.Price}, {productToUpdate.PictureFileName}, {productToUpdate.PictureUri}, {productToUpdate.CatalogBrandId}, {productToUpdate.CatalogTypeId}");

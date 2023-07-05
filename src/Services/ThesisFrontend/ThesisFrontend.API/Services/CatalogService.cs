@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using System.Text;
-using NewRelic.Api.Agent;
+//using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 public class CatalogService : ICatalogService {
@@ -18,7 +18,7 @@ public class CatalogService : ICatalogService {
         _remoteCatalogServiceBaseUrl = settings.Value.CatalogUrl;
     }
 
-    [Trace]
+   //[Trace]
     public async Task<CatalogItem> GetCatalogItemByIdAsync(int catalogItemId) {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}items/{catalogItemId}";
@@ -54,7 +54,7 @@ public class CatalogService : ICatalogService {
         }
     }
 
-    [Trace]
+   //[Trace]
     public async Task<IEnumerable<CatalogBrand>> GetCatalogBrandsAsync() {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}catalogbrands";
@@ -84,7 +84,7 @@ public class CatalogService : ICatalogService {
         }
     }
 
-    [Trace]
+   //[Trace]
     public async Task<IEnumerable<CatalogType>> GetCatalogTypesAsync() {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}catalogtypes";
@@ -114,7 +114,7 @@ public class CatalogService : ICatalogService {
         }
     }
 
-    [Trace]
+   //[Trace]
     public async Task<HttpStatusCode> UpdateCatalogPriceAsync(CatalogItem catalogItem) {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}items";

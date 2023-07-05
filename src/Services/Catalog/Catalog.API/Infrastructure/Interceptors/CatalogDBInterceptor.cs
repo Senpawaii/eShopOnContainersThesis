@@ -95,7 +95,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public ILogger<CatalogContext> _logger;
     public IOptions<CatalogSettings> _settings;
 
-    [Trace]
+   //[Trace]
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
@@ -208,7 +208,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return result;
     }
 
-    [Trace]
+   //[Trace]
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
         DbCommand command,
         CommandEventData eventData,
@@ -353,7 +353,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     // Performance-tested
-    [Trace]
+   //[Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
         var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Compiled Regex patterns to get the column names
@@ -413,7 +413,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
 
     // Performance-tested
-    [Trace]
+   //[Trace]
     public (int, string) GetCommandInfo(DbCommand command) {
         int commandType;
         var commandText = command.CommandText;
@@ -458,7 +458,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     /// <param name="command"></param>
     
     // Not performance-tested
-    [Trace]
+   //[Trace]
     public void UpdateSelectCommandV2(DbCommand command, string targetTable, string clientTimestamp) {
         // Check if the SELECT includes a "*" or a column list
         (bool hasPartialRowSelection, List<string> _) = HasPartialRowSelection(command.CommandText);
@@ -497,7 +497,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
 
     // Performance tested
-    [Trace]
+   //[Trace]
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
         // Get the current client session timeestamp
         DateTime clientTimestamp = _request_metadata.Timestamp;
@@ -560,7 +560,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     // Not performance-tested
-    [Trace]
+   //[Trace]
     private void UpdateUpdateCommand(DbCommand command, string targetTable, string clientID) {
         Stopwatch sw;
 
@@ -594,7 +594,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     // Not performance-tested
-    [Trace]
+   //[Trace]
     private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
         string updatedCommandText;
 
@@ -615,7 +615,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     /* ========== UPDATE WRITE QUERIES ==========*/
     // Performance-tested
-    [Trace]
+   //[Trace]
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
         // Get the timestamp received from the Coordinator
         string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
@@ -639,7 +639,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     // Performance-Tested
-    [Trace]
+   //[Trace]
     private Dictionary<string, SqlParameter> UpdateToInsert(DbCommand command) {
         var matches = StoreInWrapperV2UpdateRegex.Matches(command.CommandText);
         var columns = new Dictionary<string, SqlParameter>();
@@ -655,7 +655,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     // Performance-tested
-    [Trace]
+   //[Trace]
     private static void UpdateItemOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
         int numObjectsToInsert = command.Parameters.Count / 11;
 
@@ -735,7 +735,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     // Performance-tested
-    [Trace]
+   //[Trace]
     private static void UpdateBrandOrTypeOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
         int numObjectsToInsert = command.Parameters.Count / 2;
 
@@ -812,7 +812,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newCommandTextBuilder.ToString();
     }
 
-    [Trace]
+   //[Trace]
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
         var clientID = _request_metadata.ClientID;
 
@@ -1031,7 +1031,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
-    [Trace]
+   //[Trace]
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
         //_logger.LogInformation($"Checkpoint 2_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
@@ -1318,7 +1318,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> OrderBy(List<object[]> newData, string orderByColumn, string typeOrder, string targetTable) {
         Dictionary <string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
         int sortByIndex = columnIndexes[orderByColumn];
@@ -1330,7 +1330,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> OffsetData(DbCommand command, List<object[]> newData, string offsetParam) {
         DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == offsetParam);
         int offsetValue = Convert.ToInt32(parameter.Value);
@@ -1338,7 +1338,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> FetchNext(DbCommand command, List<object[]> newData, string fetchRowsParam) {
         DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == fetchRowsParam);
         int fetchRows = Convert.ToInt32(parameter.Value);
@@ -1346,7 +1346,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> GroupVersionedObjects(List<object[]> newData, string targetTable) {
         var dateTimeComparer = Comparer<object>.Create((x, y) => {
             DateTime xValue = (DateTime)x;
@@ -1387,7 +1387,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    [Trace]
+   //[Trace]
     private object[] PartialRowSelection(string commandText, object[] row, List<string> selectedColumns) {
         string targetTable = GetTargetTable(commandText);
         object[] newRow = new object[selectedColumns.Count];
@@ -1448,7 +1448,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newRow;
     }
 
-    [Trace]
+   //[Trace]
     private object[] PartialRowSelectionV2(string commandText, object[] row, List<string> selectedColumns, DataTable schemaTable, string clientID) {
         // Build a new row with the selected columns only, as defined in the original commandText
         var columnIndexes = new Dictionary<string, int>();
@@ -1477,7 +1477,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> FilterData(List<object[]> wrapperData, DbCommand command) {
         string commandText = command.CommandText;
         var targetTable = GetTargetTable(commandText);
@@ -1487,7 +1487,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return filteredData;
     }
 
-    [Trace]
+   //[Trace]
     private IEnumerable<object[]> ApplyWhereFilterIfExist(List<object[]> wrapperData, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
         string targetTable = GetTargetTable(command.CommandText);
@@ -1531,7 +1531,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return filteredData;
     }
 
-    [Trace]
+   //[Trace]
     private static Dictionary<string, int> GetDefaultColumIndexesForUpdate(string targetTable) {
         Dictionary<string, int> columnIndexes = new Dictionary<string, int>();
 
@@ -1562,7 +1562,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return columnIndexes;
     }
 
-    [Trace]
+   //[Trace]
     private static Dictionary<string, int> GetDefaultColumIndexes(string targetTable) {
         Dictionary<string, int> columnIndexes = new Dictionary<string, int>();
 
@@ -1593,7 +1593,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return columnIndexes;
     }
 
-    [Trace]
+   //[Trace]
     private static Dictionary<string, int> GetUniqueIndentifierColumns(string targetTable) {
         Dictionary<string, int> columnUniqueIdentifiers = new Dictionary<string, int>();
 
@@ -1614,7 +1614,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return columnUniqueIdentifiers;
     }
 
-    [Trace]
+   //[Trace]
     private string GetTargetTable(string commandText) {
         // Extract the name of the table target by the SQL query
         var match = Regex.Match(commandText, @"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]",
@@ -1622,7 +1622,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return match.Success ? match.Groups["Target"].Value : null;
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, string, string) HasOrderByCondition(string commandText) {
         // Searches for either a ASC or DESC pattern. Will not match in the default case.
         var match = Regex.Match(commandText, @"ORDER BY\s+\[[_a-zA-Z]+\]\.\[(?<Column>[_a-zA-Z]+)\]\s*(?<Type>ASC|DESC|)",
@@ -1637,21 +1637,21 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, string) HasOffsetCondition(string commandText) {
         var match = Regex.Match(commandText, @"OFFSET\s+(?<OffsetValue>[@_a-zA-Z\d]+)\s+ROWS",
             RegexOptions.IgnoreCase | RegexOptions.Multiline);
         return match.Success ? (true, match.Groups["OffsetValue"].Value) : (false, null);
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, string) HasFetchNextCondition(string commandText) {
         var match = Regex.Match(commandText, @"FETCH NEXT\s+(?<FetchRows>[@_a-zA-Z\d]+)\s+ROWS",
             RegexOptions.IgnoreCase | RegexOptions.Multiline);
         return match.Success ? (true, match.Groups["FetchRows"].Value) : (false, null);
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, List<string>) HasPartialRowSelection(string commandText) {
         // Extract SELECT clause parameters
         string subCommandText = commandText.Replace(commandText.Substring(commandText.IndexOf("FROM")), "");
@@ -1674,12 +1674,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return (true, columnSelect);
     }
 
-    [Trace]
+   //[Trace]
     private Boolean HasFilterCondition(string commandText) {
         return commandText.IndexOf("WHERE") != -1;
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, int) HasTopClause(string commandText) {
         Regex regex = new Regex(@"\.*TOP\((?<nElem>\d*)\)");
         MatchCollection matches = regex.Matches(commandText);
@@ -1689,22 +1689,22 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return (false, 0);
     }
 
-    [Trace]
+   //[Trace]
     private Boolean HasCountClause(string commandText) {
         return commandText.Contains("COUNT");
     }
 
-    [Trace]
+   //[Trace]
     private Boolean IsSelectQuery(string commandText) {
         return commandText.Contains("SELECT");
     }
 
-    [Trace]
+   //[Trace]
     private Boolean IsCountSelect(string commandText) {
         return commandText.Contains("COUNT");
     }
 
-    [Trace]
+   //[Trace]
     private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp, string targetTable) {
         Stopwatch sw = new Stopwatch();
 
@@ -1743,7 +1743,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
 
     // Performance-tested
-    [Trace]
+   //[Trace]
     private List<Tuple<string, string>> GetWhereConditions(DbCommand command) {
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
         
@@ -1762,7 +1762,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return conditions;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> ApplyFilterToProposedSet(List<object[]> proposedSet, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
         string targetTable = GetTargetTable(command.CommandText);

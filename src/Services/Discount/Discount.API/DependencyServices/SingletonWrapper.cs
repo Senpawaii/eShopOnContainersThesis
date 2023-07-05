@@ -2,7 +2,7 @@
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using NewRelic.Api.Agent;
+//using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 public class SingletonWrapper : ISingletonWrapper {
@@ -29,7 +29,7 @@ public class SingletonWrapper : ISingletonWrapper {
         get { return proposed_functionalities; }
     }
 
-    [Trace]
+   //[Trace]
         public ConcurrentBag<object[]> SingletonGetDiscountItems(string key) {
             // Get the wrapped discount items associated with the clientID
             var bag = wrapped_discount_items.GetValueOrDefault(key, new ConcurrentBag<WrappedDiscountItem>());
@@ -48,7 +48,7 @@ public class SingletonWrapper : ISingletonWrapper {
             return list;
         }
 
-    [Trace]
+   //[Trace]
     public bool SingletonGetTransactionState(string clientID) {
         if(!transaction_state.ContainsKey(clientID)) {
             // Initialize a new state: uncommitted
@@ -58,7 +58,7 @@ public class SingletonWrapper : ISingletonWrapper {
         return transaction_state.GetValueOrDefault(clientID);
     }
 
-    [Trace]
+   //[Trace]
     public void SingletonAddDiscountItem(string clientID, IEnumerable<object[]> values) {
         foreach (object[] item in values) {
             // Create a new Wrapped Discount Item
@@ -76,19 +76,19 @@ public class SingletonWrapper : ISingletonWrapper {
         }
     }
 
-    [Trace]
+   //[Trace]
     public bool SingletonSetTransactionState(string clientID, bool state) {
         return transaction_state[clientID] = state;
     }
 
-    [Trace]
+   //[Trace]
     public void SingletonRemoveFunctionalityObjects(string clientID) {
         // Remove the objects associated with the clientID
         wrapped_discount_items.TryRemove(clientID, out _);
         transaction_state.TryRemove(clientID, out bool _);
     }
 
-    [Trace]
+   //[Trace]
     public void SingletonAddProposedFunctionality(string clientID, long proposedTS) {
         proposed_functionalities.AddOrUpdate(clientID, proposedTS, (key, value) => {
             value = proposedTS;
@@ -96,13 +96,13 @@ public class SingletonWrapper : ISingletonWrapper {
         });
     }
 
-    [Trace]
+   //[Trace]
     public void SingletonRemoveProposedFunctionality(string clientID) {
         if(proposed_functionalities.ContainsKey(clientID))
             proposed_functionalities.TryRemove(clientID, out long _);
     }
 
-    [Trace]
+   //[Trace]
     public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS) {
         // Gather the items inside the wrapper with given clientID
         ConcurrentBag<WrappedDiscountItem> discount_items_to_propose = wrapped_discount_items.GetValueOrDefault(clientID, new ConcurrentBag<WrappedDiscountItem>());
@@ -120,7 +120,7 @@ public class SingletonWrapper : ISingletonWrapper {
         }
     }
 
-    [Trace]
+   //[Trace]
     public void SingletonRemoveWrappedItemsFromProposedSet(string clientID) {
         // TODO: Possible optimization: add structure that indexes proposed objects by the client ID that proposed them
 
@@ -134,7 +134,7 @@ public class SingletonWrapper : ISingletonWrapper {
         }
     }
 
-    [Trace]
+   //[Trace]
     public bool AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp) {
         switch (targetTable) {
             case "Discount":
@@ -159,7 +159,7 @@ public class SingletonWrapper : ISingletonWrapper {
         return false;
     }
 
-    [Trace]
+   //[Trace]
     private Dictionary<WrappedDiscountItem, ConcurrentDictionary<DateTime, string>> ApplyFiltersToDiscountItems(List<Tuple<string, string>> conditions, Dictionary<WrappedDiscountItem, ConcurrentDictionary<DateTime, string>> filtered_proposed_discount_items) {
         foreach (Tuple<string, string> condition in conditions) {
             switch (condition.Item1) {
@@ -187,7 +187,7 @@ public class SingletonWrapper : ISingletonWrapper {
         return filtered_proposed_discount_items;
     }
 
-    [Trace]
+   //[Trace]
     public List<DiscountItem> SingletonGetWrappedDiscountItemsToFlush(string clientID, bool onlyUpdate) {
         // Check the Discount Items associated with the clientID and flush them to the database
         
@@ -222,7 +222,7 @@ public class SingletonWrapper : ISingletonWrapper {
         return null;
     }
 
-    [Trace]
+   //[Trace]
     public void CleanWrappedObjects(string clientID) {
         // _logger.LogInformation($"Cleaning wrapped objects for client {clientID} ...");
         // Clean up the proposed items;

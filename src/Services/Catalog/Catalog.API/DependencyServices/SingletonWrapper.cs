@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using YamlDotNet.Serialization;
-using NewRelic.Api.Agent;
+//using NewRelic.Api.Agent;
 using System.Threading;
 using System.Diagnostics;
 
@@ -48,7 +48,7 @@ namespace Catalog.API.DependencyServices {
             get { return proposed_functionalities; }
         }
 
-        [Trace]
+        //[Trace]
         public ConcurrentBag<object[]> SingletonGetCatalogItems(string key) {
             // Get the wrapped catalog items associated with the clientID
             var bag = wrapped_catalog_items.GetValueOrDefault(key, new ConcurrentBag<CatalogItem>());
@@ -73,7 +73,7 @@ namespace Catalog.API.DependencyServices {
             return list;
         }
 
-        [Trace]
+        //[Trace]
         public ConcurrentBag<object[]> SingletonGetCatalogTypes(string key) {
             // Get the wrapped catalog types associated with the clientID
             var bag = wrapped_catalog_types.GetValueOrDefault(key, new ConcurrentBag<CatalogType>());
@@ -89,7 +89,7 @@ namespace Catalog.API.DependencyServices {
             return list;
         }
 
-        [Trace]
+        //[Trace]
         public ConcurrentBag<object[]> SingletonGetCatalogBrands(string key) {
             // Get the wrapped catalog brands associated with the clientID
             var bag = wrapped_catalog_brands.GetValueOrDefault(key, new ConcurrentBag<CatalogBrand>());
@@ -104,7 +104,7 @@ namespace Catalog.API.DependencyServices {
             return list;
         }
 
-        [Trace]
+        //[Trace]
         public bool SingletonGetTransactionState(string clientID) {
             if(!transaction_state.ContainsKey(clientID)) {
                 // Initialize a new state: uncommitted = false; to be commit = true;
@@ -113,7 +113,7 @@ namespace Catalog.API.DependencyServices {
             return transaction_state.GetValueOrDefault(clientID);
         }
 
-        [Trace]
+        //[Trace]
         public void SingletonAddCatalogItem(string clientID, IEnumerable<object[]> values) {
             foreach (object[] item in values) {
                 // Create a new Wrapped Catalog Item
@@ -137,7 +137,7 @@ namespace Catalog.API.DependencyServices {
             }
         }
 
-        [Trace]
+        //[Trace]
         public void SingletonAddCatalogType(string clientID, IEnumerable<object[]> values) {
             foreach (object[] type in values) {
                 // Create a new Wrapped Catalog Type
@@ -152,7 +152,7 @@ namespace Catalog.API.DependencyServices {
             }
         }
 
-        [Trace]
+        //[Trace]
         public void SingletonAddCatalogBrand(string clientID, IEnumerable<object[]> values) {
             foreach (object[] brand in values) {
                 // Create a new Wrapped Catalog Brand
@@ -167,14 +167,14 @@ namespace Catalog.API.DependencyServices {
             }
         }
 
-        [Trace]
+        //[Trace]
         public bool SingletonSetTransactionState(string clientID, bool state) {
             return transaction_state[clientID] = state;
         }
 
 
         // Remove the objects associated with the clientID
-        [Trace]
+        //[Trace]
         public void SingletonRemoveFunctionalityObjects(string clientID) {
             wrapped_catalog_brands.TryRemove(clientID, out _);
             wrapped_catalog_types.TryRemove(clientID, out _);
@@ -183,7 +183,7 @@ namespace Catalog.API.DependencyServices {
             // _logger.LogInformation($"Number of elements in the wrapped catalog items 2: {wrapped_catalog_items2.Count}, and transaction states: {transaction_state.Count}");
         }
 
-        [Trace]
+        //[Trace]
         public void SingletonAddProposedFunctionality(string clientID, long proposedTS) {
             proposed_functionalities.AddOrUpdate(clientID, proposedTS, (key, value) => {
                 value = proposedTS;
@@ -191,13 +191,13 @@ namespace Catalog.API.DependencyServices {
             });
         }
 
-        [Trace]
+        //[Trace]
         public void SingletonRemoveProposedFunctionality(string clientID) {
             if(proposed_functionalities.ContainsKey(clientID))
                 proposed_functionalities.TryRemove(clientID, out long _);
         }
 
-        [Trace]
+        //[Trace]
         public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS) {
             // Gather the items inside the wrapper with given clientID
             ConcurrentBag<CatalogItem> catalog_items_to_propose = wrapped_catalog_items.GetValueOrDefault(clientID, new ConcurrentBag<CatalogItem>());
@@ -264,7 +264,7 @@ namespace Catalog.API.DependencyServices {
             }
         }
 
-        [Trace]
+        //[Trace]
         public void SingletonRemoveWrappedItemsFromProposedSet(string clientID) {
             // TODO: Possible optimization: add structure that indexes proposed objects by the client ID that proposed them
 
@@ -299,7 +299,7 @@ namespace Catalog.API.DependencyServices {
             }
         }
 
-        [Trace]
+        //[Trace]
         public ManualResetEvent AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
             Stopwatch sw = new Stopwatch();
 
@@ -376,7 +376,7 @@ namespace Catalog.API.DependencyServices {
             return null;
         }
 
-        [Trace]
+        //[Trace]
         private static Dictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogTypes(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_types2) {
             foreach (Tuple<string, string> condition in conditions) {
                 filtered_proposed_catalog_types2 = filtered_proposed_catalog_types2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
@@ -385,7 +385,7 @@ namespace Catalog.API.DependencyServices {
             return filtered_proposed_catalog_types2;
         }
 
-        [Trace]
+        //[Trace]
         private static Dictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogBrands(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_brands2) {
             foreach (Tuple<string, string> condition in conditions) {
                 filtered_proposed_catalog_brands2 = filtered_proposed_catalog_brands2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
@@ -394,7 +394,7 @@ namespace Catalog.API.DependencyServices {
             return filtered_proposed_catalog_brands2;
         }
 
-        [Trace]
+        //[Trace]
         private static Dictionary<ProposedCatalogItem, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogItem, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_items2) {
             foreach (Tuple<string, string> condition in conditions) {
                 switch (condition.Item1) {
@@ -415,7 +415,7 @@ namespace Catalog.API.DependencyServices {
             return filtered_proposed_catalog_items2;
         }
 
-        [Trace]
+        //[Trace]
         public List<CatalogItem> SingletonGetWrappedCatalogItemsToFlush(string clientID, bool onlyUpdate) {
             // Check the Catalog Items, Brands, and Types associated with the clientID and flush them to the database
             
@@ -449,7 +449,7 @@ namespace Catalog.API.DependencyServices {
             return null;
         }
 
-        [Trace]
+        //[Trace]
         public void CleanWrappedObjects(string clientID) {
             // _logger.LogInformation($"Cleaning wrapped objects for client {clientID} ...");
             // Clean up the proposed items;
@@ -462,7 +462,7 @@ namespace Catalog.API.DependencyServices {
             SingletonRemoveProposedFunctionality(clientID);
         }
 
-        [Trace]
+        //[Trace]
         public void NotifyReaderThreads(string clientID, List<CatalogItem> committedItems) {
             foreach(CatalogItem item in committedItems) {
                 // Locate the WrappedCatalogItem associated with the committed item

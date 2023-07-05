@@ -38,7 +38,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     public ILogger<DiscountContext> _logger;
     public IOptions<DiscountSettings> _settings;
 
-    [Trace]
+   //[Trace]
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
@@ -142,7 +142,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return result;
     }
 
-    [Trace]
+   //[Trace]
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
         DbCommand command,
         CommandEventData eventData,
@@ -275,7 +275,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
-    [Trace]
+   //[Trace]
     private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
         // _logger.LogInformation($"Storing data in WrapperV2... ClientID: {clientID}, commandText= {command.CommandText}");
@@ -333,7 +333,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
-    [Trace]
+   //[Trace]
     private MockDbDataReader StoreDataInWrapper(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
 
@@ -398,7 +398,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
-    [Trace]
+   //[Trace]
     public (int, string) GetCommandInfo(DbCommand command) {
         var commandType = GetCommandType(command);
 
@@ -422,7 +422,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return (UNKNOWN_COMMAND, null);
     }
 
-    [Trace]
+   //[Trace]
     private int GetCommandType(DbCommand command) {
         var commandText = command.CommandText.ToUpperInvariant();
 
@@ -451,7 +451,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     /// <param name="command"></param>
     /// 
 
-    [Trace]
+   //[Trace]
     public void UpdateSelectCommandV2(DbCommand command, string targetTable, string clientTimestamp) {
         // Check if the SELECT includes a "*" or a column list
         (bool hasPartialRowSelection, List<string> _) = HasPartialRowSelection(command.CommandText);
@@ -465,7 +465,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // _logger.LogInformation($"Updated Command Text: {command.CommandText}");
     }
 
-    [Trace]
+   //[Trace]
     public void AddTimestampToWhereList(DbCommand command, string targetTable, string clientTimestamp) {
         var clientTimestampParameter = new Microsoft.Data.SqlClient.SqlParameter("@clientTimestamp", SqlDbType.DateTime2);
         clientTimestampParameter.Value = clientTimestamp;
@@ -479,13 +479,13 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
     }
 
-    [Trace]
+   //[Trace]
     public void AddTimestampToColumnList(DbCommand command) {
         string pattern = @"SELECT\s+(.*?)\s+FROM";
         command.CommandText = Regex.Replace(command.CommandText, pattern, "SELECT $1, [d].[Timestamp] FROM");
     }
 
-    [Trace]
+   //[Trace]
     private void UpdateSelectCommand(DbCommand command, string targetTable) {
         // Log the command text
         //_logger.LogInformation($"Command Text: {command.CommandText}");
@@ -552,7 +552,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         command.CommandText += "GROUP BY Discount.ItemName, Discount.ItemBrand, Discount.ItemType) e on d.ItemName = e.ItemName AND d.ItemBrand = e.ItemBrand AND d.ItemType = e.ItemType AND d.Timestamp = e.max_timestamp"; //WHERE d.ID = (SELECT TOP 1 ID FROM Discount WHERE ItemName = d.ItemName AND ItemBrand = d.ItemBrand AND ItemType = d.ItemType AND Timestamp = d.Timestamp ORDER BY ID DESC)
     }
 
-    [Trace]
+   //[Trace]
     private string RemovePartialRowSelection(string commandText) {
         string pattern = @"SELECT\s+(.*?)\s+FROM";
         string replacement = "SELECT * FROM";
@@ -560,7 +560,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return result;
     }
 
-    [Trace]
+   //[Trace]
     private string RemoveCountSelection(string commandText) {
         string pattern = @"SELECT\s+(.*?)\s+FROM";
         string replacement = "SELECT * FROM";
@@ -568,7 +568,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return result;
     }
 
-    [Trace]
+   //[Trace]
     private void UpdateUpdateCommand(DbCommand command, string targetTable) {
         // Get the Timestamp received from the Coordinator
         string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
@@ -618,7 +618,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         // command.CommandText = "SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; UPDATE [Discount] SET [DiscountValue] = @p0, [ItemBrand] = @p1, [ItemName] = @p2, [ItemType] = @p3, [Timestamp] = @p5 OUTPUT 1 WHERE [Id] = @p4;";
     }
 
-    [Trace]
+   //[Trace]
     private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
         string updatedCommandText = Regex.Replace(command.CommandText, @"(?<lastParam>\[ItemType\] = @p(\d+))", "${lastParam}, [Timestamp] = @p5");
     
@@ -627,7 +627,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     /* ========== UPDATE WRITE QUERIES ==========*/
 
-    [Trace]
+   //[Trace]
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
         // Get the timestamp received from the Coordinator
         string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
@@ -649,7 +649,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         command.CommandText = commandWithTimestamp;
     }
 
-    [Trace]
+   //[Trace]
     private Dictionary<string, object> UpdateToInsert(DbCommand command, string targetTable) {
         var regex = new Regex(@"\[(\w+)\] = (@\w+)");
         var matches = regex.Matches(command.CommandText);
@@ -664,7 +664,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return columns;
     }
 
-    [Trace]
+   //[Trace]
     private static void UpdateDiscountOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
         int numObjectsToInsert = command.Parameters.Count / 5;
 
@@ -708,7 +708,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
     }
 
-    [Trace]
+   //[Trace]
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
         string updatedCommandText = "";
         int numberColumns = 0;
@@ -740,7 +740,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return updatedCommandText;
     }
 
-    [Trace]
+   //[Trace]
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
         // _logger.LogInformation("Command executed: " + command.CommandText);
 
@@ -937,7 +937,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
-    [Trace]
+   //[Trace]
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
         // _logger.LogInformation($"Checkpoint 2_c_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
@@ -1133,7 +1133,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> OrderBy(List<object[]> newData, string orderByColumn, string typeOrder, string targetTable) {
         Dictionary<string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
         int sortByIndex = columnIndexes[orderByColumn];
@@ -1145,7 +1145,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> OffsetData(DbCommand command, List<object[]> newData, string offsetParam) {
         DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == offsetParam);
         int offsetValue = Convert.ToInt32(parameter.Value);
@@ -1153,7 +1153,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> FetchNext(DbCommand command, List<object[]> newData, string fetchRowsParam) {
         DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == fetchRowsParam);
         int fetchRows = Convert.ToInt32(parameter.Value);
@@ -1161,7 +1161,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> GroupVersionedObjects(List<object[]> newData, string targetTable) {
         var dateTimeComparer = Comparer<object>.Create((x, y) => {
             DateTime xValue = (DateTime)x;
@@ -1186,7 +1186,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    [Trace]
+   //[Trace]
     private object[] PartialRowSelection(string commandText, object[] row, List<string> selectedColumns) {
         string targetTable = GetTargetTable(commandText);
         object[] newRow = new object[selectedColumns.Count];
@@ -1221,7 +1221,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return newRow;
     }
 
-    [Trace]
+   //[Trace]
     private object[] PartialRowSelectionV2(string commandText, object[] row, List<string> selectedColumns, DataTable schemaTable) {
         // Build a new row with the selected columns only, as defined in the original commandText
         var columnIndexes = new Dictionary<string, int>();
@@ -1243,7 +1243,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return newRow;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> FilterData(List<object[]> wrapperData, DbCommand command) {
         string commandText = command.CommandText;
         var targetTable = GetTargetTable(commandText);
@@ -1253,7 +1253,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return filteredData;
     }
 
-    [Trace]
+   //[Trace]
     private IEnumerable<object[]> ApplyWhereFilterIfExist(List<object[]> wrapperData, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
         string targetTable = GetTargetTable(command.CommandText);
@@ -1296,7 +1296,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return filteredData;
     }
 
-    [Trace]
+   //[Trace]
     private static Dictionary<string, int> GetDefaultColumIndexes(string targetTable) {
         Dictionary<string, int> columnIndexes = new Dictionary<string, int>();
 
@@ -1313,7 +1313,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return columnIndexes;
     }
 
-    [Trace]
+   //[Trace]
     private static Dictionary<string, int> GetUniqueIndentifierColumns(string targetTable) {
         Dictionary<string, int> columnUniqueIdentifiers = new Dictionary<string, int>();
 
@@ -1328,7 +1328,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return columnUniqueIdentifiers;
     }
 
-    [Trace]
+   //[Trace]
     private string GetTargetTable(string commandText) {
         // Extract the name of the table target by the SQL query
         var match = Regex.Match(commandText, @"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]",
@@ -1336,7 +1336,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return match.Success ? match.Groups["Target"].Value : null;
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, string, string) HasOrderByCondition(string commandText) {
         // Searches for either a ASC or DESC pattern. Will not match in the default case.
         var match = Regex.Match(commandText, @"ORDER BY\s+\[[_a-zA-Z]+\]\.\[(?<Column>[_a-zA-Z]+)\]\s*(?<Type>ASC|DESC|)",
@@ -1351,21 +1351,21 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, string) HasOffsetCondition(string commandText) {
         var match = Regex.Match(commandText, @"OFFSET\s+(?<OffsetValue>[@_a-zA-Z\d]+)\s+ROWS",
             RegexOptions.IgnoreCase | RegexOptions.Multiline);
         return match.Success ? (true, match.Groups["OffsetValue"].Value) : (false, null);
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, string) HasFetchNextCondition(string commandText) {
         var match = Regex.Match(commandText, @"FETCH NEXT\s+(?<FetchRows>[@_a-zA-Z\d]+)\s+ROWS",
             RegexOptions.IgnoreCase | RegexOptions.Multiline);
         return match.Success ? (true, match.Groups["FetchRows"].Value) : (false, null);
     }
 
-    [Trace]
+   //[Trace]
     private (Boolean, List<string>) HasPartialRowSelection(string commandText) {
         // Extract SELECT clause parameters
         string subCommandText = commandText.Replace(commandText.Substring(commandText.IndexOf("FROM")), "");
@@ -1405,7 +1405,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return commandText.Contains("COUNT");
     }
 
-    [Trace]
+   //[Trace]
     private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp) {
         // The cases where this applies are:
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
@@ -1441,7 +1441,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
     }
 
-    [Trace]
+   //[Trace]
     private List<Tuple<string, string>> GetWhereConditions(DbCommand command) {
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
         
@@ -1472,7 +1472,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return conditions;
     }
 
-    [Trace]
+   //[Trace]
     private List<object[]> ApplyFilterToProposedSet(List<object[]> proposedSet, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
         string targetTable = GetTargetTable(command.CommandText);

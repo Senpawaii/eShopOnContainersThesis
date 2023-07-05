@@ -6,7 +6,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using System.Collections.Concurrent;
 using System.Globalization;
 using static System.Net.Mime.MediaTypeNames;
-using NewRelic.Api.Agent;
+//using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
     public class TCCMiddleware {
@@ -22,7 +22,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
-        [Trace]
+       //[Trace]
         public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata, 
             ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper, IOptions<DiscountSettings> settings) {
             
@@ -125,7 +125,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             }
         }
 
-        [Trace]
+       //[Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
             // Set functionality state to the in commit
             _data_wrapper.SingletonSetTransactionState(clientID, true);
