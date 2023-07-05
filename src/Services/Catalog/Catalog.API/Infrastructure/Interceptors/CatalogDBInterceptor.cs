@@ -1762,7 +1762,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
             string parameterName = match.Groups["paramValue2"].Value;
             var parameterValue = command.Parameters[parameterName].Value;
-
+            _logger.LogInformation("Parameter name: " + parameterName + " Parameter value: " + parameterValue.ToString() + " Column name: " + columnName);
             // Add the condition to the list
             Tuple<string, string> condition = new Tuple<string, string>(columnName, parameterValue.ToString());
             conditions.Add(condition);
