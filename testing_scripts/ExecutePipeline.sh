@@ -1,9 +1,11 @@
+#!/bin/bash
+
 # Define the two versions of our system: MicroTCC and BaseTCC in a list
-# systems=("BaseTCC", "µTCC")
-systems=("BaseTCC")
-# data_contention=("high", "low")
-data_contention=("high")
-test_VUs=(1)
+systems=("BaseTCC", "µTCC")
+# systems=("BaseTCC")
+data_contention=("high", "low")
+# data_contention=("high")
+test_VUs=(1, 5, 10, 20, 40, 80, 160, 240, 320, 400, 480, 560, 640, 720, 800, 880, 960, 1040, 1120, 1200, 1280, 1360, 1440, 1520, 1600)
 test_duration=(30s)
 current_date=$(date +%Y-%m-%d_%H-%M-%S)
 
