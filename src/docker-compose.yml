@@ -129,10 +129,6 @@ services:
   mobileshoppingagg:
     image: ${REGISTRY:-eshop}/mobileshoppingagg:${PLATFORM:-linux}-${TAG:-latest}
     profiles: ["EntireApp"]
-
-  mobileshoppingagg:
-    image: ${REGISTRY:-eshop}/mobileshoppingagg:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: ApiGateways/Mobile.Bff.Shopping/aggregator/Dockerfile
@@ -222,4 +218,4 @@ services:
   webshoppingapigw:
     profiles: ["EntireApp"]
     image: envoyproxy/envoy:v1.11.1
-    profiles: ["total"]
+    
