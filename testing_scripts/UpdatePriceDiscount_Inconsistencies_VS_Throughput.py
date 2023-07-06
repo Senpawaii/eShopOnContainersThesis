@@ -17,13 +17,13 @@ import sys
     The script will log the response from the Catalog.API service and the Discount.API service.
     The script will also log the response from the Basket.API service.
 """
-numThreads = 32 # Number of threads to be used in the test
-secondsToRun = 60 # Number of seconds to run the test
+numThreads = 128 # Number of threads to be used in the test
+secondsToRun = 20 # Number of seconds to run the test
 read_write_ratio = 2 # Scale of 0 to 10, 0 being 100% read, 10 being 100% write
-throughput_step = 0 # Number of requests per second to increase throughput by
-throughput = 340 # requests per second
-max_throughput = 340
-contention_rows = 6 # Number of rows to be used in the test
+throughput_step = 30 # Number of requests per second to increase throughput by
+throughput = 40 # requests per second
+max_throughput = 700
+contention_rows = 24 # Number of rows to be used in the test
 # wrappers = True # True if the test is being run with wrappers, False if the test is being run without wrappers
 
 thesisFrontendPort = "5142"
@@ -181,8 +181,18 @@ def readBasket(timeTakenList: dict, successCount: dict, logger: logging.Logger, 
     # Measure time taken to send request with nano seconds precision
     start = perf_counter_ns()
 
-    # Send request
-    response = requests.get(address)
+    success = False
+    while not success:
+        try:
+            # Send request
+            response = requests.get(address)
+            if(response.status_code == 200): 
+                success = True
+        except:
+            # Sleep for 10ms
+            logging.info("Error reading basket. Retrying in 10ms")
+            time.sleep(0.01)
+            continue
 
     # Stop timer
     end = perf_counter_ns()
@@ -272,7 +282,18 @@ def updatePriceAndDiscount(catalogItem: dict, discountItem: dict, price: int, di
     # Measure time taken to send request with nano seconds precision
     start = perf_counter_ns()
 
-    response = requests.put(address, json=payload)
+    success = False
+    while not success:
+        try:
+            # Send request
+            response = requests.put(address, json=payload)
+            if(response.status_code == 200): 
+                success = True
+        except:
+            # Sleep for 10ms
+            logging.info("Error updating price and discount Status_Code:"+ response.status_code +". Retrying in 10ms")
+            time.sleep(0.01)
+            continue
 
     # Stop timer
     end = perf_counter_ns()
@@ -318,7 +339,7 @@ def assign_operations(executor: ThreadPoolExecutor, futuresThreads: list, catalo
         random_choice = random.choice(read_write_list)
         if random_choice == 0:
             # Read operation
-            readOperationsCount += 1
+            # readOperationsCount += 1
             future = executor.submit(readBasket, timeTakenList, successCount, logger, f"basket{index}", contention)
             
             futuresThreads.append(future)
@@ -326,7 +347,7 @@ def assign_operations(executor: ThreadPoolExecutor, futuresThreads: list, catalo
             time.sleep(request_interval)
         else:
             # Write operation
-            writeOperationsCount += 1
+            # writeOperationsCount += 1
             future = executor.submit(writeOperations, copy.deepcopy(catalogItems[index]), copy.deepcopy(discountItems[index]), timeTakenList, successCount, logger)
             futuresThreads.append(future)
             # Limit the throughput to 2 * throughtput request per second: 1 for catalogpPriceUpdate and 1 for discountUpdate
@@ -360,9 +381,6 @@ def check_discount_from_log_file(file_path):
                     anomaly_line_presence.append(line)
 
     return results, anomaly_line_presence
-
-
-# def generatePlots():
 
 
 # Create predefined list of prices and discounts to be used in tests equal to the number of threads
@@ -411,10 +429,7 @@ def main():
     testNum = 0
     while throughput <= max_throughput:
         testNum += 1
-        if(testNum == 5):
-            throughput = 20
-        if(testNum == 7):
-            break
+        
         # Configure logging settings for each read/write ratio test
         logger, log_file = ConfigureLoggingSettings(testNum, throughput, test_logging_path)
         logger.log(logging.INFO, "Logging")
@@ -487,7 +502,7 @@ def main():
         logger.info("Success rate: " + str(successRate * 100) + "% - (" + str(sum([successCount[i] for i in successCount])) + "/" + str(total_requests) + ")")
 
         # Log the average functionalities per seconds
-        logger.info("Functionalities per second: " + str((readOperationsCount + writeOperationsCount) / (secondsToRun)))
+        logger.info("Functionalities per second: " + str(total_success_count / (secondsToRun)))
 
         results, anomaly_line_presence = check_discount_from_log_file(log_file)
         resultsList.append(results)
@@ -497,30 +512,13 @@ def main():
         if results['anomalies'] > 0:
             for line in anomaly_line_presence:
                 logger.info(line)
-        logger.info("Anomalies ratio: " + str((results['anomalies'] / readOperationsCount) * 100) + "% (" + str(results['anomalies']) + "/" + str(readOperationsCount) + ")")
+        # logger.info("Anomalies ratio: " + str((results['anomalies'] / readOperationsCount) * 100) + "% (" + str(results['anomalies']) + "/" + str(readOperationsCount) + ")")
         logger.info("=========================================")
 
         throughput += throughput_step
 
     # Shutdown executor
     executor.shutdown(wait=True)
-
-    # generatePlots()
-
-    # logging.info("Average time taken for each read/write ratio:")
-    # for i in range(len(read_write_ratio)):
-    #     logging.info(str(read_write_ratio[i]) + "/10: " + str(averageTimeTakenList[i]) + " ns")
-    #     logging.info("Success rate: " + str(successRatioList[i] * 100) + "%" + str(sum(successRatioList[j] for j in successRatioList[i])) + "/" + str(totalRequestsList[i]) + ")")
-    #     logging.info("Requests per second: " + str(requestsPerSecond[i]))
-    #     logging.info("Total time taken: " + str(totalTimeTakenList[i]) + " s")
-    #     logging.info("Total requests: " + str(totalRequestsList[i]))
-    #     logging.info("Success count: " + str(successCountList[i]))
-    #     logging.info("Results: " + str(resultsList[i]['OK']) + " OK, " + str(resultsList[i]['anomalies']) + " anomalies")
-    #     if resultsList[i]['anomalies'] > 0:
-    #         for line in anomalyLinePresenceList[i]:
-    #             logging.info(line, end='')
-        
-    #     logging.info("Anomalies ratio: " + str(resultsList[i]['anomalies'] / (resultsList[i]['OK'] + resultsList[i]['anomalies']) * 100) + "%")
 
 
 if __name__ == "__main__":

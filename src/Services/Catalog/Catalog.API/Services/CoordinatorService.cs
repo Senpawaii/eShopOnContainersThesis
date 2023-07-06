@@ -24,6 +24,7 @@ public class CoordinatorService : ICoordinatorService {
 
     public async Task SendTokens() {
         int tokensToSend = _remainingTokens.GetRemainingTokens(_metadata.ClientID);
+        // _logger.LogInformation($"ClientID {_metadata.ClientID}: Send {tokensToSend} tokens to coordinator. Readonly={_metadata.ReadOnly}");
         string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={tokensToSend}&clientID={_metadata.ClientID}&serviceName=CatalogService&readOnly={_metadata.ReadOnly}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);

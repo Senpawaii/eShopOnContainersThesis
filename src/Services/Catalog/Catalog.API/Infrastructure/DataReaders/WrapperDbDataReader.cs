@@ -140,6 +140,12 @@ public class WrapperDbDataReader : DbDataReader
         }
 
         var schemaTable = _dataReader.GetSchemaTable();
+        if (schemaTable.Rows.Count <= ordinal) {
+            // Log the schema rows
+            var row1 = schemaTable.Rows[0];
+            var row2 = schemaTable.Rows[1];
+            throw new InvalidOperationException($"There are fewer schema rows ({schemaTable.Rows.Count}) than the ordinal ({ordinal}) requested. Row 1: {row1["ColumnName"]} - {row1["DataType"]}. Row 2: {row2["ColumnName"]} - {row2["DataType"]}");
+        }
         var row = schemaTable.Rows[ordinal];
         var columnType = (Type)row["DataType"];
         return columnType;
@@ -163,9 +169,17 @@ public class WrapperDbDataReader : DbDataReader
         {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
-
+        Console.WriteLine($"Ordinal: {ordinal}");
+        Console.WriteLine($"FieldCount: {FieldCount}");
+        Console.WriteLine($"_data.Count: {_data.Count}");
+        Console.WriteLine($"_rowIndex: {_rowIndex}");
+        
         var value = _data[_rowIndex][ordinal];
-        return Convert.ToInt16(value);
+        try{
+            return Convert.ToInt16(value);
+        } catch (Exception ex) {
+            throw new Exception($"Error converting {value} to Int16", ex);
+        }
     }
 
     public override int GetInt32(int ordinal)
@@ -176,7 +190,11 @@ public class WrapperDbDataReader : DbDataReader
         }
 
         var value = _data[_rowIndex][ordinal];
-        return Convert.ToInt32(value);
+        try {
+            return Convert.ToInt32(value);
+        } catch (Exception ex) {
+            throw new Exception($"Error converting {value} to Int32", ex);
+        }
     }
 
     public override long GetInt64(int ordinal)

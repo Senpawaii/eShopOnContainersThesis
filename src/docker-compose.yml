@@ -1,6 +1,20 @@
 version: '3.4'
 
 services:
+  #agent:
+  #  container_name: newrelic-infra
+  #  build:
+  #    context: .
+  #    dockerfile: Services/NewRelicInfrastructure/newrelic-infra.dockerfile
+  #  cap_add:
+  #    - SYS_PTRACE
+  #  network_mode: host
+  #  pid: host
+  #  privileged: true
+  #  volumes:
+  #    - "/:/host:ro"
+  #    - "/var/run/docker.sock:/var/run/docker.sock"
+  #  restart: unless-stopped
 
   seq:
     image: datalust/seq:latest
@@ -72,7 +86,7 @@ services:
 
   ordering-api:
     image: ${REGISTRY:-eshop}/ordering.api:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Services/Ordering/Ordering.API/Dockerfile
@@ -82,7 +96,7 @@ services:
 
   ordering-backgroundtasks:
     image: ${REGISTRY:-eshop}/ordering.backgroundtasks:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Services/Ordering/Ordering.BackgroundTasks/Dockerfile
@@ -92,7 +106,7 @@ services:
 
   payment-api:
     image: ${REGISTRY:-eshop}/payment.api:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Services/Payment/Payment.API/Dockerfile
@@ -101,7 +115,7 @@ services:
 
   webhooks-api:
     image: ${REGISTRY:-eshop}/webhooks.api:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Services/Webhooks/Webhooks.API/Dockerfile
@@ -110,11 +124,15 @@ services:
 
   mobileshoppingapigw:
     image: envoyproxy/envoy:v1.11.1
-    profiles: ["total"]
+    profiles: ["EntireApp"]
 
   mobileshoppingagg:
     image: ${REGISTRY:-eshop}/mobileshoppingagg:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
+
+  mobileshoppingagg:
+    image: ${REGISTRY:-eshop}/mobileshoppingagg:${PLATFORM:-linux}-${TAG:-latest}
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: ApiGateways/Mobile.Bff.Shopping/aggregator/Dockerfile
@@ -131,7 +149,7 @@ services:
 
   webshoppingagg:
     image: ${REGISTRY:-eshop}/webshoppingagg:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: ApiGateways/Web.Bff.Shopping/aggregator/Dockerfile
@@ -148,7 +166,7 @@ services:
 
   ordering-signalrhub:
     image: ${REGISTRY:-eshop}/ordering.signalrhub:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Services/Ordering/Ordering.SignalrHub/Dockerfile
@@ -165,14 +183,14 @@ services:
 
   webstatus:
     image: ${REGISTRY:-eshop}/webstatus:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Web/WebStatus/Dockerfile
 
   webspa:
     image: ${REGISTRY:-eshop}/webspa:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Web/WebSPA/Dockerfile
@@ -184,7 +202,7 @@ services:
 
   webmvc:
     image: ${REGISTRY:-eshop}/webmvc:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Web/WebMVC/Dockerfile
@@ -194,7 +212,7 @@ services:
 
   webhooks-client:
     image: ${REGISTRY:-eshop}/webhooks.client:${PLATFORM:-linux}-${TAG:-latest}
-    profiles: ["total"]
+    profiles: ["EntireApp"]
     build:
       context: .
       dockerfile: Web/WebhookClient/Dockerfile
@@ -202,5 +220,6 @@ services:
       - webhooks-api
 
   webshoppingapigw:
+    profiles: ["EntireApp"]
     image: envoyproxy/envoy:v1.11.1
     profiles: ["total"]

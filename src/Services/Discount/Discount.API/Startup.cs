@@ -45,8 +45,11 @@ public class Startup {
                 .AddScoped<IScopedMetadata, ScopedMetadata>()
                 .AddSingleton<ITokensContextSingleton, TokensContextSingleton>()
                 .AddSingleton<ISingletonWrapper, SingletonWrapper>()
-                .AddHostedService<GarbageCollectionService>()
                 .AddHttpClient<ICoordinatorService, CoordinatorService>();
+
+            if (Configuration["Limit1Version"] == "False") {
+                services.AddHostedService<GarbageCollectionService>();
+            }
 
         }
 

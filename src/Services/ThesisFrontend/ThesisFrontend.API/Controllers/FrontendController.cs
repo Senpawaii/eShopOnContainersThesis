@@ -5,6 +5,8 @@ using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 using Newtonsoft.Json.Linq;
 using System.Linq.Expressions;
 using System.Net.Http;
+//using NewRelic.Api.Agent;
+
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Controllers;
 
@@ -29,6 +31,7 @@ public class FrontendController : ControllerBase {
     [Route("readbasket")]
     [ProducesResponseType(typeof(BasketData), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+   //[Trace]
     public async Task<IActionResult> ReadBasketAsync([FromQuery] string basketId) {
         // Check if the basket id is valid
         if (string.IsNullOrEmpty(basketId)) {
@@ -48,6 +51,7 @@ public class FrontendController : ControllerBase {
     [Route("readcatalogitem/{id:int}")]
     [ProducesResponseType(typeof(CatalogItem), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+   //[Trace]
     public async Task<ActionResult<CatalogItem>> ReadCatalogItemAsync(int id) {
         // Check if the id is valid
         if (id <= 0) {
@@ -67,6 +71,7 @@ public class FrontendController : ControllerBase {
     [Route("catalogbrands")]
     [ProducesResponseType(typeof(IEnumerable<CatalogBrand>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+   //[Trace]
     public async Task<ActionResult<IEnumerable<CatalogBrand>>> ReadCatalogBrandsAsync() {
         var catalogBrands = await _catalogService.GetCatalogBrandsAsync();
         if (catalogBrands == null) {
@@ -81,6 +86,7 @@ public class FrontendController : ControllerBase {
     [Route("catalogtypes")]
     [ProducesResponseType(typeof(IEnumerable<CatalogType>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+   //[Trace]
     public async Task<ActionResult<IEnumerable<CatalogType>>> ReadCatalogTypesAsync() {
         var catalogTypes = await _catalogService.GetCatalogTypesAsync();
         if (catalogTypes == null) {
@@ -95,6 +101,7 @@ public class FrontendController : ControllerBase {
     [Route("readdiscounts")]
     [ProducesResponseType(typeof(IEnumerable<DiscountItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+   //[Trace]
     public async Task<ActionResult<IEnumerable<DiscountItem>>> ReadDiscountItems([FromQuery] List<string> itemNames, [FromQuery] List<string> itemBrands, [FromQuery] List<string> itemTypes) {
         // Check if the itemNames, itemBrands, and itemTypes are valid
         if (itemNames == null || itemBrands == null || itemTypes == null) {
@@ -113,6 +120,7 @@ public class FrontendController : ControllerBase {
     [Route("additemtobasket")]
     [ProducesResponseType(typeof(BasketData), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+   //[Trace]
     public async Task<IActionResult> AddItemToBasketAsync([FromBody] AddItemToBasketRequest request) {
         // Check if the request is valid
         if (request == null) {
@@ -179,6 +187,7 @@ public class FrontendController : ControllerBase {
     [Route("updatepricediscount")]
     [ProducesResponseType((int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+   //[Trace]
     public async Task<IActionResult> UpdatePriceDiscountAsync([FromBody] UpdatePriceDiscountRequest request) {
         // Check if the CatalogItem and DiscountItem are valid
         if (request == null) {
@@ -219,14 +228,13 @@ public class FrontendController : ControllerBase {
             _logger.LogError($"An error occurered while updating the Discount Value async");
             return BadRequest();
         }
-
-
         return Ok();
     }
 
     [HttpGet]
     [Route("commit")]
     [ProducesResponseType((int)HttpStatusCode.OK)]
+   //[Trace]
     public Task CommitTransaction() {
         return Task.CompletedTask;
     }

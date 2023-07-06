@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Utilities;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Microsoft.IdentityModel.Tokens;
@@ -35,8 +36,26 @@ public class DiscountController : ControllerBase {
         
         // Log the request
         // _logger.LogInformation($"Received request to read discount items with item names: {string.Join(",", itemNames)}, item brands: {string.Join(",", itemBrands)}, and item types: {string.Join(",", itemTypes)}");
-        
-        var discounts = await _discountContext.Discount.Where(i => itemNames.Contains(i.ItemName) && itemBrands.Contains(i.ItemBrand) && itemTypes.Contains(i.ItemType)).ToListAsync();
+        var discountsT = _discountContext.Discount.Where(i => itemNames.Contains(i.ItemName) && itemBrands.Contains(i.ItemBrand) && itemTypes.Contains(i.ItemType));
+        List<DiscountItem> discounts;
+        try {
+            // _logger.LogInformation("Before ToListAsync()");
+            discounts = await discountsT.ToListAsync();
+        } catch (Exception e) {
+            _logger.LogError(e, "Error occurred while reading discount items from the database");
+            return BadRequest("Error occurred while reading discount items from the database");
+        }
+        if(discounts.IsNullOrEmpty()) {
+            _logger.LogInformation("No discounts were found for the given item names, brands, and types");
+            // Create a new default discount item
+            var defaultDiscount = new DiscountItem {
+                ItemName = "Default Item",
+                ItemBrand = "Default Brand",
+                ItemType = "Default Type",
+                DiscountValue = 1
+            };
+            discounts.Add(defaultDiscount);
+        }
         return Ok(discounts);
     }
 
@@ -94,7 +113,7 @@ public class DiscountController : ControllerBase {
         var itemType = discountToUpdate.ItemType;
 
         // Get the discount item from the database
-        var discountItem = await _discountContext.Discount.SingleOrDefaultAsync(i => i.ItemName == itemName && i.ItemBrand == itemBrand && i.ItemType == itemType);
+        var discountItem = await _discountContext.Discount.SingleOrDefaultAsync(i => i.Id == discountToUpdate.Id);
 
         if (discountItem == null) {
             return NotFound($"Discount Item with Name: {itemName}, Brand: {itemBrand}, and Type: {itemType} was not found.");
@@ -112,12 +131,15 @@ public class DiscountController : ControllerBase {
 
         // _logger.LogInformation($"Checkpoint Update: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
-        await _discountContext.SaveChangesAsync();
+        await ResilientTransaction.New(_discountContext).ExecuteAsync(async () => {
+            // Save the changes to the database
+            await _discountContext.SaveChangesAsync();
+        });
 
         // _logger.LogInformation($"Checkpoint Saved Changes: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         // Return the updated discount item
-        return CreatedAtAction(nameof(DiscountsAsync), new { itemName = discountItem.ItemName, itemBrand = discountItem.ItemBrand, itemType = discountItem.ItemType }, null);
+        return CreatedAtAction(nameof(DiscountsAsync), new { discountToUpdate.Id }, null);
     }
 
     [HttpGet]

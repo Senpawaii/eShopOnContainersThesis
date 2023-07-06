@@ -1,6 +1,7 @@
 ﻿using Microsoft.ApplicationInsights.AspNetCore.Extensions;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
+//using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Middleware;
 public class TCCMiddleware {
@@ -18,6 +19,7 @@ public class TCCMiddleware {
         _coordinatorSvc = coordinatorSvc;
     }
 
+   //[Trace]
     public async Task Invoke(HttpContext httpctx) {
         string currentUri = httpctx.Request.GetUri().ToString();
 
@@ -40,10 +42,6 @@ public class TCCMiddleware {
 
         // Send the rest of the tokens to the coordinator
         if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID.Value) > 0) {
-            if(currentUri.Contains("updatepricediscount")) {
-                _request_metadata.ReadOnly.Value = false;    
-            }
-            
             await _coordinatorSvc.SendTokens();
         }
 
@@ -83,10 +81,11 @@ public class TCCMiddleware {
 
     }
 
+   //[Trace]
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
-            _logger.LogInformation($"Committing transaction for {_request_metadata.ClientID.Value}");
+            // _logger.LogInformation($"Committing transaction for {_request_metadata.ClientID.Value}");
         }
         else {
             _logger.LogError("ClientID not found in the request");
@@ -106,6 +105,7 @@ public class TCCMiddleware {
         }
     }
 
+   //[Trace]
     private void ChangeTransactionState(string clientID, string state) {
         _remainingTokens.ChangeTransactionState(clientID, state);
     }
@@ -123,8 +123,10 @@ public class TCCMiddleware {
         _request_metadata.Tokens.Value = tokens;
         _request_metadata.Timestamp.Value = timestamp;
         _request_metadata.ClientID.Value = clientID;
+        _request_metadata.ReadOnly.Value = true;
     }
 
+   //[Trace]
     private string GenerateRandomString(int length) {
     Random random = new Random();
     const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

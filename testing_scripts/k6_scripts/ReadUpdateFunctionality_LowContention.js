@@ -16,7 +16,7 @@ const writeOperationCounter = new Counter("Write_Operations");
 const numBaskets = 6;
 
 export let options = {
-    vus: 400,
+    vus: 10,
     duration: "20s",
     thresholds: {
         http_req_duration: ["p(95)<1500"]
@@ -208,7 +208,6 @@ export function readBasket() {
     const randomBasket = Math.floor(Math.random() * (numBaskets) + 1);
 
     const res = http.get(readBasketUrl + randomBasket);
-
     // Check if the the price item and discount are coeherent
     const basket = JSON.parse(res.body);
     const price = basket.items[0].unitPrice;

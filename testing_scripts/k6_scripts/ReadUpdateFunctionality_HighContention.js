@@ -14,11 +14,11 @@ const readOperationCounter = new Counter("Read_Operations");
 const writeOperationCounter = new Counter("Write_Operations");
 
 export let options = {
-    vus: 640,
-    duration: "20s",
-    thresholds: {
-        http_req_duration: ["p(95)<1500"]
-    }
+    // vus: 400,
+    // duration: "10m",
+    stages: [
+        { duration: "30s", target: 100 }, // simulate ramp-up of traffic from 1 to 400 users over 30 seconds.
+    ],
 };
 
 

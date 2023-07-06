@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using System.Text;
+//using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.Services;
 public class DiscountService : IDiscountService {
@@ -19,6 +20,7 @@ public class DiscountService : IDiscountService {
         _remoteDiscountServiceBaseUrl = settings.Value.DiscountUrl;
     }
 
+   //[Trace]
     public async Task<IEnumerable<DiscountItem>> GetDiscountItemsAsync(List<string> itemNames, List<string> itemBrands, List<string> itemTypes) {
         try {
             // Make sure the items Names that include "&" are encoded correctly as "%26"
@@ -29,7 +31,7 @@ public class DiscountService : IDiscountService {
             var uri = $"{_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}";
 
             // Log the request URI
-            _logger.LogInformation($"Sending request to {_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}");
+            // _logger.LogInformation($"Sending request to {_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}");
 
             // Set the request timeout
             _httpClient.Timeout = TimeSpan.FromSeconds(10);
@@ -49,6 +51,7 @@ public class DiscountService : IDiscountService {
         }
     }
 
+   //[Trace]
     public async Task<HttpStatusCode> UpdateDiscountValueAsync(DiscountItem discountItem) {
         try {
             var uri = $"{_remoteDiscountServiceBaseUrl}discounts";

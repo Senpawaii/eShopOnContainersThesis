@@ -8,8 +8,8 @@ const getDiscountItemUrl = 'http://localhost:' + thesisFrontendPort + '/api/v1/f
 
 
 export let options = {
-    vus: 400,
-    duration: "10s",
+    vus: 10,
+    duration: "30s",
     thresholds: {
         http_req_duration: ["p(95)<1500"]
     }

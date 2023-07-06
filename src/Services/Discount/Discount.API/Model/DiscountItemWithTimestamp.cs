@@ -8,7 +8,7 @@
 
         public int DiscountValue { get; set; }
 
-        public DateTime? Timestamp { get; set; }
+        public DateTime Timestamp { get; set; }
 
         public DiscountItemWithTimestamp() { }
 

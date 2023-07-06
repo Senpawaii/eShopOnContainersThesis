@@ -46,7 +46,7 @@ public class RedisBasketRepository : IBasketRepository
 
         // Update each basket item price and discount from the catalog and discount services
         foreach (var item in basket.Items) {
-            _logger.LogInformation($"Updating item {item.ProductId} of basket {basket.BuyerId} with product price and discount");
+            // _logger.LogInformation($"Updating item {item.ProductId} of basket {basket.BuyerId} with product price and discount");
             var catalogItemPrice = await _catalogService.GetCatalogItemPriceAsync(item.ProductName, item.ProductBrand, item.ProductType);
             var discountValue = await _discountService.GetDiscountValueAsync(item.ProductName, item.ProductBrand, item.ProductType);
             item.UnitPrice = catalogItemPrice;
@@ -66,7 +66,7 @@ public class RedisBasketRepository : IBasketRepository
             return null;
         }
 
-        _logger.LogInformation("Basket item persisted succesfully.");
+        // _logger.LogInformation("Basket item persisted succesfully.");
 
         return await GetBasketAsync(basket.BuyerId);
     }

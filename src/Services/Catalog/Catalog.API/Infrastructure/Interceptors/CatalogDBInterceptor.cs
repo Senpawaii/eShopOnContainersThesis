@@ -21,6 +21,15 @@ using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using Autofac.Core;
 using System.Runtime.CompilerServices;
 using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
+using NewRelic.Api.Agent;
+using Microsoft.Extensions.Logging;
+using System.Data;
+using System.Text;
+using Microsoft.Data.SqlClient;
+using System.Diagnostics;
+using System.Runtime.ConstrainedExecution;
+using Microsoft.Extensions.ObjectPool;
+using SqlParameter = Microsoft.Data.SqlClient.SqlParameter;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.Interceptors;
 public class CatalogDBInterceptor : DbCommandInterceptor {
@@ -29,6 +38,49 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     const int UPDATE_COMMAND = 3;
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
+
+    private static readonly Regex StoreInWrapperV2InsertRegex = new Regex(@"(?:, |\()\[(\w+)\]", RegexOptions.Compiled);
+    private static readonly Regex StoreInWrapperV2UpdateRegex = new Regex(@"\[(\w+)\] = (@\w+)", RegexOptions.Compiled);
+    private static readonly Regex GetTargetTableRegex = new Regex(@"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]", RegexOptions.Compiled);
+    private static readonly Regex GetSelectedColumnsRegex = new Regex(@"SELECT\s+(.*?)\s+FROM", RegexOptions.Compiled);
+    private static readonly Regex GetWhereConditionsRegex = new Regex(@"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)", RegexOptions.Compiled);
+    private static readonly Regex GetWhereConditionsColumnAndValueRegex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))", RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> columnIndexesBrand = new Dictionary<string, int> {
+        { "Id", 0 },
+        { "Brand", 1 }
+    };
+
+    private static readonly Dictionary<string, int> columnIndexesItem = new Dictionary<string, int> {
+        { "Id", 0 },
+        { "CatalogBrandId", 1 },
+        { "CatalogTypeId", 2 },
+        { "Description", 3 },
+        { "Name", 4 },
+        { "PictureFileName", 5 },
+        { "Price", 6 },
+        { "AvailableStock", 7 },
+        { "MaxStockThreshold", 8 },
+        { "OnReorder", 9 },
+        { "RestockThreshold", 10 }
+    };
+
+    private static readonly Dictionary<string, int> columnIndexesType = new Dictionary<string, int> {
+          { "Id", 0 },
+          { "Type", 1 }
+    };
+
+    // Benchmarking stuff
+    public static ConcurrentBag<TimeSpan> Timespans = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans2 = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans3 = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans4 = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans5 = new ConcurrentBag<TimeSpan>();
+    public static ConcurrentBag<TimeSpan> Timespans6 = new ConcurrentBag<TimeSpan>();
+
+    public static TimeSpan Average(IEnumerable<TimeSpan> spans) {
+        return TimeSpan.FromSeconds(spans.Select(s => s.TotalSeconds).Average());
+    }
 
     public CatalogDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<CatalogContext> logger, IOptions<CatalogSettings> settings) {
         _request_metadata = requestMetadata;
@@ -43,6 +95,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     public ILogger<CatalogContext> _logger;
     public IOptions<CatalogSettings> _settings;
 
+   //[Trace]
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result) {
 
@@ -50,14 +103,8 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         (var commandType, var targetTable) = GetCommandInfo(command);
 
-        if (commandType == UNKNOWN_COMMAND) {
-            return result;
-        }
-
-        // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
 
-        // Check if is this a client session context (ID differs from null)
         if (clientID == null) {
             // This is a system query
             return result;
@@ -67,8 +114,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case UNKNOWN_COMMAND:
                 return result;
             case SELECT_COMMAND:
-                UpdateSelectCommand(command, targetTable);
-                WaitForProposedItemsIfNecessary(command, clientID);
+                string clientTimestamp =  _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+                if(_settings.Value.Limit1Version) {
+                    UpdateSelectCommandV2(command, targetTable, clientTimestamp);
+                } else {
+                    UpdateSelectCommand(command, targetTable);
+                }
+                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp, targetTable);
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
@@ -77,10 +129,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
                     // If the Transaction is not in commit state, store data in wrapper
-                    var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                    var mockReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                 }
                 else {
+                    // _logger.LogInformation($"ClientID: {clientID} is in commit state. Updating the command text.");
                     // Transaction is in commit state, update the command to store in the database
                     UpdateInsertCommand(command, targetTable);
                 }
@@ -89,34 +142,65 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
 
-                // Convert the Update Command into an INSERT command
-                Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
-
-                // Create a new INSERT command
-                string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
-
-                // Add the columns incased in squared brackets
-                insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
-
-                // Add the values
-                insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
-
-                if (columnsToInsert != null) {
-                    command.CommandText = insertCommand;
-                    // Clear the existing parameters
-                    command.Parameters.Clear();
-                    foreach (var column in columnsToInsert) {
-                        // Add the new parameter to the command
-                        DbParameter newParameter = command.CreateParameter();
-                        newParameter.ParameterName = column.Key;
-                        newParameter.Value = column.Value;
-                        command.Parameters.Add(newParameter);
+                bool transactionState = _wrapper.SingletonGetTransactionState(clientID);
+                if(_settings.Value.Limit1Version) {
+                    if (!transactionState) {
+                        // Transaction is not in commit state, add to the wrapper
+                        // _logger.LogInformation(command.CommandText);
+                        Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command); // Get the columns and parameter names
+                        var mockReader = StoreDataInWrapper1RowVersion(command, columnsToInsert, targetTable);
+                        result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
+                        break;
+                    } 
+                    else {
+                        // _logger.LogInformation($"ClientID {clientID} is in commit state");
+                        // Transaction is in commit state, update the row in the database
+                        UpdateUpdateCommand(command, targetTable, clientID);
+                        // _logger.LogInformation($"ClientID {clientID} updated the command text to: {command.CommandText}");
+                        // _logger.LogInformation("Checkpoint command before DB commit: {0}", command.CommandText);
+                        break;
                     }
-                }
+                } 
+                else {
+                    // Convert the Update Command into an INSERT command
+                    Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command);
+                    // _logger.LogInformation("Checkpoint 1");
+                    // Create a new INSERT command
+                    var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
+                        .Append(targetTable)
+                        .Append("] (");
+                    // _logger.LogInformation("Checkpoint 2");
+                    // Add the columns incased in squared brackets
+                    var columnNames = columnsToInsert.Keys.Select(x => $"[{x}]");
+                    insertCommand.Append(string.Join(", ", columnNames));
+                    // _logger.LogInformation("Checkpoint 3");
+                    // Add the values as parameters
 
-                // If the Transaction is not in commit state, store data in wrapper
-                var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                    //var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
+                    //var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
+
+                    var parameterNames = columnsToInsert.Select(x => x.Value.ParameterName).ToArray();
+                    var parameters = columnsToInsert.Select(x => x.Value).ToArray();
+
+                    insertCommand.Append(") VALUES (")
+                        .Append(string.Join(", ", parameterNames))
+                        .Append(")");
+                    // _logger.LogInformation("Checkpoint 4");
+                    // _logger.LogInformation("Parameters Names: {0}", string.Join(", ", parameters.Select(x => $"{x.ParameterName}: {x.Value}")));
+                    
+                    // Set the parameters on the command
+                    command.Parameters.Clear();
+                    command.Parameters.AddRange(parameters);
+                    // _logger.LogInformation("Checkpoint 5");
+                    // Set the command text to the INSERT command
+                    command.CommandText = insertCommand.ToString();
+                    // _logger.LogInformation($"ClientID: {clientID}, async UPODATE to INSERT new insertCommand: {insertCommand.ToString()}");
+                    // _logger.LogInformation($"ClientID: {clientID}, Async UPDATE to INSERT command text: {command.CommandText}");
+                    // If the Transaction is not in commit state, store data in wrapper
+                    var updateToInsertReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
+                    // _logger.LogInformation("Checkpoint 6");
+                    result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                }
                 break;
         }
 
@@ -124,20 +208,19 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return result;
     }
 
+   //[Trace]
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
         DbCommand command,
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
-        //_logger.LogInformation($"Checkpoint 2_a_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
+        
         _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
 
         // Check if the Transaction ID
         var clientID = _request_metadata.ClientID;
-
         if (clientID == null) {
             // This is a system query
             return new ValueTask<InterceptionResult<DbDataReader>>(result);
@@ -145,10 +228,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         switch (commandType) {
             case UNKNOWN_COMMAND:
-                return new ValueTask<InterceptionResult<DbDataReader>>(result);
+                return  new ValueTask<InterceptionResult<DbDataReader>>(result);
             case SELECT_COMMAND:
-                UpdateSelectCommand(command, targetTable);
-                WaitForProposedItemsIfNecessary(command, clientID);
+                string clientTimestamp =  _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+                // _logger.LogInformation($"ClientID: {clientID}, The original received SELECT command text: {command.CommandText}");
+                if(_settings.Value.Limit1Version) {
+                    UpdateSelectCommandV2(command, targetTable, clientTimestamp);
+                } else {
+                    UpdateSelectCommand(command, targetTable);
+                }
+                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp, targetTable);
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
@@ -157,113 +246,96 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
                     // If the Transaction is not in commit state, store data in wrapper
-                    var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
+                    var mockReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                 }
                 else {
+                    // _logger.LogInformation($"ClientID: {clientID} is in commit state. Updating the command text.");
                     // Transaction is in commit state, update the command to store in the database
-                    
-                    // If the Limit 1 Version flag is ON, the command to be executed is the original one - an UPDATE command
-                    if(!_settings.Value.Limit1Version) {
-                        UpdateInsertCommand(command, targetTable);
-                    } 
-                    else {
-                        // Execute the original command
-                        command.CommandText = _originalCommandText;
-                        // Log the original command
-                        _logger.LogInformation($"Original command: {command.CommandText}");
-                    }
+                    UpdateInsertCommand(command, targetTable);
                 }
                 break;
-            case UPDATE_COMMAND:
+            case UPDATE_COMMAND: // Performance-tested
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
 
-                // Convert the Update Command into an INSERT command
-                Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
-
-                // Create a new INSERT command
-                string insertCommand = $"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}]";
-
-                // Add the columns incased in squared brackets
-                insertCommand += $" ({string.Join(", ", columnsToInsert.Keys.Select(x => $"[{x}]"))})";
-
-                // Add the values
-                insertCommand += $" VALUES ({string.Join(", ", columnsToInsert.Values)})";
-
-                if (columnsToInsert != null) {
-                    command.CommandText = insertCommand;
-                    // Clear the existing parameters
-                    command.Parameters.Clear();
-                    foreach (var column in columnsToInsert) {
-                        // Add the new parameter to the command
-                        DbParameter newParameter = command.CreateParameter();
-                        newParameter.ParameterName = column.Key;
-                        newParameter.Value = column.Value;
-                        command.Parameters.Add(newParameter);
+                bool transactionState = _wrapper.SingletonGetTransactionState(clientID);
+                if(_settings.Value.Limit1Version) {
+                    if (!transactionState) {
+                        // Transaction is not in commit state, add to the wrapper
+                        Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command); // Get the columns and parameter names
+                        var mockReader = StoreDataInWrapper1RowVersion(command, columnsToInsert, targetTable);
+                        result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
+                        break;
+                    } 
+                    else {
+                        // This is only reached for the 1 version system. 
+                        // Transaction is in commit state, update the row in the database
+                        UpdateUpdateCommand(command, targetTable, clientID);
+                        // _logger.LogInformation($"ClientID {clientID} updated the command text to: {command.CommandText}");
+                        // _logger.LogInformation("Checkpoint command before DB commit: {0}", command.CommandText);
+                        break;
                     }
-                }
+                } 
+                else { // TODO: Technically we don't need to build a new INSERT command as we only store the data in the wrapper and supress the DB access. Point of improvement.
+                    // Get the columns and parameter names that are being updated
+                    Dictionary<string, SqlParameter> columnsToInsert = UpdateToInsert(command);
 
-                // If the Transaction is not in commit state, store data in wrapper
-                var updateToInsertReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
-                result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                    // Create a new INSERT command
+                    var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
+                        .Append(targetTable)
+                        .Append("] (");
+                    
+                    // Add the columns incased in squared brackets
+                    var columnNames = columnsToInsert.Keys.Select(x => $"[{x}]");
+                    insertCommand.Append(string.Join(", ", columnNames));
+                    
+                    // Add the parameters
+                    var parameterNames = columnsToInsert.Select(x => x.Value.ParameterName).ToArray();
+                    var parameters = columnsToInsert.Select(x => x.Value).ToArray();
+                    insertCommand.Append(") VALUES (")
+                        .Append(string.Join(", ", parameterNames))
+                        .Append(")");
+                    
+                    // Add the parameters to the command
+                    command.Parameters.Clear();
+                    command.Parameters.AddRange(parameters);
+                    command.CommandText = insertCommand.ToString();
+                    
+                    // Store data in wrapper
+                    var updateToInsertReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
+                    // Supress the command and return the mock reader
+                    result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                }
                 break;
         }
-
-
-        //_logger.LogInformation($"Checkpoint 2_b_async: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-        // Log the command text
-        //_logger.LogInformation($"Command Text: {command.CommandText}");
-        return new ValueTask<InterceptionResult<DbDataReader>>(result);
+        return new ValueTask<InterceptionResult<DbDataReader>>(result);;
     }
 
-    private MockDbDataReader StoreDataInWrapper(DbCommand command, int operation, string targetTable) {
+    // Not performance-tested
+    private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, Dictionary<string, SqlParameter> columnNamesAndParameters, string targetTable) {
         var clientID = _request_metadata.ClientID;
 
-        string regexPattern;
-        if (operation == INSERT_COMMAND) {
-            regexPattern = @"\[(\w+)\]";
-        } else {
-            regexPattern = @"\[(\w+)\] = (@\w+)";
-        }
-
-        // Get the number of columns in each row to be inserted
-        var regex = new Regex(regexPattern);
-        var matches = regex.Matches(command.CommandText);
-
-        var columns = new List<string>();
-
-        // Discard the first match, it is the table name
-        for(int i = 1; i < matches.Count; i++) {
-            columns.Add(matches[i].Groups[1].Value);
-        }
-
-        //var columns = matches[0].Groups["columnNames"].Value.Split(", ");
-        //for(int i = 0; i < columns.Length; i++) {
-        //    columns[i] = columns[i].Trim('[', ']');
-        //}
-
-        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);
-
+        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
         // Get the number of rows being inserted
-        int numberRows = command.Parameters.Count / columns.Count;
         var rowsAffected = 0;
-
+        
         var rows = new List<object[]>();
-        for (int i = 0; i < numberRows; i += 1) {
-            var row = new object[columns.Count + 1]; // Added Timestamp at the end
-            for(int j = 0; j < columns.Count; j++) {
-                var columnName = columns[j];
-                var paramValue = command.Parameters[(i * columns.Count) + j].Value;
-                var correctIndexToStore = standardColumnIndexes[columnName];
-                row[correctIndexToStore] = paramValue;
-            }
-            // Define the uncommitted timestamp as the current time
-            row[^1] = DateTime.UtcNow;
-            rows.Add(row);
-            rowsAffected++;
-        }
+        var row = new object[columnNamesAndParameters.Keys.Count + 1]; // Added Timestamp at the end
 
+        foreach(var columnName in columnNamesAndParameters.Keys) {
+            var sqlParameter = columnNamesAndParameters[columnName];
+            var correctIndexToStore = standardColumnIndexes[columnName];
+            row[correctIndexToStore] = sqlParameter.Value;
+        }
+        // Define the uncommitted timestamp as the current time
+        row[^1] = DateTime.UtcNow;
+        rowsAffected++;
+        rows.Add(row);
+        // Log the rows
+        // foreach (object[] roww in rows) {
+        //     _logger.LogInformation($"ClientID: {clientID} adding to the wrapper row: {string.Join(", ", roww)}");
+        // }
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
         switch (targetTable) {
@@ -280,47 +352,101 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return mockReader;
     }
 
-    public (int, string) GetCommandInfo(DbCommand command) {
-        var commandType = GetCommandType(command);
+    // Performance-tested
+   //[Trace]
+    private MockDbDataReader StoreDataInWrapperV2(DbCommand command, int operation, string targetTable) {
+        var clientID = _request_metadata.ClientID;
+        var regex = operation == UPDATE_COMMAND ? StoreInWrapperV2UpdateRegex : StoreInWrapperV2InsertRegex; // Compiled Regex patterns to get the column names
+        var matches = regex.Matches(command.CommandText); // Each match includes a column name
+        
+        var columns = new List<string>(Enumerable.Range(0, matches.Count)
+                        .Select(i => matches[i].Groups[1].Value));
+        int numberRows = command.Parameters.Count / columns.Count; // Number of rows being inserted
+        var rows = new object[numberRows][];
+        Dictionary<string, int> columnIndexes = null;
 
-        switch(commandType) {
+        int columnCount = 0;
+        switch(targetTable) {
+            case "CatalogBrand":
+                columnIndexes = columnIndexesBrand;
+                columnCount = columnIndexesBrand.Count;
+                break;
+            case "CatalogType":
+                columnIndexes = columnIndexesType;
+                columnCount = columnIndexesType.Count;
+                break;
+            case "Catalog":
+                columnIndexes = columnIndexesItem;
+                columnCount = columnIndexesItem.Count;
+                break;
+        }
+
+        for (int i = 0; i < numberRows; i+=1) {
+            var row = new object[columnCount + 1]; // Added Timestamp at the end
+            for (int j = 0; j < columns.Count; j++) {
+                var columnName = columns[j];
+                var paramValue = command.Parameters["@" + columnName].Value;
+                var correctIndexToStore = columnIndexes[columnName];
+                row[correctIndexToStore] = paramValue;
+            }
+            // Define the uncommitted timestamp as the current time
+            row[^1] = DateTime.UtcNow;
+            rows[i] = row;
+        }
+
+        var rowsAffected = rows.GetLength(0);
+        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
+
+        switch (targetTable) {
+            case "CatalogBrand":
+                _wrapper.SingletonAddCatalogBrand(clientID, rows);
+                break;
+            case "CatalogType":
+                _wrapper.SingletonAddCatalogType(clientID, rows);
+                break;
+            case "Catalog":
+                _wrapper.SingletonAddCatalogItem(clientID, rows);
+                break;
+        }
+        return mockReader;
+    }
+
+
+    // Performance-tested
+   //[Trace]
+    public (int, string) GetCommandInfo(DbCommand command) {
+        int commandType;
+        var commandText = command.CommandText;
+        if (commandText.Contains("SELECT ")) {
+            commandType = SELECT_COMMAND;
+        }
+        else if (commandText.Contains("INSERT ")) {
+            commandType = INSERT_COMMAND;
+        }
+        else if (commandText.Contains("UPDATE ")) {
+            commandType = UPDATE_COMMAND;
+        }
+        else if (commandText.Contains("DELETE ")) {
+            commandType = DELETE_COMMAND;
+        }
+        else {
+            commandType = UNKNOWN_COMMAND;
+        }
+
+        var match = GetTargetTableRegex.Match(command.CommandText);
+        string targetTable = match.Success ? match.Groups["Target"].Value : null;
+        switch (commandType) {
             case INSERT_COMMAND:
-                string targetTable = GetTargetTable(command.CommandText);
                 return (INSERT_COMMAND, targetTable);
             case SELECT_COMMAND:
-                targetTable = GetTargetTable(command.CommandText);
-                List<string> exceptionTables = new List<string>() {
-                    "__EFMigrationsHistory"
-                };
-                if (!exceptionTables.Contains(targetTable)) {
+                if (targetTable != null && targetTable != "__EFMigrationsHistory") {
                     return (SELECT_COMMAND, targetTable);
                 }
                 break;
             case UPDATE_COMMAND:
-                targetTable = GetTargetTable(command.CommandText);
                 return (UPDATE_COMMAND, targetTable);
         }
         return (UNKNOWN_COMMAND, null);
-    }
-
-    private int GetCommandType(DbCommand command) {
-        var commandText = command.CommandText.ToUpperInvariant();
-
-        if (commandText.Contains("INSERT ")) {
-            return INSERT_COMMAND;
-        }
-        else if (commandText.Contains("UPDATE ")) {
-            return UPDATE_COMMAND;
-        }
-        else if (commandText.Contains("DELETE ")) {
-            return DELETE_COMMAND;
-        }
-        else if (commandText.Contains("SELECT ")) {
-            return SELECT_COMMAND;
-        }
-        else {
-            return UNKNOWN_COMMAND;
-        }
     }
 
     /* ========== UPDATE READ QUERIES ==========*/
@@ -330,97 +456,166 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     /// "SELECT COUNT_BIG(*) ..."; "SELECT ... FROM [CatalogBrand] ..."; "SELECT ... FROM [CatalogType] ..."
     /// </summary>
     /// <param name="command"></param>
-    private void UpdateSelectCommand(DbCommand command, string targetTable) {
-        // Log the command text
-        //_logger.LogInformation($"Command Text: {command.CommandText}");
+    
+    // Not performance-tested
+   //[Trace]
+    public void UpdateSelectCommandV2(DbCommand command, string targetTable, string clientTimestamp) {
+        // Check if the SELECT includes a "*" or a column list
+        (bool hasPartialRowSelection, List<string> _) = HasPartialRowSelection(command.CommandText);
 
+        // Add the Timestamp column parameter, if the command has a partial row selection
+        // if (hasPartialRowSelection) {
+        //     AddTimestampToColumnList(command);
+        // }
+        AddTimestampToWhereList(command, targetTable, clientTimestamp);
+        // Log the resulting command text
+        // _logger.LogInformation($"Updated Command Text: {command.CommandText}");
+    }
+
+    // Not performance-tested
+    public void AddTimestampToWhereList(DbCommand command, string targetTable, string clientTimestamp) {
+        // Note: If we create a parameter of type DbType.DateTime2, the query will fail: "Failed executing DbCommand...", and I can't find a good explanation for this. 
+        // The exception thrown does not show the actual error. This topic is being followed on: https://github.com/dotnet/efcore/issues/24530 
+        // Create new SQL Parameter for clientTimestamp
+        var clientTimestampParameter = new Microsoft.Data.SqlClient.SqlParameter("@clientTimestamp", SqlDbType.DateTime2);
+        clientTimestampParameter.Value = clientTimestamp;
+        command.Parameters.Add(clientTimestampParameter);
+
+        if(command.CommandText.Contains("WHERE")) {
+            string pattern = @"WHERE\s+(.*)$";
+            command.CommandText = Regex.Replace(command.CommandText, pattern, "WHERE $1 AND [c].[Timestamp] <= @clientTimestamp");
+        }
+        else {
+            command.CommandText += " WHERE [c].[Timestamp] <= @clientTimestamp";
+        }
+    }
+    
+    //public void AddTimestampToColumnList(DbCommand command) {
+    //    string pattern = @"SELECT\s+(.*?)\s+FROM";
+    //    command.CommandText = Regex.Replace(command.CommandText, pattern, "SELECT $1, [c].[Timestamp] FROM");
+    //}
+
+
+    // Performance tested
+   //[Trace]
+    private void UpdateSelectCommand(DbCommand command, string targetTable) {
         // Get the current client session timeestamp
         DateTime clientTimestamp = _request_metadata.Timestamp;
 
-        (bool hasPartialRowSelection, List<string> _) = HasPartialRowSelection(command.CommandText);
-        if (hasPartialRowSelection) {
-            // Remove the partial Row Selection
-            command.CommandText = RemovePartialRowSelection(command.CommandText);
+        if (command.CommandText.Contains("COUNT")) { // We need to remove to be able to group with wrapper data after recceiving the data from the database
+            //string pattern = @"SELECT\s+(.*?)\s+FROM";
+            string replacement = "SELECT * FROM";
+            //command.CommandText = Regex.Replace(command.CommandText, pattern, replacement);
+            command.CommandText = GetSelectedColumnsRegex.Replace(command.CommandText, replacement);
         }
 
-        bool hasCount = HasCountClause(command.CommandText);
-        if(hasCount) {
-            command.CommandText = RemoveCountSelection(command.CommandText);
-        }
+        // Create new SQL Parameter for clientTimestamp
+        var clientTimestampParameter = new Microsoft.Data.SqlClient.SqlParameter("@clientTimestamp", SqlDbType.DateTime2);
+        clientTimestampParameter.Value = clientTimestamp;
+        command.Parameters.Add(clientTimestampParameter);
 
-        (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
-        
-        (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
-
-        // Remove the ORDER BY clause and everything after it
-        if (hasOrderBy) {
-            string orderByPattern = @"ORDER\s+BY(.|\n)*";
-            command.CommandText = Regex.Replace(command.CommandText, orderByPattern, "");
-        }
-
-        string whereCondition = "";
+        string whereCondition;
         if (command.CommandText.Contains("WHERE")) {
             // Extract where condition
-            string regex_pattern = @"WHERE\s+(.*?)(?:\bGROUP\b|\bORDER\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)";
-            Match match = Regex.Match(command.CommandText, regex_pattern);
-            
+            Match match = GetWhereConditionsRegex.Match(command.CommandText);
             whereCondition = match.Groups[1].Value;
             // Remove the where condition from the command
             command.CommandText = command.CommandText.Replace(whereCondition, "");
-            whereCondition = whereCondition.Replace("[c]", $"[{targetTable}]");
-            whereCondition += $" AND [{targetTable}].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
-        
+
+            if(!_settings.Value.Limit1Version) {
+                whereCondition = whereCondition.Replace("[c]", $"[{targetTable}]");
+                whereCondition += $" AND [{targetTable}].[Timestamp] <= @clientTimestamp ";
+            } 
+            else {
+                whereCondition += $" AND [c].[Timestamp] <= @clientTimestamp ";
+            }
         } else {
-            whereCondition = $" WHERE [{targetTable}].[Timestamp] <= '{clientTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}' ";
+            whereCondition = $" WHERE [{targetTable}].[Timestamp] <= @clientTimestamp ";
+        }
+        if (_settings.Value.Limit1Version) { 
+            // There is only 1 version, so we don't need to join with the max timestamp, as the timestamp is already the max
+            command.CommandText += whereCondition;
+            return;
+        }
+        else {
+            // There are multiple versions, so we need to join with the max timestamp, to get the latest version that respects the client timestamp
+            switch (targetTable) {
+                case "CatalogBrand":
+                    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
+                    command.CommandText += whereCondition;
+                    command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
+                    break;
+                case "CatalogType":
+                    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogType.Type, max(CatalogType.Timestamp) as max_timestamp FROM CatalogType");
+                    command.CommandText += whereCondition;
+                    command.CommandText += "GROUP BY CatalogType.Type) d on c.Type = d.Type AND c.Timestamp = d.max_timestamp";
+                    break;
+                case "Catalog":
+                    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId, max(Catalog.Timestamp) as max_timestamp FROM Catalog");
+                    command.CommandText += whereCondition;
+                    command.CommandText += "GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp";
+                    break;
+            }
+        }
+    }
+
+    // Not performance-tested
+   //[Trace]
+    private void UpdateUpdateCommand(DbCommand command, string targetTable, string clientID) {
+        Stopwatch sw;
+
+        sw = Stopwatch.StartNew();
+        // Get the timestamp received from the Coordinator
+        string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+
+        // Replace Command Text to account for new parameter: timestamp
+        string commandWithTimestamp;
+        commandWithTimestamp = UpdateUpdateCommandText(command, targetTable);
+
+        sw.Stop();
+        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+        Timespans.Add(sw.Elapsed);
+        sw.Restart();
+
+        // Add new Parameter and Command text to database command
+        command.CommandText = commandWithTimestamp;
+        // _logger.LogInformation($"ClientID: {clientID}, Updated command text: {command.CommandText}");
+        
+        // Generate timestamp parameter
+        var clientTimestampParameter = new Microsoft.Data.SqlClient.SqlParameter("@clientTimestamp", SqlDbType.DateTime2);
+        clientTimestampParameter.Value = timestamp;
+        command.Parameters.Add(clientTimestampParameter);
+        // _logger.LogInformation($"Number of parameters: {command.Parameters.Count}");
+        sw.Stop();
+        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+        Timespans2.Add(sw.Elapsed);
+        _logger.LogInformation($"Average time 1: {Average(Timespans)}");
+        _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
+    }
+
+    // Not performance-tested
+   //[Trace]
+    private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
+        string updatedCommandText;
+
+        // Update the CommandText to include the Timestamp column and parameter for each entry
+        if (targetTable == "CatalogType") {
+            updatedCommandText = Regex.Replace(command.CommandText, @"(?<lastParam>\[Type\] = @p(\d+))", "${lastParam}, [Timestamp] = @clientTimestamp");
+        }
+        else if(targetTable == "CatalogBrand") {
+            updatedCommandText = Regex.Replace(command.CommandText, @"(?<lastParam>\[Brand\] = @p(\d+))", "${lastParam}, [Timestamp] = @clientTimestamp");
+        }
+        else {
+            // The @p10 is the Id
+            updatedCommandText = Regex.Replace(command.CommandText, @"(?<lastParam>\[RestockThreshold\] = @p(\d+))", "${lastParam}, [Timestamp] = @clientTimestamp");
         }
 
-        switch (targetTable) {
-            case "CatalogBrand":
-                command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
-                command.CommandText += whereCondition;
-                command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
-                break;
-            case "CatalogType":
-                command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogType.Type, max(CatalogType.Timestamp) as max_timestamp FROM CatalogType");
-                command.CommandText += whereCondition;
-                command.CommandText += "GROUP BY CatalogType.Type) d on c.Type = d.Type AND c.Timestamp = d.max_timestamp";
-                break;
-            case "Catalog":
-                command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId, max(Catalog.Timestamp) as max_timestamp FROM Catalog");
-                command.CommandText += whereCondition;
-                command.CommandText += "GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp";
-                break;
-        }
-
-        // TODO: Add the order by and offset conditions to the command text if they are not null
-        //if (hasOrderBy) {
-        //    command.CommandText += $" ORDER BY {orderByColumn} {typeOrder}";
-        //}
-        //if (hasOffset) {
-        //    command.CommandText += $" OFFSET {offsetParam}";
-        //}
-        // Check Notes for example
-
-        //_logger.LogInformation($"Updated Command Text: {command.CommandText}");
+        return updatedCommandText;
     }
-
-    private string RemovePartialRowSelection(string commandText) {
-        string pattern = @"SELECT\s+(.*?)\s+FROM";
-        string replacement = "SELECT * FROM";
-        string result = Regex.Replace(commandText, pattern, replacement);
-        return result;
-    }
-    
-    private string RemoveCountSelection(string commandText) {
-        string pattern = @"SELECT\s+(.*?)\s+FROM";
-        string replacement = "SELECT * FROM";
-        string result = Regex.Replace(commandText, pattern, replacement);
-        return result;
-    }
-
 
     /* ========== UPDATE WRITE QUERIES ==========*/
-
+    // Performance-tested
+   //[Trace]
     private void UpdateInsertCommand(DbCommand command, string targetTable) {
         // Get the timestamp received from the Coordinator
         string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
@@ -437,43 +632,30 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         else {
             UpdateBrandOrTypeOp(command, newParameters, timestamp);
         }
-
         // Assign new Parameters and Command text to database command
         command.Parameters.Clear();
         command.Parameters.AddRange(newParameters.ToArray());
         command.CommandText = commandWithTimestamp;
     }
 
-    private Dictionary<string, object> UpdateToInsert(DbCommand command, string targetTable) {
-        var regex = new Regex(@"\[(\w+)\] = (@\w+)");
-        var matches = regex.Matches(command.CommandText);
-
-        var columns = new Dictionary<string, object>();
-
-        for (int i = 0; i < matches.Count; i++) {
-            string parameterName = matches[i].Groups[2].Value;
-            var paramterValue = command.Parameters[parameterName].Value;
-            columns[matches[i].Groups[1].Value] = paramterValue;
+    // Performance-Tested
+   //[Trace]
+    private Dictionary<string, SqlParameter> UpdateToInsert(DbCommand command) {
+        var matches = StoreInWrapperV2UpdateRegex.Matches(command.CommandText);
+        var columns = new Dictionary<string, SqlParameter>();
+        
+        foreach (Match match in matches) {
+            string parameterName = match.Groups[2].Value;
+            string columnName = match.Groups[1].Value;
+            SqlParameter sqlParameter = (SqlParameter)command.Parameters[parameterName];
+            sqlParameter.ParameterName = $"@{columnName}";
+            columns[columnName] = sqlParameter;
         }
-
-        //string valuesP = "";
-        //var parameters = new List<DbParameter>();
-        //for (int i = 0; i < columns.Count; i++) {
-        //    valuesP += $"@p{i}";
-        //    parameters.Add(command.Parameters[i]);
-        //    if (i != columns.Count - 1) {
-        //        valuesP += ", ";
-        //    } else {
-        //        valuesP += ")";
-        //    }
-        //}
-        //command.CommandText = "SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [" + targetTable + "] (" + string.Join(", ", columns) + ") VALUES (" + valuesP;
-        //command.Parameters.Clear();
-        //command.Parameters.AddRange(parameters.ToArray());
-
         return columns;
     }
 
+    // Performance-tested
+   //[Trace]
     private static void UpdateItemOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
         int numObjectsToInsert = command.Parameters.Count / 11;
 
@@ -549,10 +731,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             generatedParameters.Add(onReorderParam);
             generatedParameters.Add(restockThresholdParam);
             generatedParameters.Add(timeStampParam);
-
         }
     }
 
+    // Performance-tested
+   //[Trace]
     private static void UpdateBrandOrTypeOp(DbCommand command, List<DbParameter> generatedParameters, string timestamp) {
         int numObjectsToInsert = command.Parameters.Count / 2;
 
@@ -579,66 +762,57 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
     }
 
+    // Performance-tested
     private static string UpdateInsertCommandText(DbCommand command, string targetTable) {
-        string updatedCommandText;
-        int numberColumns = 0;
-
-        // Update the CommandText to include the Timestamp column and parameter for each entry
-        if (targetTable == "CatalogType") {
-            numberColumns = 3;
-            updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogType\]\s+\(\s*\[Id\],\s*\[Type\]\s*", "$0, [Timestamp]");
+        StringBuilder newCommandTextBuilder = new StringBuilder($"SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [{targetTable}] (");
+        int numberRows;
+        switch(targetTable) {
+            case "Catalog":
+                newCommandTextBuilder.Append("[Id], [AvailableStock], [CatalogBrandId], [CatalogTypeId], [Description], [MaxStockThreshold], [Name], [OnReorder], [PictureFileName], [Price], [RestockThreshold], [Timestamp]) VALUES ");
+                numberRows = command.Parameters.Count / 11; // Do not include Timestamp column in count
+                for(int i = 0; i < numberRows; i++) {
+                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2}, @p{12 * i + 3}, @p{12 * i + 4}, @p{12 * i + 5}, @p{12 * i + 6}, @p{12 * i + 7}, @p{12 * i + 8}, @p{12 * i + 9}, @p{12 * i + 10}, @p{12 * i + 11})");
+                    if (i != numberRows - 1) {
+                        newCommandTextBuilder.Append(", ");
+                    }
+                    else {
+                        newCommandTextBuilder.Append(";");
+                    }
+                }
+                break;
+            case "CatalogBrand":
+                newCommandTextBuilder.Append("[Id], [Brand], [Timestamp]) VALUES ");
+                numberRows = command.Parameters.Count / 2; // Do not include Timestamp column in count
+                for (int i = 0; i < numberRows; i++) {
+                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2})");
+                    if (i != numberRows - 1) {
+                        newCommandTextBuilder.Append(", ");
+                    }
+                    else {
+                        newCommandTextBuilder.Append(";");
+                    }
+                }
+                break;
+            case "CatalogType":
+                newCommandTextBuilder.Append("[Id], [Type], [Timestamp]) VALUES ");
+                numberRows = command.Parameters.Count / 2; // Do not include Timestamp column in count
+                for (int i = 0; i < numberRows; i++) {
+                    newCommandTextBuilder.Append($"(@p{12 * i}, @p{12 * i + 1}, @p{12 * i + 2})");
+                    if (i != numberRows - 1) {
+                        newCommandTextBuilder.Append(", ");
+                    }
+                    else {
+                        newCommandTextBuilder.Append(';');
+                    }
+                }
+                break;
+            default:
+                throw new Exception("Invalid target table");
         }
-        else if(targetTable == "CatalogBrand") {
-            numberColumns = 3;
-            updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[CatalogBrand\]\s+\(\s*\[Id\],\s*\[Brand\]\s*", "$0, [Timestamp]");
-        }
-        else {
-            numberColumns = 12;
-            updatedCommandText = Regex.Replace(command.CommandText, @"INSERT INTO\s+\[Catalog\]\s+\(\s*\[Id\],\s*\[AvailableStock\],\s*\[CatalogBrandId\],\s*\[CatalogTypeId\],\s*\[Description\],\s*\[MaxStockThreshold\],\s*\[Name\],\s*\[OnReorder\],\s*\[PictureFileName\],\s*\[Price\],\s*\[RestockThreshold\]\s*", "$0, [Timestamp]");
-        }
-
-        // 
-        var regex = new Regex(@"\(@p\d+[,\s@p\d]*@p(?<LastIndexOfRow>\d+)\)");
-        var matches = regex.Matches(command.CommandText);
-        int numRows = matches.Count;
-        updatedCommandText = updatedCommandText.Replace(updatedCommandText.Substring(updatedCommandText.IndexOf("VALUES ")), "VALUES ");
-
-        for(int i = 0; i < numRows; i++) {
-            switch(numberColumns) {
-                case 3:
-                    updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2})";
-                    break;
-                case 12:
-                    updatedCommandText += $"(@p{numberColumns * i}, @p{numberColumns * i + 1}, @p{numberColumns * i + 2}, @p{numberColumns * i + 3}, @p{numberColumns * i + 4}, @p{numberColumns * i + 5}, @p{numberColumns * i + 6}, @p{numberColumns * i + 7}, @p{numberColumns * i + 8}, @p{numberColumns * i + 9}, @p{numberColumns * i + 10}, @p{numberColumns * i + 11})";
-                    break;
-            }
-            if (i != numRows - 1) {
-                updatedCommandText += ", ";
-            } else {
-                updatedCommandText += ";";
-            }
-        }
-        return updatedCommandText;
+        return newCommandTextBuilder.ToString();
     }
 
-    //private static string UpdateUpdateCommandText(DbCommand command, string targetTable) {
-    //    string updatedCommandText;
-    //    if (targetTable == "CatalogType") {
-    //        updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogType\]\s+SET\s*\[Type\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
-    //    }
-    //    else if (targetTable == "CatalogBrand") {
-    //        updatedCommandText = Regex.Replace(command.CommandText, @"UPDATE\s+\[CatalogBrand\]\s+SET\s*\[Brand\]\s*=\s*@p\d+\s*", "$0, [Timestamp] = @p1");
-    //    }
-    //    else {
-    //        // Update the CommandText to include the Timestamp column and parameter for each entry
-    //        updatedCommandText = Regex.Replace(command.CommandText, @"\[RestockThreshold] = @p\d*", "$0, [Timestamp] = @p{}");
-    //    }
-    //    var regex = new Regex(@"WHERE\s*\[Id\]\s*=\s*@p\d+");
-    //    updatedCommandText = regex.Replace(updatedCommandText, "$0 AND [Timestamp] = @p2");
-    //    return updatedCommandText;
-    //}
-
-
+   //[Trace]
     public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result) {
         var clientID = _request_metadata.ClientID;
 
@@ -657,11 +831,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         if (_originalCommandText.Contains("UPDATE")) {
             var newUpdatedData = new List<object[]>();
             newUpdatedData.Add(new object[] { 1 });
+            // _logger.LogInformation("ClientID: {0}", clientID);
             return new WrapperDbDataReader(newUpdatedData, result, targetTable);
         }
 
         // Check if the command is an INSERT command and has yet to be committed
         if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
+            // _logger.LogInformation($"ClientID: {clientID}, insert commandText= {_originalCommandText}");
             return result;
         }
 
@@ -672,174 +848,27 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         while (result.Read()) {
             var rowValues = new List<object>();
             for (int i = 0; i < result.FieldCount; i++) {
-                var fieldType = result.GetFieldType(i);
-                switch (fieldType.Name) {
-                    case "Int32":
-                        rowValues.Add(result.GetInt32(i));
-                        break;
-                    case "Int64":
-                        rowValues.Add(result.GetInt64(i));
-                        break;
-                    case "String":
-                        rowValues.Add(result.GetString(i));
-                        break;
-                    case "Decimal":
-                        rowValues.Add(result.GetDecimal(i));
-                        break;
-                    case "Boolean":
-                        rowValues.Add(result.GetBoolean(i));
-                        break;
-                    case "DateTime":
-                        rowValues.Add(result.GetDateTime(i));
-                        break;
-                    // add additional cases for other data types as needed
-                    default:
-                        rowValues.Add(null);
-                        break;
-                }
-            }
-            newData.Add(rowValues.ToArray());
-        }
-
-        // Read the data from the Wrapper structures
-        if (command.CommandText.Contains("SELECT")) {
-            targetTable = GetTargetTable(command.CommandText);
-            List<object[]> wrapperData = null;
-
-            switch (targetTable) {
-                case "CatalogBrand":
-                    wrapperData = _wrapper.SingletonGetCatalogBrands(clientID).ToList();
-                    break;
-                case "CatalogType":
-                    wrapperData = _wrapper.SingletonGetCatalogTypes(clientID).ToList();
-                    break;
-                case "Catalog":
-                    wrapperData = _wrapper.SingletonGetCatalogITems(clientID).ToList();
-                    break;
-            }
-
-            // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
-            //newData = GroupVersionedObjects(newData, targetTable);
-            wrapperData = GroupVersionedObjects(wrapperData, targetTable);
-
-            if (wrapperData != null) {
-                if (HasFilterCondition(command.CommandText)) {
-                    // The select query contains a WHERE clause
-                    wrapperData = FilterData(wrapperData, command);
-
-                    if (!HasCountClause(command.CommandText)) {
-                        // Only add the rows if the data from the DB is not a single count product
-                        foreach (var wrapperRow in wrapperData) {
-                            // TODO: Replace the data in the newData with the data from the Wrapper if the identifier matches - this avoids us having to group the data again
-
-                            newData.Add(wrapperRow);
-                        }
-                    } else {
-                        // The select query contains a COUNT clause, so we need to update the count
-                        newData[0][0] = Convert.ToInt32(newData[0][0]) + wrapperData.Count;
-                    }
-                }
-
-                // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
-                newData = GroupVersionedObjects(newData, targetTable);
-
-                (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
-                if (hasOrderBy) {
-                    // The select query has an ORDER BY clause
-                    newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
-                }
-
-                if (HasCountClause(command.CommandText)) {
-                    var wrapperDataCount = wrapperData.Count;
-                    newData[0][0] = Convert.ToInt64(newData[0][0]) + wrapperDataCount;
-                    return new WrapperDbDataReader(newData, result, targetTable);
-                }
-
-                (bool hasTopClause, int nElem) = HasTopClause(command.CommandText);
-                if (hasTopClause) {
-                    // The select query has a take clause
-                    newData = newData.Take(nElem).ToList();
-                }
-
-                // Special Cases: offset and fetch next TODO: fix them, can only be executed after the result are merged
-                (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
-                if (hasOffset) {
-                    // the select query has an offset
-                    newData = OffsetData(command, newData, offsetParam);
-                }
-
-                (bool hasFetchNext, string fetchRowsParam) = HasFetchNextCondition(command.CommandText);
-                if (hasFetchNext) {
-                    // The select query has a fetch next limit
-                    newData = FetchNext(command, newData, fetchRowsParam);
-                }
-
-                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
-                if (hasPartialRowSelection) {
-                    newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-                }
-
-            }
-        }
-
-        return new WrapperDbDataReader(newData, result, targetTable);
-    }
-
-    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
-        //_logger.LogInformation($"Checkpoint 2_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
-        
-        var clientID = _request_metadata.ClientID;
-        
-        if(clientID == null) {
-            // This is a system transaction or a database initial population
-            return result;
-        }
-
-        string targetTable = GetTargetTable(command.CommandText);
-        if (targetTable.IsNullOrEmpty()) {
-            // Unsupported Table (Migration for example)
-            return result;
-        }
-
-        // Check if the command was originally an update command
-        if (_originalCommandText.Contains("UPDATE")) {
-            var newUpdatedData = new List<object[]>();
-            newUpdatedData.Add(new object[] { 1 });
-            return new WrapperDbDataReader(newUpdatedData, result, targetTable);
-        }
-
-        // Check if the command is an INSERT command and has yet to be committed
-        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
-            return result;
-        }
-
-        // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
-        
-        var newData = new List<object[]>();
-
-        while(await result.ReadAsync(cancellationToken)) {
-            var rowValues = new List<object>();
-            for (int i = 0; i < result.FieldCount; i++) {
-                var fieldType = result.GetFieldType(i);
+                var fieldName = result.GetName(i);
+                var columnIndex = result.GetOrdinal(fieldName);
+                var fieldType = result.GetFieldType(columnIndex);
                 switch(fieldType.Name) {
                     case "Int32":
-                        rowValues.Add(result.GetInt32(i));
+                        rowValues.Add(result.GetInt32(columnIndex));
                         break;
                     case "Int64":
-                        rowValues.Add(result.GetInt64(i));
+                        rowValues.Add(result.GetInt64(columnIndex));
                         break;
                     case "String":
-                        rowValues.Add(result.GetString(i));
+                        rowValues.Add(result.GetString(columnIndex));
                         break;
                     case "Decimal":
-                        rowValues.Add(result.GetDecimal(i));
+                        rowValues.Add(result.GetDecimal(columnIndex));
                         break;
                     case "Boolean":
-                        rowValues.Add(result.GetBoolean(i));
+                        rowValues.Add(result.GetBoolean(columnIndex));
                         break;
                     case "DateTime":
-                        rowValues.Add(result.GetDateTime(i));
+                        rowValues.Add(result.GetDateTime(columnIndex));
                         break;
                     // add additional cases for other data types as needed
                     default:
@@ -849,9 +878,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             }
             newData.Add(rowValues.ToArray());
         }
-
-        // Log the number of read rows
-        //_logger.LogInformation($"Checkpoint 2_c_1: Read {newData.Count} rows from the database");
 
         // Read the data from the Wrapper structures
         if (command.CommandText.Contains("SELECT")) {
@@ -865,15 +891,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     wrapperData = _wrapper.SingletonGetCatalogTypes(clientID).ToList();
                     break;
                 case "Catalog":
-                    wrapperData = _wrapper.SingletonGetCatalogITems(clientID).ToList();
+                    wrapperData = _wrapper.SingletonGetCatalogItems(clientID).ToList();
                     break;
             }
-            //_logger.LogInformation($"Checkpoint 2_c_2: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
             // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
             //newData = GroupVersionedObjects(newData, targetTable);
-            //_logger.LogInformation($"Checkpoint 2_c_3: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
             wrapperData = GroupVersionedObjects(wrapperData, targetTable);
             //_logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
@@ -938,14 +961,364 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             // Search for partial SELECTION on the original unaltered commandText
             (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
             if (hasPartialRowSelection) {
-                newData = PartialRowSelection(command.CommandText, newData, selectedColumns);
-            }
+                // foreach (string column in selectedColumns) {
+                //     _logger.LogInformation("The column {0} was selected", column);
+                // }
 
+                // The select query has a partial row selection
+                var originalNumColumns = newData[0].Length;
+                for(int i = 0; i < newData.Count; i++) {
+                    newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable(), clientID);
+                }
+                // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                // foreach (object value in newData[0]) {
+                //     _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                // }
+            }
         }
         //_logger.LogInformation($"Checkpoint 2_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+        if(_settings.Value.Limit1Version) {
+            if (HasCountClause(_originalCommandText) && newData[0][0].Equals(0)) {
+                // _logger.LogInformation("The database count returned 0. Adding 1 to the count for default.");
+                newData.Add(new object[] { 1 });
+            }
+            if(newData.IsNullOrEmpty()) {
+                // _logger.LogInformation("The database + wrapper returned no data");
+                // If newData is empty return a reader with a single default row
+                switch(targetTable) {
+                    case "Catalog":
+                        newData.Add(new object[] {
+                            1, // Id
+                            ".NET Bot Black Hoodie", // Name
+                            ".NET Bot Black Hoodie, and more", // Description
+                            11000, // Price
+                            "1.png", // PictureFileName
+                            2, // CatalogTypeId
+                            1, // CatakigBrandId
+                            100, // AvailableStock
+                            0, // RestockThreshold
+                            0, // MaxStockThreshold
+                            false // OnReorder
+                        });
+                        break;
+                    case "CatalogType":
+                        newData.Add(new object[] { 0, "" });
+                        break;
+                    case "CatalogBrand":
+                        newData.Add(new object[] { 0, "" });
+                        break;
+                }
+                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+                if (hasPartialRowSelection) {
+                    // foreach (string column in selectedColumns) {
+                    //     _logger.LogInformation("The column {0} was selected", column);
+                    // }
+
+                    // The select query has a partial row selection
+                    var originalNumColumns = newData[0].Length;
+                    for(int i = 0; i < newData.Count; i++) {
+                        newData[i] = PartialRowSelection(command.CommandText, newData[i], selectedColumns);
+                    }
+                    // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                    // foreach (object value in newData[0]) {
+                    //     _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                    // }
+                }
+            }
+        }
+
         return new WrapperDbDataReader(newData, result, targetTable);
     }
 
+   //[Trace]
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default) {
+        //_logger.LogInformation($"Checkpoint 2_c: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+        var clientID = _request_metadata.ClientID;
+        
+        if(clientID == null) {
+            // This is a system transaction or a database initial population
+            return result;
+        }
+        // _logger.LogInformation($"ClientID {clientID}, executing ReaderExecutedAsync.");
+        string targetTable = GetTargetTable(command.CommandText);
+        if (targetTable.IsNullOrEmpty()) {
+            // Unsupported Table (Migration for example)
+            return result;
+        }
+
+        // Check if the command was originally an update command
+        if (_originalCommandText.Contains("UPDATE")) {
+            // _logger.LogInformation($"ClientID {clientID}, update commandText= {_originalCommandText}");
+            var newUpdatedData = new List<object[]>();
+            newUpdatedData.Add(new object[] { 1 });
+            // _logger.LogInformation("ClientID: {0}", clientID);
+            return new WrapperDbDataReader(newUpdatedData, result, targetTable);
+        }
+
+        // Check if the command is an INSERT command and has yet to be committed
+        if (command.CommandText.Contains("INSERT") && !_wrapper.SingletonGetTransactionState(clientID)) {
+            // _logger.LogInformation($"ClientID: {clientID}, insert commandText= {_originalCommandText}");
+            return result;
+        }
+
+        // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
+        
+        var newData = new List<object[]>();
+        // _logger.LogInformation($"ClientID {clientID}, Before readasync.");
+
+        while(await result.ReadAsync(cancellationToken)) {
+            // _logger.LogInformation($"ClientID: {clientID}, starting to read the result of command text: {command.CommandText}");
+            var rowValues = new List<object>();
+            for (int i = 0; i < result.FieldCount; i++) {
+                var fieldName = result.GetName(i);
+                var columnIndex = result.GetOrdinal(fieldName);
+                var fieldType = result.GetFieldType(columnIndex);
+                switch(fieldType.Name) {
+                    case "Int32":
+                        rowValues.Add(result.GetInt32(columnIndex));
+                        break;
+                    case "Int64":
+                        rowValues.Add(result.GetInt64(columnIndex));
+                        break;
+                    case "String":
+                        rowValues.Add(result.GetString(columnIndex));
+                        break;
+                    case "Decimal":
+                        rowValues.Add(result.GetDecimal(columnIndex));
+                        break;
+                    case "Boolean":
+                        rowValues.Add(result.GetBoolean(columnIndex));
+                        break;
+                    case "DateTime":
+                        rowValues.Add(result.GetDateTime(columnIndex));
+                        break;
+                    // add additional cases for other data types as needed
+                    default:
+                        rowValues.Add(null);
+                        break;
+                }
+                // _logger.LogInformation($"ClientID: {clientID}, FieldName: {fieldName}, FieldType: {fieldType.Name}, FieldValue: {rowValues[i]}, ColumnIndex: {columnIndex}");
+            }
+
+            newData.Add(rowValues.ToArray());
+        }
+
+        // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count}");
+
+        // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - A");
+        // Read the data from the Wrapper structures
+        if (command.CommandText.Contains("SELECT")) {
+            List<object[]> wrapperData = null;
+
+            switch (targetTable) {
+                case "CatalogBrand":
+                    wrapperData = _wrapper.SingletonGetCatalogBrands(clientID).ToList();
+                    break;
+                case "CatalogType":
+                    wrapperData = _wrapper.SingletonGetCatalogTypes(clientID).ToList();
+                    break;
+                case "Catalog":
+                    wrapperData = _wrapper.SingletonGetCatalogItems(clientID).ToList();
+                    break;
+            }
+            // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - B");
+
+            // Filter the results to display only 1 version of data for both the Wrapper Data as well as the DB data
+            //newData = GroupVersionedObjects(newData, targetTable);
+
+            wrapperData = GroupVersionedObjects(wrapperData, targetTable);
+            //_logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+            if (wrapperData.Count > 0) {
+                if (HasFilterCondition(command.CommandText)) {
+                    // The select query contains a WHERE clause
+                    wrapperData = FilterData(wrapperData, command);
+
+                    if(!HasCountClause(command.CommandText)) {
+                        // Only add the rows if the data from the DB is not a single count product
+                        foreach(var wrapperRow in wrapperData) {
+                            // TODO: Replace the existing row with the same identifier in the newData for the one present in the wrapper
+                            newData.Add(wrapperRow);
+                        }
+                    }
+                }
+                //_logger.LogInformation($"Checkpoint 2_c_4: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+
+                // We group the data again to ensure that the data is grouped by the same version in the union of the DB and Wrapper data
+                newData = GroupVersionedObjects(newData, targetTable);
+                //_logger.LogInformation($"Checkpoint 2_c_5: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+                (bool hasOrderBy, string orderByColumn, string typeOrder) = HasOrderByCondition(command.CommandText);
+                if(hasOrderBy) {
+                    // The select query has an ORDER BY clause
+                    newData = OrderBy(newData, orderByColumn, typeOrder, targetTable);
+                }
+
+                (bool hasTopClause, int nElem) = HasTopClause(command.CommandText);
+                if (hasTopClause) {
+                    // The select query has a take clause
+                    newData = newData.Take(nElem).ToList();
+                }
+
+                // Special Cases: offset and fetch next TODO: fix them, can only be executed after the result are merged
+                (bool hasOffset, string offsetParam) = HasOffsetCondition(command.CommandText);
+                if (hasOffset) {
+                    // the select query has an offset
+                    newData = OffsetData(command, newData, offsetParam);
+                }
+
+                (bool hasFetchNext, string fetchRowsParam) = HasFetchNextCondition(command.CommandText);
+                if (hasFetchNext) {
+                    // The select query has a fetch next limit
+                    newData = FetchNext(command, newData, fetchRowsParam);
+                }
+                //_logger.LogInformation($"Checkpoint 2_c_6: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+            }
+            // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - C");
+
+            if (HasCountClause(_originalCommandText)) {
+                List<object[]> countedData = new List<object[]>();
+                object[] data = new object[] { newData.Count + wrapperData.Count };
+                countedData.Add(data);
+
+                //_logger.LogInformation($"Checkpoint 2_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                return new WrapperDbDataReader(countedData, result, targetTable);
+            }
+            //_logger.LogInformation($"Checkpoint 2_c_7: : {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - D");
+
+            if(!newData.IsNullOrEmpty()) {
+                // Search for partial SELECTION on the original unaltered commandText
+                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+                if (hasPartialRowSelection) {
+                    // foreach (string column in selectedColumns) {
+                    //     _logger.LogInformation("The column {0} was selected", column);
+                    // }
+                    // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - E");
+
+                    // The select query has a partial row selection
+                    var originalNumColumns = newData[0].Length;
+                    for(int i = 0; i < newData.Count; i++) {
+                        newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable(), clientID);
+                    }
+                    // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                    // foreach (object value in newData[0]) {
+                    //     _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                    // }
+                }
+            }
+        }
+        //_logger.LogInformation($"Checkpoint 2_e: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
+        if(_settings.Value.Limit1Version) {
+            // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - E2");
+            // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - E2.1");
+
+            var nullOrEmpty = newData.IsNullOrEmpty();
+            // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - E2.2");
+
+            // _logger.LogInformation($"ClientID {clientID}: Limiting the number of versions to 1. Newdata is empty?: <{nullOrEmpty}>");
+
+            if (HasCountClause(_originalCommandText) && newData[0][0].Equals(0)) {
+                // _logger.LogInformation("The database count returned 0. Adding 1 to the count for default.");
+                // _logger.LogInformation($"ClientID {clientID}: The database count returned 0. Adding 1 to the count for default.");
+                newData.Add(new object[] { 1 });
+            }
+            // _logger.LogInformation($"ClientID {clientID}: newData size: {newData.Count}");
+            if(newData.IsNullOrEmpty()) {
+                // _logger.LogInformation("The database + wrapper returned no data");
+                // If newData is empty return a reader with a single default row
+                // _logger.LogInformation($"ClientID {clientID}: The database + wrapper returned no data");
+
+                // We need to add the new object[] according to the schema of the table in the result
+                switch(targetTable) {
+                    case "Catalog":
+                        // var defaultValues = new Dictionary<string, object> {
+                        //     { "Id", 1 },
+                        //     { "Name", ".NET Bot Black Hoodie" },
+                        //     { "Description", ".NET Bot Black Hoodie, and more" },
+                        //     { "Price", 11000 },
+                        //     { "PictureFileName", "1.png" },
+                        //     { "CatalogTypeId", 2 },
+                        //     { "CatalogBrandId", 1 },
+                        //     { "AvailableStock", 100 },
+                        //     { "RestockThreshold", 0 },
+                        //     { "MaxStockThreshold", 0 },
+                        //     { "OnReorder", false }
+                        // };    
+
+                        // var schemaTable = result.GetSchemaTable();
+                        // var schemaColumns = schemaTable.Columns;
+                        // var newRow = new object[schemaColumns.Count];
+                        // _logger.LogInformation($"ClientID: {clientID} Number of columns in the schema table: {schemaColumns.Count}");
+                        // foreach(DataColumn column in schemaColumns) {
+                        //     _logger.LogInformation($"ClientID: {clientID} Column name: {column.ColumnName}, column type: {column.DataType}");
+                        // }
+
+                        // foreach(DataColumn column in schemaColumns) {
+                        //     var columnName = column.ColumnName;
+                        //     _logger.LogInformation($"ClientID: {clientID} Column name: {columnName}");
+                        //     var columnIndex = schemaColumns.IndexOf(columnName);
+                        //     _logger.LogInformation($"ClientID: {clientID} ColumnName: {columnName} Column index: {columnIndex}");
+                        //     newRow[columnIndex] = defaultValues[columnName];
+                        // }
+
+                         newData.Add(new object[] {
+                            1, // Id
+                            100, // AvailableStock
+                            1, // CatakigBrandId
+                            2, // CatalogTypeId
+                            ".NET Bot Black Hoodie, and more", // Description
+                            0, // MaxStockThreshold
+                            ".NET Bot Black Hoodie", // Name
+                            false, // OnReorder
+                            "1.png", // PictureFileName
+                            0, // RestockThreshold
+                            11000 // Price
+                        });
+//  SELECT TOP(2) [c].[Id], [c].[AvailableStock], [c].[CatalogBrandId], [c].[CatalogTypeId], [c].[Description], [c].[MaxStockThreshold], [c].[Name], [c].[OnReorder], [c].[PictureFileName], [c].[Price], [c].[RestockThreshold]
+                        break;
+                    case "CatalogType":
+                        newData.Add(new object[] { 0, "" });
+                        break;
+                    case "CatalogBrand":
+                        newData.Add(new object[] { 0, "" });
+                        break;
+                }
+            }
+            // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - F");
+
+            (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+            if (hasPartialRowSelection) {
+                // _logger.LogInformation($"ClientID: {clientID}, has partial row selection");
+                // foreach (string column in selectedColumns) {
+                //     _logger.LogInformation("The column {0} was selected", column);
+                // }
+                // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - G");
+
+                // The select query has a partial row selection
+                var originalNumColumns = newData[0].Length;
+                for(int i = 0; i < newData.Count; i++) {
+                    newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable(), clientID);
+                }
+                // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - H");
+
+                // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. Is newData empty?: <{nullOrEmpty}> CommandText was {_originalCommandText}");
+            }
+            else {
+                // _logger.LogInformation($"ClientID: {clientID}, has no partial row selection");
+            }
+        }
+        // _logger.LogInformation($"ClientID {clientID}, newData size: {newData.Count} - I");
+
+        return new WrapperDbDataReader(newData, result, targetTable);
+    }
+
+   //[Trace]
     private List<object[]> OrderBy(List<object[]> newData, string orderByColumn, string typeOrder, string targetTable) {
         Dictionary <string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
         int sortByIndex = columnIndexes[orderByColumn];
@@ -957,6 +1330,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
+   //[Trace]
     private List<object[]> OffsetData(DbCommand command, List<object[]> newData, string offsetParam) {
         DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == offsetParam);
         int offsetValue = Convert.ToInt32(parameter.Value);
@@ -964,6 +1338,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
+   //[Trace]
     private List<object[]> FetchNext(DbCommand command, List<object[]> newData, string fetchRowsParam) {
         DbParameter parameter = command.Parameters.Cast<DbParameter>().SingleOrDefault(p => p.ParameterName == fetchRowsParam);
         int fetchRows = Convert.ToInt32(parameter.Value);
@@ -971,6 +1346,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
+   //[Trace]
     private List<object[]> GroupVersionedObjects(List<object[]> newData, string targetTable) {
         var dateTimeComparer = Comparer<object>.Create((x, y) => {
             DateTime xValue = (DateTime)x;
@@ -1011,25 +1387,97 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return newData;
     }
 
-    private List<object[]> PartialRowSelection(string commandText, List<object[]> newData, List<string> selectedColumns) {
+   //[Trace]
+    private object[] PartialRowSelection(string commandText, object[] row, List<string> selectedColumns) {
         string targetTable = GetTargetTable(commandText);
+        object[] newRow = new object[selectedColumns.Count];
 
         // Get the default indexes for the columns of the Catalog Database
         Dictionary<string, int> columnIndexes = GetDefaultColumIndexes(targetTable);
 
-        newData = newData.Select(row => {
-            var newRow = new object[selectedColumns.Count];
-            for (int i = 0; i < selectedColumns.Count; i++) {
-                string columnName = selectedColumns[i];
-                int columnIndex = columnIndexes[columnName];
-                newRow[i] = row[columnIndex];
-            }
-            return newRow;
-        }).ToList();
+        // _logger.LogInformation($"Selected {columnIndexes.Count} columns. The commandText was {commandText}");
 
-        return newData;
+        for (int i = 0; i < selectedColumns.Count; i++) {
+            switch(selectedColumns[i]) {
+                case "Id":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[0]}");
+                    newRow[i] = row[0];
+                    break;
+                case "Name":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[1]}");
+                    newRow[i] = row[1];
+                    break;
+                case "Description":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[2]}");
+                    newRow[i] = row[2];
+                    break;
+                case "Price":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[3]}");
+                    newRow[i] = row[3];
+                    break;
+                case "PictureFileName":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[4]}");
+                    newRow[i] = row[4];
+                    break;
+                case "CatalogTypeId":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[5]}");
+                    newRow[i] = row[5];
+                    break;
+                case "CatalogBrandId":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[6]}");
+                    newRow[i] = row[6];
+                    break;
+                case "AvailableStock":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[7]}");
+                    newRow[i] = row[7];
+                    break;
+                case "RestockThreshold":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[8]}");
+                    newRow[i] = row[8];
+                    break;
+                case "MaxStockThreshold":
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[9]}");
+                    newRow[i] = row[9];
+                    break;
+                case "OnReorder":   
+                    // _logger.LogInformation($"Selected column: {i} Name: {selectedColumns[i]}, value={row[10]}");
+                    newRow[i] = row[10];
+                    break;
+            }
+        }   
+        return newRow;
     }
 
+   //[Trace]
+    private object[] PartialRowSelectionV2(string commandText, object[] row, List<string> selectedColumns, DataTable schemaTable, string clientID) {
+        // Build a new row with the selected columns only, as defined in the original commandText
+        var columnIndexes = new Dictionary<string, int>();
+        // _logger.LogInformation($"ClientID: {clientID} Starting to apply the partial row selection. CommandText: {commandText}");
+        try {
+            for (int i = 0; i < schemaTable.Rows.Count; i++) {
+                var columnName = schemaTable.Rows[i]["ColumnName"].ToString();
+                var columnIndex = (int)schemaTable.Rows[i]["ColumnOrdinal"];
+                columnIndexes[columnName] = columnIndex;
+                // _logger.LogInformation($"ClientID: {clientID} Added column {columnName} with index {columnIndex} to the columnIndexes dictionary");            
+            }
+
+            var newRow = new object[selectedColumns.Count];
+            for (int i = 0; i < selectedColumns.Count; i++) {
+                var columnName = selectedColumns[i];
+                var columnIndex = columnIndexes[columnName];
+                newRow[i] = row[columnIndex];
+                // _logger.LogInformation($"ClientID: {clientID} Added column {columnName} with value {newRow[i]} to the new row");
+            }
+
+            return newRow;
+        }
+        catch (Exception ex) {
+            _logger.LogError(ex, "Error while applying the partial row selection");
+            return row;
+        }
+    }
+
+   //[Trace]
     private List<object[]> FilterData(List<object[]> wrapperData, DbCommand command) {
         string commandText = command.CommandText;
         var targetTable = GetTargetTable(commandText);
@@ -1039,6 +1487,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return filteredData;
     }
 
+   //[Trace]
     private IEnumerable<object[]> ApplyWhereFilterIfExist(List<object[]> wrapperData, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
         string targetTable = GetTargetTable(command.CommandText);
@@ -1082,6 +1531,38 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return filteredData;
     }
 
+   //[Trace]
+    private static Dictionary<string, int> GetDefaultColumIndexesForUpdate(string targetTable) {
+        Dictionary<string, int> columnIndexes = new Dictionary<string, int>();
+
+        // Apply the filters according to the Target Table
+        switch (targetTable) {
+            case "CatalogBrand":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("Brand", 1);
+                break;
+            case "Catalog":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("CatalogBrandId", 1);
+                columnIndexes.Add("CatalogTypeId", 2);
+                columnIndexes.Add("Description", 3);
+                columnIndexes.Add("Name", 4);
+                columnIndexes.Add("PictureFileName", 5);
+                columnIndexes.Add("Price", 6);
+                columnIndexes.Add("AvailableStock", 7);
+                columnIndexes.Add("MaxStockThreshold", 8);
+                columnIndexes.Add("OnReorder", 9);
+                columnIndexes.Add("RestockThreshold", 10);
+                break;
+            case "CatalogType":
+                columnIndexes.Add("Id", 0);
+                columnIndexes.Add("Type", 1);
+                break;
+        }
+        return columnIndexes;
+    }
+
+   //[Trace]
     private static Dictionary<string, int> GetDefaultColumIndexes(string targetTable) {
         Dictionary<string, int> columnIndexes = new Dictionary<string, int>();
 
@@ -1112,6 +1593,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return columnIndexes;
     }
 
+   //[Trace]
     private static Dictionary<string, int> GetUniqueIndentifierColumns(string targetTable) {
         Dictionary<string, int> columnUniqueIdentifiers = new Dictionary<string, int>();
 
@@ -1132,6 +1614,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return columnUniqueIdentifiers;
     }
 
+   //[Trace]
     private string GetTargetTable(string commandText) {
         // Extract the name of the table target by the SQL query
         var match = Regex.Match(commandText, @"(?i)(?:INSERT INTO|FROM|UPDATE)\s*\[(?<Target>[_a-zA-Z]*)\]",
@@ -1139,6 +1622,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return match.Success ? match.Groups["Target"].Value : null;
     }
 
+   //[Trace]
     private (Boolean, string, string) HasOrderByCondition(string commandText) {
         // Searches for either a ASC or DESC pattern. Will not match in the default case.
         var match = Regex.Match(commandText, @"ORDER BY\s+\[[_a-zA-Z]+\]\.\[(?<Column>[_a-zA-Z]+)\]\s*(?<Type>ASC|DESC|)",
@@ -1153,18 +1637,21 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
     }
 
+   //[Trace]
     private (Boolean, string) HasOffsetCondition(string commandText) {
         var match = Regex.Match(commandText, @"OFFSET\s+(?<OffsetValue>[@_a-zA-Z\d]+)\s+ROWS",
             RegexOptions.IgnoreCase | RegexOptions.Multiline);
         return match.Success ? (true, match.Groups["OffsetValue"].Value) : (false, null);
     }
 
+   //[Trace]
     private (Boolean, string) HasFetchNextCondition(string commandText) {
         var match = Regex.Match(commandText, @"FETCH NEXT\s+(?<FetchRows>[@_a-zA-Z\d]+)\s+ROWS",
             RegexOptions.IgnoreCase | RegexOptions.Multiline);
         return match.Success ? (true, match.Groups["FetchRows"].Value) : (false, null);
     }
 
+   //[Trace]
     private (Boolean, List<string>) HasPartialRowSelection(string commandText) {
         // Extract SELECT clause parameters
         string subCommandText = commandText.Replace(commandText.Substring(commandText.IndexOf("FROM")), "");
@@ -1187,10 +1674,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return (true, columnSelect);
     }
 
+   //[Trace]
     private Boolean HasFilterCondition(string commandText) {
         return commandText.IndexOf("WHERE") != -1;
     }
 
+   //[Trace]
     private (Boolean, int) HasTopClause(string commandText) {
         Regex regex = new Regex(@"\.*TOP\((?<nElem>\d*)\)");
         MatchCollection matches = regex.Matches(commandText);
@@ -1200,129 +1689,80 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         return (false, 0);
     }
 
+   //[Trace]
     private Boolean HasCountClause(string commandText) {
         return commandText.Contains("COUNT");
     }
 
+   //[Trace]
     private Boolean IsSelectQuery(string commandText) {
         return commandText.Contains("SELECT");
     }
 
+   //[Trace]
     private Boolean IsCountSelect(string commandText) {
         return commandText.Contains("COUNT");
     }
 
-    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID) {
+   //[Trace]
+    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp, string targetTable) {
+        //Stopwatch sw = new Stopwatch();
+
         // The cases where this applies are:
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
+        
+        DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
+        List<Tuple<string, string>> conditions = (command.CommandText.IndexOf("WHERE") != -1) ? GetWhereConditions(command) : null;
 
-        // Get the timestamp of the command from string to DateTime
-        Regex regex = new Regex(@"\[Timestamp\] <= '(?<Timestamp>[^']*)'");
-        MatchCollection matches = regex.Matches(command.CommandText);
-        DateTime readerTimestamp = DateTime.Parse(matches[0].Groups["Timestamp"].Value.ToString());
-        string targetTable = GetTargetTable(command.CommandText);
+        //sw.Start();
 
-        if (!HasFilterCondition(command.CommandText)) {
-            // The reader is trying to read all items. Wait for the proposed items to be committed.
-            while (true) {
-                ConcurrentDictionary<string, ConcurrentDictionary < DateTime, int >> proposedItems = null;
-                switch(targetTable) {
-                    case "Catalog":
-                        proposedItems = _wrapper.Proposed_catalog_items;
-                        break;
-                    case "CatalogBrand":
-                        proposedItems = _wrapper.Proposed_catalog_brands;
-                        break;
-                    case "CatalogType":
-                        proposedItems = _wrapper.Proposed_catalog_types;
-                        break;
-                }
-                
-                // Get all proposed timestamps
-                List<DateTime> proposedTimestamps = new List<DateTime>();
-                foreach (KeyValuePair<string, ConcurrentDictionary<DateTime, int>> pair in proposedItems) {
-                    foreach (DateTime proposalTS in pair.Value.Keys) {
-                        if (proposalTS <= readerTimestamp) {
-                            proposedTimestamps.Add(proposalTS);
-                        }
-                    }
-                }
-                if (proposedTimestamps.Count == 0) {
-                    // All items have been flushed to the Database
-                    return;
-                }
-                Thread.Sleep(10);
-            }
+        var mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
+        
+        //sw.Stop();
+        //Timespans.Append(sw.Elapsed);
+        //Console.WriteLine("Elapsed time Catalog: {0}", sw.Elapsed);
+        //Timespans.Add(sw.Elapsed);
+
+        while (mre != null) {
+            // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
+            mre.WaitOne();
+
+            //sw.Start();
+            
+            mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
+
+            //sw.Stop();
+            //Timespans.Append(sw.Elapsed);
+            //Console.WriteLine("Elapsed time Catalog: {0}", sw.Elapsed);
+            //Timespans.Add(sw.Elapsed);
+
         }
-
-        // There is a WHERE clause. Check if the reader is trying to read a row has a proposed version in the proposed items.
-        while (true) {
-
-            List<string> totalDataIdentifiers = null;
-
-            // Get list
-            switch (targetTable) {
-                case "Catalog":
-                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_items.Keys);
-                    break;
-                case "CatalogBrand":
-                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_brands.Keys);
-                    break;
-                case "CatalogType":
-                    totalDataIdentifiers = new List<string>(_wrapper.Proposed_catalog_types.Keys);
-                    break;
-            }
-
-            List<object[]> totalData = new List<object[]>();
-            foreach (string dataIdentifier in totalDataIdentifiers) {
-                var splitDataIdentfier = dataIdentifier.Split('_');
-                totalData.Add(dataIdentifier.Split('_'));
-            }
-
-            var rowsToQuery = ApplyFilterToProposedSet(totalData, command).ToList();
-
-            int possibleCases = 0;
-            foreach (object[] identifier in rowsToQuery) {
-                // Concatenate the identifier into a single string identifier
-                string strIdentifier = identifier[0].ToString() + "_" + identifier[1].ToString() + "_" + identifier[2].ToString();
-
-                ConcurrentDictionary<DateTime, int> timestamps = null;
-                // Get the timestamps associated with the identifier
-
-                switch (targetTable) {
-                    case "Catalog":
-                        timestamps = _wrapper.Proposed_catalog_items[strIdentifier];
-                        break;
-                    case "CatalogBrand":
-                        timestamps = _wrapper.Proposed_catalog_brands[strIdentifier];
-                        break;
-                    case "CatalogType":
-                        timestamps = _wrapper.Proposed_catalog_types[strIdentifier];
-                        break;
-                }
-
-                // Check if there is at least one timestamp that is less than the reader timestamp, and so that will require the reader to wait
-                foreach (DateTime proposalTS in timestamps.Keys) {
-                    if (proposalTS <= readerTimestamp) {
-                        possibleCases++;
-                    }
-                }
-            }
-
-            if (possibleCases == 0) {
-                // No need to wait for any versions
-                return;
-            }
-            else {
-                Console.WriteLine($"Possible Cases:<{possibleCases}>. Reader has TS=<{readerTimestamp}>,  Will sleep...");
-            }
-
-            // The reader is trying to fetch a version that is in the proposed items. Wait for the proposed items to be committed.
-            Thread.Sleep(10);
-        }
+        //_logger.LogInformation($"Average time Catalog: {Average(Timespans)}");
     }
 
+
+    // Performance-tested
+   //[Trace]
+    private List<Tuple<string, string>> GetWhereConditions(DbCommand command) {
+        List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
+        
+        // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
+        MatchCollection matches = GetWhereConditionsColumnAndValueRegex.Matches(command.CommandText);
+        foreach (Match match in matches) {
+            string columnName = match.Groups["columnName"].Value;
+            if(columnName == "Timestamp") { // Timestamp is not considered as a condition
+                continue;
+            }
+            string parameterName = match.Groups["paramValue2"].Value;
+            var parameterValue = command.Parameters[parameterName].Value;
+            Tuple<string, string> condition = new Tuple<string, string>(columnName, parameterValue.ToString());
+            conditions.Add(condition);
+        }
+        return conditions;
+    }
+
+   //[Trace]
     private List<object[]> ApplyFilterToProposedSet(List<object[]> proposedSet, DbCommand command) {
         List<object[]> filteredData = new List<object[]>();
         string targetTable = GetTargetTable(command.CommandText);

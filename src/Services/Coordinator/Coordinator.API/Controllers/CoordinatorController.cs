@@ -9,6 +9,7 @@ using System.Text.Json;
 using System;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using YamlDotNet.Serialization;
+using Autofac.Core;
 
 namespace Microsoft.eShopOnContainers.Services.Coordinator.API.Controllers;
 
@@ -36,77 +37,62 @@ public class CoordinatorController : ControllerBase {
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     public async Task<ActionResult<int>> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
         double.TryParse(tokens, out var numTokens);
+        // _logger.LogInformation($"Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
+        // Incremement the Tokens
+        _functionalityService.IncreaseTokens(clientID, numTokens);
 
-        // Call async condition checker
-        await AsyncCheck(numTokens, clientID, serviceName, readOnly);
+        if (!readOnly) {
+            // Register the service that sent the tokens and executed at least 1 write operation
+            _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
+        }
+
+        if (_functionalityService.HasCollectedAllTokens(clientID)) {
+            // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
+            // If no services are registered (read-only functionality), do not ask for proposals / commit
+            if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
+                // Clear all the data structures from the functionality
+                _functionalityService.ClearFunctionality(clientID);
+                return Ok(tokens);
+            }
+
+            await ReceiveProposals(clientID);
+
+            long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
+
+            // Call Services to commit with the MAX TS
+            await BeginCommitProcess(clientID, maxTS);
+        }
 
         return Ok(tokens);
     }
 
-    private Task<Task> AsyncCheck(double tokens, string clientID, string service, bool readOnly) {
-        return Task.Factory.StartNew(async () => {
-            // Store the Timestamp proposal
-            //_functionalityService.AddNewProposalGivenService(clientID, service, ticks);
-
-            // Incremement the Tokens
-            _functionalityService.IncreaseTokens(clientID, tokens);
-
-            if(!readOnly) {
-                // Register the service that sent the tokens and executed at least 1 write operation
-                // _logger.LogInformation($"Func:<{clientID}> - Service:<{service}> - Tokens:<{tokens}> - Write");
-                _functionalityService.AddNewServiceSentTokens(clientID, service);
-            }
-            else {
-                // _logger.LogInformation($"Func:<{clientID}> - Service:<{service}> - Tokens:<{tokens}> - Read Only");
-            }
-
-            if (_functionalityService.HasCollectedAllTokens(clientID)) {
-                
-                // If no services are registered (read-only functionality), do not ask for proposals / commit
-                if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
-                    // _logger.LogInformation($"Func:<{clientID}> - Read-only Functionality");
-                    // Clear all the data structures from the functionality
-                    _functionalityService.ClearFunctionality(clientID);
-                    return;
-                }
-                
-                await ReceiveProposals(clientID);
-
-                long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
-
-                // Call Services to commit with the MAX TS
-                // _logger.LogInformation($"Func:<{clientID}> - TS:<{new DateTime(maxTS)}>");
-                BeginCommitProcess(clientID, maxTS);
-            }
-        });
-    }
-
-    private async void BeginCommitProcess(string clientID, long maxTS) {
-        // Log the number of functionalities received up to this point
-        // _logger.LogInformation("Number of functionalities received: " + _functionalityService.Proposals.Count);
-
+    private async ValueTask BeginCommitProcess(string clientID, long maxTS) {
         // Get all services' addresses involved in the functionality
         List<string> addresses = _functionalityService.Proposals[clientID]
                                     .Select(t => t.Item1)
                                     .Distinct()
                                     .ToList();
-        // _logger.LogInformation($"Commit Func:<{clientID}> - Addresses:<{string.Join(",", addresses)}>");
+        // Parallelize the commit process
+        List<Task> taskList = new List<Task>();
         foreach (string address in addresses) {
+            // _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
+            Task task = null;
             switch(address) {
                 case "CatalogService":
-                    await _catalogService.IssueCommit(maxTS.ToString(), clientID);
+                    task = _catalogService.IssueCommit(maxTS.ToString(), clientID);
                     break;
                 case "DiscountService":
-                    await _discountService.IssueCommit(maxTS.ToString(), clientID);
-                    break;
-                case "ThesisFrontendService":
-                    // _logger.LogInformation($"Commit Func:<{clientID}> - Address:<{address}>");
-                    await _thesisFrontendService.IssueCommit(clientID);
+                    task = _discountService.IssueCommit(maxTS.ToString(), clientID);
                     break;
             }
+            taskList.Add(task);
         }
 
+        // Issue commit to the ThesisFrontendService: this allows the service to return the functionality results to the client 
+        taskList.Add(_thesisFrontendService.IssueCommit(clientID));
 
+        // Wait for all the services to commit
+        await Task.WhenAll(taskList);
 
         // Clear all the data structures from the functionality
         _functionalityService.ClearFunctionality(clientID);
@@ -116,18 +102,24 @@ public class CoordinatorController : ControllerBase {
         // Get all services' addresses involved in the functionality
         List<string> services = _functionalityService.ServicesTokensProposed[clientID];
 
+        var tasks = new List<Task<long>>();
         foreach (string service in services) {
-            long proposedTS = -1;
             switch (service) {
                 case "CatalogService":
-                    proposedTS = await _catalogService.GetProposal(clientID);
-                    // Add proposed TS to the list of proposals
+                    tasks.Add(_catalogService.GetProposal(clientID));
                     break;
                 case "DiscountService":
-                    proposedTS = await _discountService.GetProposal(clientID);
+                    tasks.Add(_discountService.GetProposal(clientID));
                     break;
             }
-            _functionalityService.AddNewProposalGivenService(clientID, service, proposedTS);
+        }
+        var results = await Task.WhenAll(tasks);
+
+        // _logger.LogInformation($"Tasks count: {tasks.Count} - Results count: {results.Count()}");
+        for (int i = 0; i < tasks.Count; i++) {
+            // Note that services might include the ThesisFrontendService, which does not have a proposal, thus we use tasks.Count instead of services.Count
+            // _logger.LogInformation($"Received proposal {results[i]} from {services[i]} for client {clientID}");
+            _functionalityService.AddNewProposalGivenService(clientID, services[i], results[i]);
         }
     }
 }

@@ -4,6 +4,8 @@ using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using System.Collections.Concurrent;
+//using NewRelic.Api.Agent;
+using System.Diagnostics;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
     public class TCCMiddleware {
@@ -19,8 +21,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
+        //[Trace]
         public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata,
-            ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper) {
+            ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper, IOptions<CatalogSettings> settings) {
 
             // To differentiate from a regular call, check for the clientID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
@@ -30,34 +33,15 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 _request_metadata.ReadOnly = true;
 
                 string currentUri = ctx.Request.GetUri().ToString();
-
+                // _logger.LogInformation($"ClientID: {clientID} - Current URI: {currentUri}");
                 if (currentUri.Contains("commit")) {
+                    // _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
                     // Start flushing the Wrapper Data into the Database associated with the client session
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
-                    _dataWrapper.SingletonWrappedCatalogItems.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_objects_to_remove);
-                    _dataWrapper.SingletonWrappedCatalogBrands.TryGetValue(clientID,out ConcurrentBag<object[]> catalog_brands_to_remove);
-                    _dataWrapper.SingletonWrappedCatalogTypes.TryGetValue(clientID, out ConcurrentBag<object[]> catalog_types_to_remove);
-
                     // Flush the Wrapper Data into the Database
-                    await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata);
-
-                    DateTime proposedTS = new DateTime(ticks);
-
-                    // Remove the wrapped items from the proposed set
-                    if (catalog_objects_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_objects_to_remove, "Catalog");
-                    }
-                    if (catalog_brands_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_brands_to_remove, "CatalogBrand");
-                    }
-                    if (catalog_types_to_remove != null) {
-                        _dataWrapper.SingletonRemoveWrappedItemsFromProposedSet(clientID, catalog_types_to_remove, "CatalogType");
-                    }
-
-                    // Remove the client session from the proposed state
-                    _dataWrapper.SingletonRemoveProposedFunctionality(clientID);
+                    await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
 
                     await _next.Invoke(ctx);
                     return;
@@ -74,9 +58,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _request_metadata.Timestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
                 }
 
-                //_logger.LogInformation($"Checkpoint 1_d: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
-
                 if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
                     //_logger.LogInformation($"Registered tokens: {tokens}");
                     Int32.TryParse(tokens, out int numTokens);
@@ -88,9 +69,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 var removeTheseParams = new List<string> { "clientID", "timestamp", "tokens" }.AsReadOnly();
 
                 var filteredQueryParams = ctx.Request.Query.ToList().Where(filterKvp => !removeTheseParams.Contains(filterKvp.Key));
-
                 var filteredQueryString = QueryString.Create(filteredQueryParams);
-
                 ctx.Request.QueryString = filteredQueryString;
 
                 // Store the original body stream for restoring the response body back its original stream
@@ -130,6 +109,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
                 if(_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {                    
+                    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
                     // Propose Timestamp with Tokens to the Coordinator
                     await _coordinatorSvc.SendTokens();
                 }
@@ -142,18 +122,23 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             }
         }
 
-        private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata) {
+        //[Trace]
+        private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata, IOptions<CatalogSettings> settings) {
             // Set client state to the in commit
             _dataWrapper.SingletonSetTransactionState(clientID, true);
                 
             // Assign the received commit timestamp to the request scope
             _request_metadata.Timestamp = new DateTime(ticks);
 
-            // Get stored objects
-            var catalogWrapperItems = _dataWrapper.SingletonGetCatalogITems(clientID);
-            var catalogWrapperBrands = _dataWrapper.SingletonGetCatalogBrands(clientID);
-            var catalogWrapperTypes = _dataWrapper.SingletonGetCatalogTypes(clientID);
+            var onlyUpdate = settings.Value.Limit1Version ? true : false;
 
+            // TODO: Note, if these were Tasks, we could await them all at once
+            var catalogItemsToFlush = _dataWrapper.SingletonGetWrappedCatalogItemsToFlush(clientID, onlyUpdate);
+            // _logger.LogInformation($"Catalog Items to Flush: {catalogItemsToFlush.Count}: {catalogItemsToFlush}");
+            
+            // var catalogBrandToFlush = _dataWrapper.SingletonGetWrappedCatalogBrandsToFlush(clientID, onlyUpdate);
+            // var catalogTypeToFlush = _dataWrapper.SingletonGetWrappedCatalogTypesToFlush(clientID, onlyUpdate);
+            
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<CatalogContext>();
 
@@ -163,57 +148,33 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 scopedMetadata.Timestamp = _request_metadata.Timestamp;
                 scopedMetadata.Tokens = _request_metadata.Tokens;
 
-                if (catalogWrapperBrands != null && catalogWrapperBrands.Count > 0) {
-                    foreach (object[] brand in catalogWrapperBrands) {
-                        CatalogBrand newBrand = new CatalogBrand {
-                            //Id = Convert.ToInt32(brand[0]),
-                            Brand = Convert.ToString(brand[1]),
-                        };
-                        dbContext.CatalogBrands.Add(newBrand);
+                // Flush the wrapped items to the database
+                if(catalogItemsToFlush != null) {
+                    if(onlyUpdate) {
+                        foreach(var catalogItem in catalogItemsToFlush) {
+                            // _logger.LogInformation($"ClientID: {clientID}, (FlushWrapper) Updating catalog item: {catalogItem}");
+                            dbContext.CatalogItems.Update(catalogItem);
+                        }
                     }
+                    else {
+                        foreach(var catalogItem in catalogItemsToFlush) {
+                            // _logger.LogInformation($"ClientID: {clientID}, Adding catalog item id: {catalogItem.Id}, name: {catalogItem.Name}, brand: {catalogItem.CatalogBrandId}, type: {catalogItem.CatalogTypeId}.");
+                            dbContext.CatalogItems.Add(catalogItem);
+                        }
+                    }
+                    // _logger.LogInformation($"ClientID {clientID} Saving changes to database");
                     await dbContext.SaveChangesAsync();
-                }
-
-                if (catalogWrapperTypes != null && catalogWrapperTypes.Count > 0) {
-                    foreach (object[] type in catalogWrapperTypes) {
-                        CatalogType newType = new CatalogType {
-
-                            //Id = Convert.ToInt32(type[0]),
-                            Type = Convert.ToString(type[1]),
-                        };
-                        dbContext.CatalogTypes.Add(newType);
-                    }
-                    await dbContext.SaveChangesAsync();
-                }
-                if (catalogWrapperItems != null && catalogWrapperItems.Count > 0) {
-                    foreach (object[] item in catalogWrapperItems) {
-                        CatalogItem newItem = new CatalogItem {
-                            //Id = Convert.ToInt32(item[0]),
-                            CatalogBrandId = Convert.ToInt32(item[1]),
-                            CatalogTypeId = Convert.ToInt32(item[2]),
-                            Description = Convert.ToString(item[3]),
-                            Name = Convert.ToString(item[4]),
-                            PictureFileName = Convert.ToString(item[5]),
-                            Price = Convert.ToDecimal(item[6]),
-                            AvailableStock = Convert.ToInt32(item[7]),
-                            MaxStockThreshold = Convert.ToInt32(item[8]),
-                            OnReorder = Convert.ToBoolean(item[9]),
-                            RestockThreshold = Convert.ToInt32(item[10]),
-                        };
-                        dbContext.CatalogItems.Add(newItem);
-                    }
-                    try {
-                        dbContext.SaveChanges();
-                    } catch (Exception exc) {
-                        Console.WriteLine(exc.ToString());
-                    }
+                } 
+                else {
+                    _logger.LogError($"ClientID {clientID} - No catalog items to flush");
                 }
             }
+            // The items have been committed. Notify all threads waiting on the commit to read
+            _dataWrapper.NotifyReaderThreads(clientID, catalogItemsToFlush);
 
-            // Clear the stored objects in the wrapper with this clientID
-            _dataWrapper.SingletonRemoveFunctionalityObjects(clientID);
+            // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
+            _dataWrapper.CleanWrappedObjects(clientID);            
         }
-    
     }
 
     public static class TCCMiddlewareExtension {

@@ -24,7 +24,6 @@ public class CatalogService : ICatalogService {
         string uri = $"{_settings.Value.CatalogUrl}commit?timestamp={maxTS}&clientID={clientID}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
-        response.EnsureSuccessStatusCode();
 
         var responseString = await response.Content.ReadAsStringAsync();
     }

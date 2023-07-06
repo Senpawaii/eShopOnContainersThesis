@@ -15,6 +15,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+		<PackageReference Include="NewRelic.Agent.Api" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />
 		<PackageReference Include="AspNetCore.HealthChecks.AzureServiceBus" />
 		<PackageReference Include="AspNetCore.HealthChecks.Rabbitmq" />

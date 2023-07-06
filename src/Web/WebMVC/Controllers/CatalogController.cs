@@ -47,7 +47,6 @@ public class CatalogController : Controller
         (var discounts, metadata) = await _discountSvc.GetDiscountsById(catalogIds, metadata);
 
         // Sleep for a long period (This is only necessary as an extreme case to demonstrate the consistency anomaly)
-        //Thread.Sleep(10000);
 
         (var brands, metadata) = await _catalogSvc.GetBrands(metadata);
         (var types, metadata) = await _catalogSvc.GetTypes(metadata);

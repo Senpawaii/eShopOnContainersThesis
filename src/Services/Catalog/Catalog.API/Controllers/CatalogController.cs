@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+//using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Controllers;
 
@@ -26,6 +27,7 @@ public class CatalogController : ControllerBase {
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType(typeof(IEnumerable<CatalogItem>), (int)HttpStatusCode.OK)]
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    //[Trace]
     public async Task<IActionResult> ItemsAsync([FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0, string ids = null) {
         // _logger.LogInformation($"Checkpoint 2: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         
@@ -98,6 +100,10 @@ public class CatalogController : ControllerBase {
             return item;
         }
 
+        if(_settings.Limit1Version) {
+            return new CatalogItem();
+        }
+
         return NotFound();
     }
 
@@ -125,6 +131,7 @@ public class CatalogController : ControllerBase {
     [HttpGet]
     [Route("items/type/{catalogTypeId}/brand/{catalogBrandId:int?}")]
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
+   //[Trace]
     public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsByTypeIdAndBrandIdAsync(int catalogTypeId, int? catalogBrandId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0) {
         var root = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
@@ -151,6 +158,7 @@ public class CatalogController : ControllerBase {
     [HttpGet]
     [Route("items/type/all/brand/{catalogBrandId:int?}")]
     [ProducesResponseType(typeof(PaginatedItemsViewModel<CatalogItem>), (int)HttpStatusCode.OK)]
+   //[Trace]
     public async Task<ActionResult<PaginatedItemsViewModel<CatalogItem>>> ItemsByBrandIdAsync(int? catalogBrandId, [FromQuery] int pageSize = 10, [FromQuery] int pageIndex = 0) {
         var root = (IQueryable<CatalogItem>)_catalogContext.CatalogItems;
 
@@ -192,6 +200,7 @@ public class CatalogController : ControllerBase {
     [HttpPut]
     [ProducesResponseType((int)HttpStatusCode.NotFound)]
     [ProducesResponseType((int)HttpStatusCode.Created)]
+   //[Trace]
     public async Task<ActionResult> UpdateProductPriceAsync([FromBody] CatalogItem productToUpdate) {
         // Log all updated catalog item paramaters
         // _logger.LogInformation($"Body Catalog Item: {productToUpdate.Id} with the following parameters: {productToUpdate.Name}, {productToUpdate.Description}, {productToUpdate.Price}, {productToUpdate.PictureFileName}, {productToUpdate.PictureUri}, {productToUpdate.CatalogBrandId}, {productToUpdate.CatalogTypeId}");
@@ -379,12 +388,14 @@ public class CatalogController : ControllerBase {
 
         brands = brands.Where(bn => bn.Brand == catalogBrand);
         if (await brands.CountAsync() == 0) {
+            _logger.LogInformation($"The catalog brand: {catalogBrand} was not found");
             return NotFound();
         }
         var brandId = brands.Select(a => a.Id).First();
 
         types = types.Where(tn => tn.Type == catalogType);
         if (await types.CountAsync() == 0) {
+            _logger.LogInformation($"The catalog type: {catalogType} was not found");
             return NotFound();
         }
         var typeId = types.Select(a => a.Id).First();
@@ -394,9 +405,12 @@ public class CatalogController : ControllerBase {
         var totalItems = await items
             .CountAsync();
 
-        if (totalItems == 0) { return NotFound(); }
+        if (totalItems == 0) { 
+            _logger.LogInformation($"The catalog item: {name} was not found");
+            return NotFound(); 
+        }
         var itemId = items.Select(a => a.Id).First();
-
+        _logger.LogInformation("Catalog Item Id queried: {0}", itemId.ToString());
         // _logger.LogInformation("Finished ItemIdByNameAndTypeIdAndBrandId request!");
 
         return itemId;
@@ -415,12 +429,14 @@ public class CatalogController : ControllerBase {
 
         brands = brands.Where(bn => bn.Brand == catalogBrand);
         if (await brands.CountAsync() == 0) {
+            _logger.LogInformation($"The catalog brand: {catalogBrand} was not found");
             return NotFound();
         }
         var brandId = brands.Select(a => a.Id).First();
 
         types = types.Where(tn => tn.Type == catalogType);
         if (await types.CountAsync() == 0) {
+            _logger.LogInformation($"The catalog type: {catalogType} was not found");
             return NotFound();
         }
         var typeId = types.Select(a => a.Id).First();
@@ -430,9 +446,13 @@ public class CatalogController : ControllerBase {
         var totalItems = await items
             .CountAsync();
 
-        if (totalItems == 0) { return NotFound(); }
-        var itemPrice = items.Select(a => a.Price).First();
-
+        if (totalItems == 0) { 
+            _logger.LogInformation($"The catalog item: {name} was not found, generating a new price...");
+            var generatedPrice = 10;
+            return generatedPrice; 
+        }
+        var itemPrice = await items.Select(a => a.Price).FirstAsync();
+        // _logger.LogInformation("Catalog Item Price queried: {0}", itemPrice.ToString());
         //_logger.LogInformation("Finished ItemPriceGivenNameBrandType request!");
 
         return itemPrice;
