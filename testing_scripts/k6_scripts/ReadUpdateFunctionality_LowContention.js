@@ -208,7 +208,6 @@ export function readBasket() {
     const randomBasket = Math.floor(Math.random() * (numBaskets) + 1);
 
     const res = http.get(readBasketUrl + randomBasket);
-    console.log(res);
     // Check if the the price item and discount are coeherent
     const basket = JSON.parse(res.body);
     const price = basket.items[0].unitPrice;
