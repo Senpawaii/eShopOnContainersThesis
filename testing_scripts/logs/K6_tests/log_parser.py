@@ -163,19 +163,45 @@ def plot_data(log_latencies, log_throughputs, plot_name, y_axis_label):
     plt.savefig(os.path.join(plots_folder, plot_name)+ ".pdf", format="pdf", bbox_inches="tight")
 
 
+def CollectTestDatafiles():
+    """ Search the log directory and return a dictionary of parsed log files. 
+        Each key in the dictionary contains the parsed data from that system + system type. 
+    """
+    # eShopOnContainersThesis/testing_scripts/logs/K6_tests/Thesis_results
+    current_path = os.getcwd()
+    print("Current path: " + current_path)
+    test_logs_path = os.path.join(current_path, "testing_scripts", "logs", "K6_tests", "Thesis_results")
+    print("Test logs path: " + test_logs_path)
+
+
+
+
+
+
 
 def main():
     # Read arguments
     if len(sys.argv) < 2:
-        print("Usage: python log_parser.py <log files>")
+        print("Usage: python log_parser.py <type of aggregator: minimum=measure/ average=all>")
         return
     
-    # Get the logs folder path(s)
-    log_files = [os.path.join(os.getcwd(), sys.argv[i]) for i in range(1, len(sys.argv))]
-    # logs_folder = os.path.join(os.getcwd(), sys.argv[1])
+    test_selector_criteria = sys.argv[1]
+    if not re.match(r"minimum=\w|average=\w", test_selector_criteria):
+        print("The test selector criteria must be in the format minimum=measure or average=all")
+        return
+    
+    log_files_criteria = test_selector_criteria.split("=")[0]
+    log_files_measure = test_selector_criteria.split("=")[1]
+    
+    # Check that the criteria is either "minimum" or "average"
+    if log_files_criteria == "minimum":
+        if log_files_measure not in ["avg", "min", "max", "med", "p(90)", "p(95)"]:
+            print("The test selector criteria must be one of the following: avg, min, max, med, p(90), p(95)")
+            return   
 
-    # Clean data
-    clean_data(log_files)
+    # Get the test data by system and test type
+    parsed_data = CollectTestDatafiles()
+    
 
 
 if __name__ == '__main__':

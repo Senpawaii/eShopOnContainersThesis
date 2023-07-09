@@ -294,3 +294,4 @@ src/**/inf.yaml
 # ignore all testing logs
 testing_scripts/logs/*
 testing_scripts/k6_logs/*
+!testing_scripts/logs/K6_tests/log_parser.py
