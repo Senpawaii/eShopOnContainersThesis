@@ -109,7 +109,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             // This is a system query
             return result;
         }
-
         switch (commandType) {
             case UNKNOWN_COMMAND:
                 return result;
@@ -541,9 +540,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             // There are multiple versions, so we need to join with the max timestamp, to get the latest version that respects the client timestamp
             switch (targetTable) {
                 case "CatalogBrand":
-                    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
+                    command.CommandText = command.CommandText.Replace("SELECT ", $"SELECT TOP(1) ");
                     command.CommandText += whereCondition;
-                    command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
+                    command.CommandText += " ORDER BY [Timestamp] DESC";
+
+                    //command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
+                    //command.CommandText += whereCondition;
+                    //command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
                     break;
                 case "CatalogType":
                     command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogType.Type, max(CatalogType.Timestamp) as max_timestamp FROM CatalogType");
@@ -557,6 +560,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     break;
             }
         }
+        _logger.LogInformation($"Updated SELECT command: {command.CommandText}");
     }
 
     // Not performance-tested
