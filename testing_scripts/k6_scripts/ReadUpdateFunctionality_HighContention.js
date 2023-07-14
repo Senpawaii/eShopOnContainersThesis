@@ -14,11 +14,11 @@ const readOperationCounter = new Counter("Read_Operations");
 const writeOperationCounter = new Counter("Write_Operations");
 
 export let options = {
-    // vus: 400,
-    // duration: "10m",
-    stages: [
-        { duration: "30s", target: 100 }, // simulate ramp-up of traffic from 1 to 400 users over 30 seconds.
-    ],
+    vus: 640,
+    duration: "20s",
+    // stages: [
+    //     { duration: "15s", target: 240 },
+    // ],
 };
 
 
@@ -72,21 +72,41 @@ export function setup() {
     return body;
 }
 
+export function teardown() {
+    
+}
+
 // Define Read Basket function
 export function readBasket() {
-    const res = http.get(readBasketUrl);
+    let success = false;
+    let iterations = 0;
+    while(!success) {
+        const res = http.get(readBasketUrl);
 
-    // Check if the the price item and discount are coeherent
-    const basket = JSON.parse(res.body);
-    const price = basket.items[0].unitPrice;
-    const discount = basket.items[0].discount;
-    check(res, {
-        "is status 200": (r) => r.status === 200,
-        "is price coherent": (r) => price === (discount * 10),
-    });
+        // Check if the the price item and discount are coeherent
+        const basket = JSON.parse(res.body);
+        const price = basket.items[0].unitPrice;
+        const discount = basket.items[0].discount;
+        check(res, {
+            "is status 200": (r) => r.status === 200,
+            "is price coherent": (r) => price === (discount * 10),
+        });
 
+        if(price === (discount * 10)) {
+            console.log(`Price: ${price}, discount: ${discount}, price is coherent`)
+            success = true;
+        } 
+        else {
+            console.log(`Price: ${price}, discount: ${discount}, price is not coherent`)
+        }
+        iterations++;
+        console.log(`Read operations: iterations: ${iterations}`);
+        if(iterations >= 10) {
+            success = true;
+        }
+    }
     readOperationCounter.add(1);
-    sleep(1);
+    sleep(0.5);
 }
 
 // Define Update Price and Discount function
@@ -99,7 +119,7 @@ export function updatePriceAndDiscount(body) {
     
     const res = http.put(baseUrl, JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
     writeOperationCounter.add(1);
-    sleep(1);
+    sleep(0.5);
 }
 
 export default function(body) {

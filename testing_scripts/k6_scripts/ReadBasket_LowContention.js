@@ -4,10 +4,12 @@ import { Counter } from "k6/metrics";
 import { check } from "k6";
 
 
-const readBasketUrl = 'http://localhost:5142/api/v1/frontend/readbasket?basketId=basket0';
+const readBasketUrl = 'http://localhost:5142/api/v1/frontend/readbasket?basketId=basket';
 const addItemToBasketUrl = 'http://localhost:5142/api/v1/frontend/additemtobasket';
 
 const readOperationCounter = new Counter("Read_Operations");
+
+const numBaskets = 6;
 
 const test_duration = 60;
 export let options = {
@@ -16,45 +18,41 @@ export let options = {
 };
 
 export function addItemToBasket() {
-    const body = {
-        "CatalogItemId": 1,
-        "BasketId":"basket0",
-        "Quantity": 1,
-        "CatalogItemName": ".NET Bot Black Hoodie",
-        "CatalogItemBrandName": ".NET",
-        "CatalogItemTypeName": "T-Shirt"
+    for(let i = 1; i <= numBaskets; i++) {
+        const product = bodies[i - 1];
+        let body = {
+            "CatalogItemId": product.catalogItem.id,
+            "BasketId":"basket" + i,
+            "Quantity": 1,
+            "CatalogItemName": product.catalogItem.name,
+            "CatalogItemBrandName": product.discountItem.ItemBrand,
+            "CatalogItemTypeName": product.discountItem.ItemType
+        }
+        const JSONBody = JSON.stringify(body);
+        const res = http.post(addItemToBasketUrl, JSONBody, { headers: { "Content-Type": "application/json" } });
+        // console.log("Added item to basket" + i);
+        // console.log(JSONBody);
+        // console.log(res);
+        // console.log(product)
     }
-
-    const JSONBody = JSON.stringify(body);
-    http.post(addItemToBasketUrl, JSONBody, { headers: { "Content-Type": "application/json" } });
 
 }
 
 export function setup() {
-    addItemToBasket();
-
-    // start timer
-    // const start = new Date().getTime();
-    // // execute readBasket for 10% of the duration of this test
-    // let iterations = 0;
-    // const duration = test_duration * 1000;
-    // console.log(`Date: ${new Date().getTime()}, duration: ${duration}`);
-    // while (new Date().getTime() - start < duration * 0.1) {
-    //     iterations++;
-    //     console.log(`Read operations: iterations: ${iterations}`);
-    //     readBasket();
-    // }
-    // print the number of read operations
+    // addItemToBasket(); # Should not be disabled if the baskets are not already created
 }
 
 // Define Read Basket function
 export function readBasket() {
+    // Get a random number between 1 and 6
+    const randomBasket = Math.floor(Math.random() * (numBaskets) + 1);
+
     let success = false;
 
     const start = new Date().getTime();
     while(!success) {
         
-        const res = http.get(readBasketUrl);
+        const res = http.get(readBasketUrl + randomBasket);
 
         // Check if the the price item and discount are coeherent
         const basket = JSON.parse(res.body);

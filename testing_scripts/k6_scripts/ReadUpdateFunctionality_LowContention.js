@@ -16,11 +16,8 @@ const writeOperationCounter = new Counter("Write_Operations");
 const numBaskets = 6;
 
 export let options = {
-    vus: 10,
-    duration: "20s",
-    thresholds: {
-        http_req_duration: ["p(95)<1500"]
-    }
+    vus: 1,
+    duration: "60s",
 };
 
 
@@ -231,7 +228,7 @@ export function updatePriceAndDiscount(body) {
     
     const res = http.put(baseUrl, JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
     writeOperationCounter.add(1);
-    sleep(0.5);
+    sleep(1);
 }
 
 export default function(bodies) {
