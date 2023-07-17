@@ -21,7 +21,7 @@ using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using Autofac.Core;
 using System.Runtime.CompilerServices;
 using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
-using NewRelic.Api.Agent;
+// using NewRelic.Api.Agent;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Text;
@@ -524,6 +524,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             if(!_settings.Value.Limit1Version) {
                 whereCondition = whereCondition.Replace("[c]", $"[{targetTable}]");
                 whereCondition += $" AND [{targetTable}].[Timestamp] <= @clientTimestamp ";
+                // whereCondition += $" AND [c].[Timestamp] <= @clientTimestamp ";
             } 
             else {
                 whereCondition += $" AND [c].[Timestamp] <= @clientTimestamp ";
@@ -538,15 +539,20 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
         else {
             // There are multiple versions, so we need to join with the max timestamp, to get the latest version that respects the client timestamp
+            // command.CommandText = command.CommandText.Replace("SELECT TOP(2) ", $"SELECT TOP(1) ");
+            // whereCondition = whereCondition.Replace($"[{targetTable}]", $"[c]");
+            // command.CommandText += whereCondition;
+            // command.CommandText += "ORDER BY [Timestamp] DESC";
+            
             switch (targetTable) {
                 case "CatalogBrand":
-                    command.CommandText = command.CommandText.Replace("SELECT ", $"SELECT TOP(1) ");
-                    command.CommandText += whereCondition;
-                    command.CommandText += " ORDER BY [Timestamp] DESC";
+                    // command.CommandText = command.CommandText.Replace("SELECT ", $"SELECT TOP(1) ");
+                    // command.CommandText += whereCondition;
+                    // command.CommandText += " ORDER BY [Timestamp] DESC";
 
-                    //command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
-                    //command.CommandText += whereCondition;
-                    //command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
+                    command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogBrand.Brand, max(CatalogBrand.Timestamp) as max_timestamp FROM CatalogBrand");
+                    command.CommandText += whereCondition;
+                    command.CommandText += "GROUP BY CatalogBrand.Brand) d on c.Brand = d.Brand AND c.Timestamp = d.max_timestamp";
                     break;
                 case "CatalogType":
                     command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT CatalogType.Type, max(CatalogType.Timestamp) as max_timestamp FROM CatalogType");
@@ -554,13 +560,15 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     command.CommandText += "GROUP BY CatalogType.Type) d on c.Type = d.Type AND c.Timestamp = d.max_timestamp";
                     break;
                 case "Catalog":
+                    // command.CommandText = command.CommandText.Replace("AS [c]", $"AS [Catalog]");
+    
                     command.CommandText = command.CommandText.Replace("AS [c]", $"AS [c] JOIN (SELECT Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId, max(Catalog.Timestamp) as max_timestamp FROM Catalog");
                     command.CommandText += whereCondition;
                     command.CommandText += "GROUP BY Catalog.Name, Catalog.CatalogBrandId, Catalog.CatalogTypeId ) d on c.Name = d.Name AND c.CatalogBrandId = d.CatalogBrandId AND c.CatalogTypeId = d.CatalogTypeId and c.Timestamp = d.max_timestamp";
                     break;
             }
         }
-        _logger.LogInformation($"Updated SELECT command: {command.CommandText}");
+        // _logger.LogInformation($"Updated SELECT command: {command.CommandText}");
     }
 
     // Not performance-tested
@@ -1728,20 +1736,16 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         //Console.WriteLine("Elapsed time Catalog: {0}", sw.Elapsed);
         //Timespans.Add(sw.Elapsed);
 
-        while (mre != null) {
-            // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
-            mre.WaitOne();
+        // UNCOMMENT THIS BELOW!!!
+        // while (mre != null) {
+        //     _logger.LogInformation($"ClientID {clientID}: There is at least one proposed item with lower timestamp than the client timestamp.");
+        //     mre.WaitOne();
+        //     _logger.LogInformation($"ClientID {clientID}: The proposed item was committed. Checking if there are more proposed items with lower timestamp than the client timestamp.");
+        //     mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
+        // }
 
-            //sw.Start();
-            
-            mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
 
-            //sw.Stop();
-            //Timespans.Append(sw.Elapsed);
-            //Console.WriteLine("Elapsed time Catalog: {0}", sw.Elapsed);
-            //Timespans.Add(sw.Elapsed);
-
-        }
+        _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
         //_logger.LogInformation($"Average time Catalog: {Average(Timespans)}");
     }
 

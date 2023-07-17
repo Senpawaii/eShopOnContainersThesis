@@ -75,7 +75,7 @@ public class CoordinatorController : ControllerBase {
         // Parallelize the commit process
         List<Task> taskList = new List<Task>();
         foreach (string address in addresses) {
-            // _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
+            _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
             Task task = null;
             switch(address) {
                 case "CatalogService":
@@ -104,6 +104,7 @@ public class CoordinatorController : ControllerBase {
 
         var tasks = new List<Task<long>>();
         foreach (string service in services) {
+            _logger.LogInformation($"Issuing proposal request to {service} for client {clientID}");
             switch (service) {
                 case "CatalogService":
                     tasks.Add(_catalogService.GetProposal(clientID));

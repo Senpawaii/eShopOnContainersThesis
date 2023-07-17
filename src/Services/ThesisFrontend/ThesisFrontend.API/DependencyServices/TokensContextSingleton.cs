@@ -1,9 +1,11 @@
 ﻿using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Microsoft.eShopOnContainers.Services.ThesisFrontend.API.DependencyServices;
 public class TokensContextSingleton : ITokensContextSingleton {
     ConcurrentDictionary<string, int> remaining_tokens = new ConcurrentDictionary<string, int>();
     ConcurrentDictionary<string, string> transactions_state = new ConcurrentDictionary<string, string>();
+    ConcurrentDictionary<string, ManualResetEvent> transactions_state_events = new ConcurrentDictionary<string, ManualResetEvent>();
     public TokensContextSingleton() {
     }
 
@@ -51,5 +53,29 @@ public class TokensContextSingleton : ITokensContextSingleton {
     public void RemoveTransactionState(string clientID) {
         // Remove the entry with the given clientID
         transactions_state.TryRemove(clientID, out string _);
+    }
+
+    public void AddManualResetEvent(string clientID) {
+        // Add a new ManualResetEvent associated with the clientID
+        transactions_state_events.AddOrUpdate(clientID, new ManualResetEvent(false), (key, value) => value);
+    }
+
+    public ManualResetEvent GetManualResetEvent(string clientID) {
+        // Return the ManualResetEvent associated with the clientID
+        return transactions_state_events.GetValueOrDefault(clientID, null);
+    }
+
+    public void SignalManualResetEvent(string clientID) {
+        // Signal the ManualResetEvent associated with the clientID
+        try {
+            transactions_state_events.GetValueOrDefault(clientID, null).Set();
+        } catch (NullReferenceException) {
+            // The ManualResetEvent was already removed
+        }
+    }
+
+    public void RemoveManualResetEvent(string clientID) {
+        // Remove the ManualResetEvent associated with the clientID
+        transactions_state_events.TryRemove(clientID, out ManualResetEvent _);
     }
 }

@@ -35,7 +35,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 string currentUri = ctx.Request.GetUri().ToString();
                 // _logger.LogInformation($"ClientID: {clientID} - Current URI: {currentUri}");
                 if (currentUri.Contains("commit")) {
-                    // _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
+                    _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
                     // Start flushing the Wrapper Data into the Database associated with the client session
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -49,6 +49,8 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 else if(currentUri.Contains("proposeTS")) {
                     // Update client session to Proposed State and Store data written in the current session in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
+                    _logger.LogInformation($"ClientID: {clientID}: Proposing Transaction");
+
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                 }
@@ -124,6 +126,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
         //[Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata, IOptions<CatalogSettings> settings) {
+            _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database");
             // Set client state to the in commit
             _dataWrapper.SingletonSetTransactionState(clientID, true);
                 
@@ -173,7 +176,8 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             _dataWrapper.NotifyReaderThreads(clientID, catalogItemsToFlush);
 
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
-            _dataWrapper.CleanWrappedObjects(clientID);            
+            _dataWrapper.CleanWrappedObjects(clientID);        
+            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
         }
     }
 

@@ -38,7 +38,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {
-                    // _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
+                    _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
                     // Start flushing the Wrapper Data into the Database associated with the functionality
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -52,6 +52,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 else if (currentUri.Contains("proposeTS")) {
                     // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
+                    _logger.LogInformation($"ClientID: {clientID}: Proposing Transaction");
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                 }
@@ -127,6 +128,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
        //[Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
+            _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database");
             // Set functionality state to the in commit
             _data_wrapper.SingletonSetTransactionState(clientID, true);
 
@@ -164,6 +166,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             }
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _data_wrapper.CleanWrappedObjects(clientID);
+            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
         }
     }
 

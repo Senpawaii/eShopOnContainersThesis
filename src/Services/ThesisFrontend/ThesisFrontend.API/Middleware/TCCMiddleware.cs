@@ -8,14 +8,14 @@ public class TCCMiddleware {
     private readonly ILogger<TCCMiddleware> _logger;
     private readonly RequestDelegate _next;
     private IScopedMetadata _request_metadata;
-    private ITokensContextSingleton _remainingTokens;
+    private ITokensContextSingleton _functionalitySingleton;
     private readonly ICoordinatorService _coordinatorSvc;
 
-    public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next, ICoordinatorService coordinatorSvc, IScopedMetadata metadata, ITokensContextSingleton remainingTokens) {
+    public TCCMiddleware(ILogger<TCCMiddleware> logger, RequestDelegate next, ICoordinatorService coordinatorSvc, IScopedMetadata metadata, ITokensContextSingleton functionalitySingleton) {
         _logger = logger;
         _next = next;
         _request_metadata = metadata;
-        _remainingTokens = remainingTokens;
+        _functionalitySingleton = functionalitySingleton;
         _coordinatorSvc = coordinatorSvc;
     }
 
@@ -30,62 +30,52 @@ public class TCCMiddleware {
 
         // Initialize the metadata fields
         SeedMetadata();
-        
-        // Log the current Time and the client ID
-        //_logger.LogInformation($"Sending Request at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
+        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, currentUri: {currentUri}");
 
+        // Add a new ManualResetEvent associated with the clientID
+        _functionalitySingleton.AddManualResetEvent(_request_metadata.ClientID.Value);
+        
         await _next.Invoke(httpctx);
 
-        // Log the current Time and the client ID
-        //_logger.LogInformation($"TF1 at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
-
-
-        // Send the rest of the tokens to the coordinator
-        if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID.Value) > 0) {
+        if (_functionalitySingleton.GetRemainingTokens(_request_metadata.ClientID.Value) > 0) {
+            // Send the rest of the tokens to the coordinator
             await _coordinatorSvc.SendTokens();
         }
 
-        // Log the current Time and the client ID
-        //_logger.LogInformation($"Finishing Request at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_request_metadata.ClientID.Value}.");
-
         // Clean the singleton fields for the current session context
-        _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID.Value);
+        _functionalitySingleton.RemoveRemainingTokens(_request_metadata.ClientID.Value);
 
         if(!currentUri.Contains("updatepricediscount")) {
+            // This is a readonly request, no need to wait for the transaction to complete
+            _functionalitySingleton.RemoveTransactionState(_request_metadata.ClientID.Value);
+            _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
             return;
         }
 
         // Block the result until the state of the transaction is set to either commit or abort, timeout after 5 seconds
-        var currentTime = DateTime.Now;
-        while (_remainingTokens.GetTransactionState(_request_metadata.ClientID.Value) == null) {
-            // _logger.LogInformation($"Waiting for the transaction state to be set for {_request_metadata.ClientID.Value}");
-            await Task.Delay(10);
-            if (DateTime.Now.Subtract(currentTime).TotalSeconds > 5) {
-                _logger.LogError($"Timeout while waiting for the transaction state to be set for {_request_metadata.ClientID.Value}");
-                // Set the transaction state to abort
-                _remainingTokens.ChangeTransactionState(_request_metadata.ClientID.Value, "abort");
-                break;
-            }
-        }
+        var mre = _functionalitySingleton.GetManualResetEvent(_request_metadata.ClientID.Value);
+        var success = mre.WaitOne(5000);
 
-        // Check if the transaction was aborted
-        if (_remainingTokens.GetTransactionState(_request_metadata.ClientID.Value) == "abort") {
-            // Clean the singleton fields for the current session context
-            _remainingTokens.RemoveTransactionState(_request_metadata.ClientID.Value);
-            // Return the abort signal to the client
-            httpctx.Response.StatusCode = 409;
-            return;
-        }
         // Clean the singleton fields for the current session context
-        _remainingTokens.RemoveTransactionState(_request_metadata.ClientID.Value);
+        _functionalitySingleton.RemoveTransactionState(_request_metadata.ClientID.Value);
 
+        if (!success) {
+            // Transaction was not completed within 5 seconds, abort it.
+            _logger.LogError($"Transaction for {_request_metadata.ClientID.Value} was not completed within 5 seconds, aborting it");
+            httpctx.Response.StatusCode = 409;
+        } else {
+            _logger.LogInformation($"Transaction for {_request_metadata.ClientID.Value} was completed successfully");
+        }
+        _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
+        return;
     }
 
    //[Trace]
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
-            // _logger.LogInformation($"Committing transaction for {_request_metadata.ClientID.Value}");
+            _logger.LogInformation($"ClientID: {clientID}, signalling ManualResetEvent");
+            _functionalitySingleton.SignalManualResetEvent(clientID);
         }
         else {
             _logger.LogError("ClientID not found in the request");
@@ -107,7 +97,7 @@ public class TCCMiddleware {
 
    //[Trace]
     private void ChangeTransactionState(string clientID, string state) {
-        _remainingTokens.ChangeTransactionState(clientID, state);
+        _functionalitySingleton.ChangeTransactionState(clientID, state);
     }
 
     private void SeedMetadata() {
@@ -119,7 +109,7 @@ public class TCCMiddleware {
 
         // Generate tokens
         int tokens = 1000000000;
-        _remainingTokens.AddRemainingTokens(clientID, tokens);
+        _functionalitySingleton.AddRemainingTokens(clientID, tokens);
         _request_metadata.Tokens.Value = tokens;
         _request_metadata.Timestamp.Value = timestamp;
         _request_metadata.ClientID.Value = clientID;

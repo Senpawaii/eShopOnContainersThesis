@@ -475,7 +475,7 @@ namespace Catalog.API.DependencyServices {
                 var proposedTS = proposed_functionalities.GetValueOrDefault(clientID, 0);
 
                 if(proposedTS == 0) {
-                    //_logger.LogError($"ClientID: {clientID} - DateTime 0: Could not find proposed timestamp for client {clientID}");
+                    _logger.LogError($"ClientID: {clientID} - DateTime 0: Could not find proposed timestamp for client {clientID}");
                 }
 
                 ManualResetEvent manualResetEvent = catalog_items_manual_reset_events.GetValueOrDefault((proposedItem, proposedTS), null);
@@ -484,7 +484,7 @@ namespace Catalog.API.DependencyServices {
                     manualResetEvent.Set();
                 }
                 else {
-                    //_logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposedItem.Name} with proposed TS {proposedTS}");
+                    _logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposedItem.Name} with proposed TS {proposedTS}");
                 }
             }
             // TODO: a thread should clear the manual reset events dictionary from time to time to avoid unnecessary memory consumption

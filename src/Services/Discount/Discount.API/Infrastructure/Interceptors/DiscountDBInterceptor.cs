@@ -8,7 +8,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.DataReaders;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Microsoft.IdentityModel.Tokens;
-using NewRelic.Api.Agent;
+// using NewRelic.Api.Agent;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
@@ -24,6 +24,8 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     const int UPDATE_COMMAND = 3;
     const int DELETE_COMMAND = 4;
     const int UNKNOWN_COMMAND = -1;
+
+    private static readonly Regex GetWhereConditionsColumnAndValueRegex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))", RegexOptions.Compiled);
 
     public DiscountDBInterceptor(IScopedMetadata requestMetadata, ISingletonWrapper wrapper, ILogger<DiscountContext> logger, IOptions<DiscountSettings> settings) {
         _request_metadata = requestMetadata;
@@ -65,7 +67,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 } else {
                     UpdateSelectCommand(command, targetTable);
                 }
-                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp);
+                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp, targetTable);
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
@@ -148,7 +150,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default) {
-
+        command.CommandTimeout = 100;
         _originalCommandText = new string(command.CommandText);
 
         (var commandType, var targetTable) = GetCommandInfo(command);
@@ -172,7 +174,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 } else {
                     UpdateSelectCommand(command, targetTable);
                 }
-                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp);
+                WaitForProposedItemsIfNecessary(command, clientID, clientTimestamp, targetTable);
                 break;
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
@@ -1406,39 +1408,24 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
     }
 
    //[Trace]
-    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp) {
+    private void WaitForProposedItemsIfNecessary(DbCommand command, string clientID, string clientTimestamp, string targetTable) {
         // The cases where this applies are:
         // 1. The command is a SELECT query and all rows are being selected and the proposed items are not empty
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
 
         DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
-        bool needToWait = true;
-        string targetTable = GetTargetTable(command.CommandText);
+        List<Tuple<string, string>> conditions = (command.CommandText.IndexOf("WHERE") != -1) ? GetWhereConditions(command) : null;
 
-        List<Tuple<string, string>> conditions;
-        if (HasFilterCondition(command.CommandText)) {
-            // Get the conditions of the WHERE clause, for now we only support equality conditions. Conditions are in the format: <columnName, value>
-            conditions = GetWhereConditions(command);
-        }
-        else {
-            // The reader is trying to read all items. Wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.
-            // _logger.LogInformation($"Reader is trying to read all items. Will wait for all proposed items with lower proposed Timestamp than client Timestamp to be committed.");
-            conditions = null;
-        }
-
-        while (needToWait) {
-            needToWait = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp);
-            if (needToWait) {
-                // There is at least one proposed item with lower timestamp than the client timestamp. Wait for it to be committed.
-                // Log the sleeping...
-                // _logger.LogInformation($"Reader is waiting for proposed items to be committed. Will sleep for 10ms.");
-                Thread.Sleep(10);
-            }
-            else {
-                // There are no proposed items with lower timestamp than the client timestamp. We can proceed.
-                break;
-            }
-        }
+        var mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
+        
+        // UNCOMMENT THIS BELOW!!!
+        // while (mre != null) {
+        //     _logger.LogInformation($"ClientID {clientID}: There is at least one proposed item with lower timestamp than the client timestamp.");
+        //     mre.WaitOne();
+        //     _logger.LogInformation($"ClientID {clientID}: The proposed item was committed. Checking if there are more proposed items with lower timestamp than the client timestamp.");
+        //     mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
+        // }
+        _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
     }
 
    //[Trace]
@@ -1446,13 +1433,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         List<Tuple<string, string>> conditions = new List<Tuple<string, string>>();
         
         // Get all equality conditions in the format: [table].[column] = @param (or) [table].[column] = N'param'
-        Regex regex = new Regex(@"\[\w+\]\.\[(?<columnName>\w+)\]\s*=\s*(?:N?'(?<paramValue1>[^']*?)'|(?<paramValue2>\@\w+))");
-        MatchCollection matches = regex.Matches(command.CommandText);
+        MatchCollection matches = GetWhereConditionsColumnAndValueRegex.Matches(command.CommandText);
         foreach (Match match in matches) {
             // Get the column name and the parameter name
             string columnName = match.Groups["columnName"].Value;
-            if (columnName == "Timestamp") {
-                // Ignore the Timestamp column
+            if (columnName == "Timestamp") { // Timestamp is not considered as a condition
                 continue;
             }
 

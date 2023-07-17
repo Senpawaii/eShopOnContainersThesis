@@ -24,39 +24,28 @@ public class FunctionalityService : IFunctionalityService {
     }
 
     public void AddNewServiceSentTokens(string clientID, string service) {
-        if(_servicesSentTokens.ContainsKey(clientID)) {
-            _servicesSentTokens[clientID].Add(service);
-        }
-        else {
-            // First proposal in the functionality
-            _servicesSentTokens[clientID] = new List<string> {
-                { service }
-            };
-        }
+        _servicesSentTokens.AddOrUpdate(clientID,
+            new List<string> { service },
+            (_, list) =>
+            {
+                list.Add(service);
+                return list;
+            });
     }
 
     public void AddNewProposalGivenService(string clientID, string service, long proposalTicks) {
-        // Console.WriteLine($"Adding proposal from {service} for client {clientID}");
-        if(_proposals.ContainsKey(clientID)) {
-            _proposals[clientID].Add((service, proposalTicks));
-        }
-        else {
-            // First proposal in the functionality
-            _proposals[clientID] = new List<(string, long)> {
-                { (service, proposalTicks) }
-            };
-        }
+        _proposals.AddOrUpdate(clientID,
+            new List<(string, long)> { (service, proposalTicks) },
+            (_, list) =>
+            {
+                list.Add((service, proposalTicks));
+                return list;
+            });
     }
 
+
     public void IncreaseTokens(string clientID, double tokens) {
-        if(_tokens.ContainsKey(clientID)) {
-            // Add the number of tokens
-            _tokens[clientID] += tokens;
-        } 
-        else {
-            // First proposal in the functionality
-            _tokens[clientID] = tokens;
-        }
+        _tokens.AddOrUpdate(clientID, tokens, (_, value) => value + tokens);
     }
 
     public Boolean HasCollectedAllTokens(string clientID) {
