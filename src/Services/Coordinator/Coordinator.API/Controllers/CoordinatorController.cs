@@ -123,4 +123,12 @@ public class CoordinatorController : ControllerBase {
             _functionalityService.AddNewProposalGivenService(clientID, services[i], results[i]);
         }
     }
+
+    [HttpGet]
+    [Route("ping")]
+    [ProducesResponseType(typeof(string), (int)HttpStatusCode.OK)]
+    public ActionResult<string> Ping()
+    {
+        return Ok("Coordinator is alive");
+    }
 }

@@ -18,6 +18,7 @@ services:
 
   seq:
     image: datalust/seq:latest
+    profiles: ["EntireApp"]
 
   sqldata:
     image: mcr.microsoft.com/mssql/server:2019-latest 

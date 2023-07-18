@@ -12,7 +12,7 @@ public class SingletonWrapper : ISingletonWrapper {
     ConcurrentDictionary<string, ConcurrentBag<DiscountItem>> wrapped_discount_items = new ConcurrentDictionary<string, ConcurrentBag<DiscountItem>>();
     ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>> proposed_discount_Items = new ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>>();
 
-    ConcurrentDictionary<(ProposedDiscountItem, long), ManualResetEvent> discount_items_manual_reset_events = new ConcurrentDictionary<(ProposedDiscountItem, long), ManualResetEvent>();
+    ConcurrentDictionary<(ProposedDiscountItem, long), List<ManualResetEvent>> discount_items_manual_reset_events = new ConcurrentDictionary<(ProposedDiscountItem, long), List<ManualResetEvent>>();
     // Store the proposed Timestamp for each functionality in Proposed State
     ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
 
@@ -128,9 +128,14 @@ public class SingletonWrapper : ISingletonWrapper {
             });
 
             // Create ManualEvent for Discount item
-            if(!discount_items_manual_reset_events.TryAdd((proposedItem, proposedTS), new ManualResetEvent(false))) {
-                _logger.LogError($"Could not add ManualResetEvent for Discount item {proposedItem.ItemName} with proposed timestamp {proposedTS}");
-            }
+            discount_items_manual_reset_events.AddOrUpdate((proposedItem, proposedTS), _ => {
+                var manualResetEvent = new ManualResetEvent(false);
+                return new List<ManualResetEvent> { manualResetEvent };
+            }, (_, value) => {
+                var manualResetEvent = new ManualResetEvent(false);
+                value.Add(manualResetEvent);
+                return value;
+            });
         }
     }
 
@@ -154,7 +159,7 @@ public class SingletonWrapper : ISingletonWrapper {
     }
 
    //[Trace]
-    public ManualResetEvent AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
+    public List<ManualResetEvent> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
         switch (targetTable) {
             case "Discount":
                 // Apply all the conditions to the set of proposed discount items, this set will keep shrinking as we apply more conditions.
@@ -169,9 +174,11 @@ public class SingletonWrapper : ISingletonWrapper {
                         if (proposedTS < readerTimestamp) {
                             // Console.WriteLine($"The item {proposed_discount_item.Key.ItemName} has a lower timestamp than the reader's timestamp: {proposedTS.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} < {readerTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}. Proposed ticks: {proposedTS.Ticks}, proposed by client: {proposed_discount_item.Value[proposedTS]}");
                             // There is at least one proposed discount item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
-                            ManualResetEvent manualResetEvent = discount_items_manual_reset_events.GetValueOrDefault((proposed_discount_item.Key, proposedTS.Ticks), null);
-
-                            return manualResetEvent ?? null;
+                            List<ManualResetEvent> manualResetEvents = discount_items_manual_reset_events.GetValueOrDefault((proposed_discount_item.Key, proposedTS.Ticks), null);
+                            if(manualResetEvents == null || manualResetEvents.Count == 0) {
+                                _logger.LogError($"ClientID: {clientID} - ManualResetEvent null: Could not find ManualResetEvent for item {proposed_discount_item.Key.ItemName} with proposed timestamp {proposedTS}");
+                            }
+                            return manualResetEvents ?? null;
                         }
                     }
                 }
@@ -255,14 +262,16 @@ public class SingletonWrapper : ISingletonWrapper {
                 _logger.LogError($"ClientID: {clientID} - DateTime 0: Could not find proposed timestamp for client {clientID}");
             }
 
-            ManualResetEvent manualResetEvent = discount_items_manual_reset_events.GetValueOrDefault((proposedItem, proposedTS), null);
-            if(manualResetEvent != null) {
-                // Console.WriteLine($"Notifying reader threads for item {proposedItem.ItemName} with proposed timestamp {proposedTS}");
-                manualResetEvent.Set();
+            lock(discount_items_manual_reset_events) {
+                List<ManualResetEvent> manualResetEvents = discount_items_manual_reset_events.GetValueOrDefault((proposedItem, proposedTS), null);
+                if(manualResetEvents.Any()) {
+                    manualResetEvents.First(x => !x.WaitOne(0)).Set(); // Set the first ManualResetEvent that is not set
+                }
+                else {
+                    _logger.LogError($"ClientID: {clientID} - ManualResetEvent null: Could not find ManualResetEvent for item {proposedItem.ItemName} with proposed timestamp {proposedTS}");
+                }
             }
-            else {
-                _logger.LogError($"ClientID: {clientID} - ManualResetEvent null: Could not find ManualResetEvent for item {proposedItem.ItemName} with proposed timestamp {proposedTS}");
-            }
+            // TODO: a thread should clear the manual reset events dictionary from time to time to avoid unnecessary memory consumption
         }
     }
     public struct ProposedDiscountItem {

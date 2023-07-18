@@ -1416,15 +1416,17 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
         List<Tuple<string, string>> conditions = (command.CommandText.IndexOf("WHERE") != -1) ? GetWhereConditions(command) : null;
 
-        var mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
-        
-        // UNCOMMENT THIS BELOW!!!
-        // while (mre != null) {
-        //     _logger.LogInformation($"ClientID {clientID}: There is at least one proposed item with lower timestamp than the client timestamp.");
-        //     mre.WaitOne();
-        //     _logger.LogInformation($"ClientID {clientID}: The proposed item was committed. Checking if there are more proposed items with lower timestamp than the client timestamp.");
-        //     mre = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
-        // }
+        var mres = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
+        if(mres == null) {
+            // There are no proposed items with lower timestamp than the client timestamp
+            return;
+        }
+
+        for (int i = 0; i < mres.Count; i++) {
+            _logger.LogInformation($"ClientID {clientID}: There is at least one proposed item with lower timestamp than the client timestamp.");
+            mres[i].WaitOne();
+            _logger.LogInformation($"ClientID {clientID}: The proposed item was committed. Checking if there are more proposed items with lower timestamp than the client timestamp.");
+        }
         _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
     }
 

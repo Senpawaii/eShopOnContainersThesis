@@ -54,18 +54,12 @@ public class TCCMiddleware {
 
         // Block the result until the state of the transaction is set to either commit or abort, timeout after 5 seconds
         var mre = _functionalitySingleton.GetManualResetEvent(_request_metadata.ClientID.Value);
-        var success = mre.WaitOne(5000);
+        var success = mre.WaitOne();
 
         // Clean the singleton fields for the current session context
         _functionalitySingleton.RemoveTransactionState(_request_metadata.ClientID.Value);
 
-        if (!success) {
-            // Transaction was not completed within 5 seconds, abort it.
-            _logger.LogError($"Transaction for {_request_metadata.ClientID.Value} was not completed within 5 seconds, aborting it");
-            httpctx.Response.StatusCode = 409;
-        } else {
-            _logger.LogInformation($"Transaction for {_request_metadata.ClientID.Value} was completed successfully");
-        }
+        _logger.LogInformation($"Transaction for {_request_metadata.ClientID.Value} was completed successfully");
         _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
         return;
     }
@@ -74,7 +68,7 @@ public class TCCMiddleware {
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
-            _logger.LogInformation($"ClientID: {clientID}, signalling ManualResetEvent");
+            _logger.LogInformation($"ClientID: {clientID}, Committing... Signal ManualResetEvent");
             _functionalitySingleton.SignalManualResetEvent(clientID);
         }
         else {

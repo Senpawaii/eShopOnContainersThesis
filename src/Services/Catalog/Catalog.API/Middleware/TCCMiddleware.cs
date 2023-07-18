@@ -137,14 +137,14 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
             // TODO: Note, if these were Tasks, we could await them all at once
             var catalogItemsToFlush = _dataWrapper.SingletonGetWrappedCatalogItemsToFlush(clientID, onlyUpdate);
-            // _logger.LogInformation($"Catalog Items to Flush: {catalogItemsToFlush.Count}: {catalogItemsToFlush}");
+            _logger.LogInformation($"ClientID: {clientID} - Catalog Items to Flush: {catalogItemsToFlush.Count}");
             
             // var catalogBrandToFlush = _dataWrapper.SingletonGetWrappedCatalogBrandsToFlush(clientID, onlyUpdate);
             // var catalogTypeToFlush = _dataWrapper.SingletonGetWrappedCatalogTypesToFlush(clientID, onlyUpdate);
             
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<CatalogContext>();
-
+                dbContext.Database.SetCommandTimeout(TimeSpan.FromSeconds(180));
                 // Copy the request metadata to the scoped metadata
                 var scopedMetadata = scope.ServiceProvider.GetRequiredService<IScopedMetadata>();
                 scopedMetadata.ClientID = _request_metadata.ClientID;
@@ -161,23 +161,22 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     }
                     else {
                         foreach(var catalogItem in catalogItemsToFlush) {
-                            // _logger.LogInformation($"ClientID: {clientID}, Adding catalog item id: {catalogItem.Id}, name: {catalogItem.Name}, brand: {catalogItem.CatalogBrandId}, type: {catalogItem.CatalogTypeId}.");
+                            _logger.LogInformation($"ClientID: {clientID}, Adding catalog item id: {catalogItem.Id}, name: {catalogItem.Name}, brand: {catalogItem.CatalogBrandId}, type: {catalogItem.CatalogTypeId}.");
                             dbContext.CatalogItems.Add(catalogItem);
                         }
                     }
-                    // _logger.LogInformation($"ClientID {clientID} Saving changes to database");
+                    _logger.LogInformation($"ClientID {clientID} Saving changes to database");
                     await dbContext.SaveChangesAsync();
                 } 
                 else {
                     _logger.LogError($"ClientID {clientID} - No catalog items to flush");
                 }
             }
+            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
             // The items have been committed. Notify all threads waiting on the commit to read
             _dataWrapper.NotifyReaderThreads(clientID, catalogItemsToFlush);
-
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _dataWrapper.CleanWrappedObjects(clientID);        
-            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
         }
     }
 

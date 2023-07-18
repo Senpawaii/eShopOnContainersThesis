@@ -29,7 +29,7 @@ namespace Catalog.API.DependencyServices {
         ConcurrentDictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>> proposed_catalog_brands = new ConcurrentDictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>>();
         ConcurrentDictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>> proposed_catalog_types = new ConcurrentDictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>>();
 
-        ConcurrentDictionary<(ProposedCatalogItem, long), ManualResetEvent> catalog_items_manual_reset_events = new ConcurrentDictionary<(ProposedCatalogItem, long), ManualResetEvent>(); 
+        ConcurrentDictionary<(ProposedCatalogItem, long), List<(ManualResetEvent, string)>> catalog_items_manual_reset_events = new ConcurrentDictionary<(ProposedCatalogItem, long), List<(ManualResetEvent, string)>>(); 
         // Store the proposed Timestamp for each functionality in Proposed State
         ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
 
@@ -225,10 +225,14 @@ namespace Catalog.API.DependencyServices {
                 });
 
                 // Create ManualEvent for catalog Item
-                if(!catalog_items_manual_reset_events.TryAdd((proposedItem, proposedTS), new ManualResetEvent(false))) {
-                    // If the proposedTS is the same for two different items, this will fail as expected. A solution would be to use more precision in the timestamp field (less than 100ns)
-                    //_logger.LogError($"ClientID: {clientID} - Could not add ManualResetEvent for catalog item with ID {catalog_item_to_propose.Id}");
-                }
+                catalog_items_manual_reset_events.AddOrUpdate((proposedItem, proposedTS), _ => {
+                    var manualResetEvent = new ManualResetEvent(false);
+                    return new List<(ManualResetEvent, string)> { (manualResetEvent, clientID) }; 
+                    }, (_, value) => {
+                    var manualResetEvent = new ManualResetEvent(false);
+                    value.Add((new ManualResetEvent(false), clientID));
+                    return value;
+                });
             }
 
             foreach (CatalogType catalog_type_to_propose in catalog_types_to_propose) {
@@ -300,7 +304,7 @@ namespace Catalog.API.DependencyServices {
         }
 
         //[Trace]
-        public ManualResetEvent AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
+        public List<(ManualResetEvent, string)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
             //Stopwatch sw = new Stopwatch();
 
             //sw.Start();
@@ -320,15 +324,11 @@ namespace Catalog.API.DependencyServices {
                             if (proposedTS < readerTimestamp) {
                                 // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
                                 // Return the Manual reset event to wait for
-                                ManualResetEvent manualResetEvent = catalog_items_manual_reset_events.GetValueOrDefault((proposed_catalog_item.Key, proposedTS.Ticks), null);
-
-                                //sw.Stop();
-                                //Timespans.Append(sw.Elapsed);
-                                //Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-                                //Timespans.Add(sw.Elapsed);
-                                //_logger.LogInformation($"Average time : {Average(Timespans)}");
-
-                                return manualResetEvent ?? null;
+                                List<(ManualResetEvent, string)> manualResetEvents = catalog_items_manual_reset_events.GetValueOrDefault((proposed_catalog_item.Key, proposedTS.Ticks), null);
+                                if(manualResetEvents == null || manualResetEvents.Count == 0) {
+                                    _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name} with proposed TS {proposedTS.Ticks} [Date: {proposedTS}]");
+                                }
+                                return manualResetEvents ?? null;
                             }
                         }
                     }
@@ -367,12 +367,6 @@ namespace Catalog.API.DependencyServices {
                     }
                     break;
             }
-
-            //sw.Stop();
-            //Timespans.Append(sw.Elapsed);
-            //Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-            //Timespans.Add(sw.Elapsed);
-            //_logger.LogInformation($"Average time : {Average(Timespans)}");
             return null;
         }
 
@@ -465,7 +459,6 @@ namespace Catalog.API.DependencyServices {
         //[Trace]
         public void NotifyReaderThreads(string clientID, List<CatalogItem> committedItems) {
             foreach(CatalogItem item in committedItems) {
-                // Locate the WrappedCatalogItem associated with the committed item
                 ProposedCatalogItem proposedItem = new ProposedCatalogItem {
                     CatalogBrandId = item.CatalogBrandId,
                     CatalogTypeId = item.CatalogTypeId,
@@ -478,14 +471,17 @@ namespace Catalog.API.DependencyServices {
                     _logger.LogError($"ClientID: {clientID} - DateTime 0: Could not find proposed timestamp for client {clientID}");
                 }
 
-                ManualResetEvent manualResetEvent = catalog_items_manual_reset_events.GetValueOrDefault((proposedItem, proposedTS), null);
-                if(manualResetEvent != null) {
-                    //_logger.LogInformation($"ClientID: {clientID} - Notifying ManualResetEvent for catalog item with ID {proposedItem.Name} and proposed TS {proposedTS}");
-                    manualResetEvent.Set();
-                }
-                else {
-                    _logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposedItem.Name} with proposed TS {proposedTS}");
-                }
+                // Lock the catalog_items_manual_reset_events list
+                lock(catalog_items_manual_reset_events) {
+                    List<(ManualResetEvent, string)> manualResetEvents = catalog_items_manual_reset_events.GetValueOrDefault((proposedItem, proposedTS), null);
+                    if(manualResetEvents.Any()) {
+                        manualResetEvents.First(x => !x.Item1.WaitOne(0)).Item1.Set(); // Set the first ManualResetEvent that is not set yet                         
+                    }
+                    else {
+                        _logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposedItem.Name} with proposed TS {proposedTS}");
+                    }
+                }            
+                
             }
             // TODO: a thread should clear the manual reset events dictionary from time to time to avoid unnecessary memory consumption
         }
