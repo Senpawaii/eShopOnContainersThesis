@@ -24,43 +24,44 @@ public class TCCMiddleware {
         string currentUri = httpctx.Request.GetUri().ToString();
 
         if (currentUri.Contains("commit")) {
+            // We are handling a write request commit signal from the coordinator
             await HandleCommitProtocol(httpctx);
             return;
         }
 
+        // Else, we are handling a read request or the beginning of a write request
         // Initialize the metadata fields
         SeedMetadata();
-        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, currentUri: {currentUri}");
+        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, currentUri: {currentUri} at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
-        // Add a new ManualResetEvent associated with the clientID
-        _functionalitySingleton.AddManualResetEvent(_request_metadata.ClientID.Value);
+        // Add a new ManualResetEvent associated with the clientID if we are handling a write request
+        if( currentUri.Contains("updatepricediscount")) {
+            _functionalitySingleton.AddManualResetEvent(_request_metadata.ClientID.Value);
+        }
         
+        // Execute the next middleware in the pipeline (the controller)
         await _next.Invoke(httpctx);
 
-        if (_functionalitySingleton.GetRemainingTokens(_request_metadata.ClientID.Value) > 0) {
-            // Send the rest of the tokens to the coordinator
-            await _coordinatorSvc.SendTokens();
-        }
+        // Send the rest of the tokens to the coordinator
+        await _coordinatorSvc.SendTokens();
 
         // Clean the singleton fields for the current session context
         _functionalitySingleton.RemoveRemainingTokens(_request_metadata.ClientID.Value);
 
-        if(!currentUri.Contains("updatepricediscount")) {
-            // This is a readonly request, no need to wait for the transaction to complete
+        if( currentUri.Contains("updatepricediscount")) {
+            // Block the result until the transaction is ready to be committed (and return the result of the write transaction to the client)
+            var mre = _functionalitySingleton.GetManualResetEvent(_request_metadata.ClientID.Value);
+            var success = mre.WaitOne();
+
+            // Clean the singleton fields for the current session context
             _functionalitySingleton.RemoveTransactionState(_request_metadata.ClientID.Value);
             _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
-            return;
+
+            _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, WRITE transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         }
-
-        // Block the result until the state of the transaction is set to either commit or abort, timeout after 5 seconds
-        var mre = _functionalitySingleton.GetManualResetEvent(_request_metadata.ClientID.Value);
-        var success = mre.WaitOne();
-
-        // Clean the singleton fields for the current session context
-        _functionalitySingleton.RemoveTransactionState(_request_metadata.ClientID.Value);
-
-        _logger.LogInformation($"Transaction for {_request_metadata.ClientID.Value} was completed successfully");
-        _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
+        else {
+            _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, READ transaction ({currentUri}) completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        }
         return;
     }
 
@@ -68,7 +69,7 @@ public class TCCMiddleware {
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
-            _logger.LogInformation($"ClientID: {clientID}, Committing... Signal ManualResetEvent");
+            _logger.LogInformation($"ClientID: {clientID}, Committing... Signal ManualResetEvent at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             _functionalitySingleton.SignalManualResetEvent(clientID);
         }
         else {
@@ -76,29 +77,16 @@ public class TCCMiddleware {
             await _next.Invoke(httpctx);
             return;
         }
-        if (httpctx.Request.Query.TryGetValue("state", out var state)) {
-            // Change the state of the transaction associated with the clientID
-            ChangeTransactionState(clientID, state);
-            await _next.Invoke(httpctx);
-            return;
-        }
-        else {
-            _logger.LogError("State not found in the request");
-            await _next.Invoke(httpctx);
-            return;
-        }
-    }
-
-   //[Trace]
-    private void ChangeTransactionState(string clientID, string state) {
-        _functionalitySingleton.ChangeTransactionState(clientID, state);
+        await _next.Invoke(httpctx);
+        return;
     }
 
     private void SeedMetadata() {
         // Generate a 32 bit random string for the client ID
         string clientID = GenerateRandomString(32);
 
-        // Generate a timestamp for the request
+        // Generate a timestamp for the request from the current UTC time minus 1 second
+        // string timestamp = DateTime.UtcNow.AddSeconds(-1).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
         string timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
         // Generate tokens

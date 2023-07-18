@@ -17,7 +17,7 @@ public interface ISingletonWrapper {
 
     public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
     public void SingletonRemoveProposedFunctionality(string clientID);
-    public List<ManualResetEvent> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
+    public List<(ManualResetEvent, string, long)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
 
     public List<DiscountItem> SingletonGetWrappedDiscountItemsToFlush(string clientID, bool onlyUpdate);
     public void CleanWrappedObjects(string clientID);

@@ -1077,23 +1077,26 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                 return new WrapperDbDataReader(countedData, result, targetTable);
             }
 
-            // Search for partial SELECTION on the original unaltered commandText
-            (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
-            if (hasPartialRowSelection) {
-                // foreach (string column in selectedColumns) {
-                //     _logger.LogInformation("The column {0} was selected", column);
-                // }
+            if(!newData.IsNullOrEmpty()) {
+                // Search for partial SELECTION on the original unaltered commandText
+                (bool hasPartialRowSelection, List<string> selectedColumns) = HasPartialRowSelection(_originalCommandText);
+                if (hasPartialRowSelection) {
+                    // foreach (string column in selectedColumns) {
+                    //     _logger.LogInformation("The column {0} was selected", column);
+                    // }
 
-                // The select query has a partial row selection
-                var originalNumColumns = newData[0].Length;
-                for(int i = 0; i < newData.Count; i++) {
-                    newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable());
+                    // The select query has a partial row selection
+                    var originalNumColumns = newData[0].Length;
+                    for(int i = 0; i < newData.Count; i++) {
+                        newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable());
+                    }
+                    // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
+                    // foreach (object value in newData[0]) {
+                    //     _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
+                    // }
                 }
-                // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
-                // foreach (object value in newData[0]) {
-                //     _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
-                // }
             }
+            
         }
         if(_settings.Value.Limit1Version) {
             if (HasCountClause(_originalCommandText) && newData[0][0].Equals(0)) {
@@ -1424,7 +1427,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         for (int i = 0; i < mres.Count; i++) {
             _logger.LogInformation($"ClientID {clientID}: There is at least one proposed item with lower timestamp than the client timestamp.");
-            mres[i].WaitOne();
+            mres[i].WaitOne(); // Since this is a Manual Reset Event, once the object is notified by the writer, all threads can proceed without stopping
             _logger.LogInformation($"ClientID {clientID}: The proposed item was committed. Checking if there are more proposed items with lower timestamp than the client timestamp.");
         }
         _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");

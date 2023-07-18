@@ -23,7 +23,7 @@ namespace Catalog.API.DependencyServices {
 
         public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
         public void SingletonRemoveProposedFunctionality(string clientID);
-        public List<(ManualResetEvent, string)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
+        public List<(ManualResetEvent, string, long)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
 
         public List<CatalogItem> SingletonGetWrappedCatalogItemsToFlush(string clientID, bool onlyUpdate);
         public void CleanWrappedObjects(string clientID);

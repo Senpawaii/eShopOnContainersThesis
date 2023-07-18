@@ -12,7 +12,7 @@ public class SingletonWrapper : ISingletonWrapper {
     ConcurrentDictionary<string, ConcurrentBag<DiscountItem>> wrapped_discount_items = new ConcurrentDictionary<string, ConcurrentBag<DiscountItem>>();
     ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>> proposed_discount_Items = new ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>>();
 
-    ConcurrentDictionary<(ProposedDiscountItem, long), List<ManualResetEvent>> discount_items_manual_reset_events = new ConcurrentDictionary<(ProposedDiscountItem, long), List<ManualResetEvent>>();
+    ConcurrentDictionary<ProposedDiscountItem, List<(ManualResetEvent, string, long)>> discount_items_manual_reset_events = new ConcurrentDictionary<ProposedDiscountItem, List<(ManualResetEvent, string, long)>>();
     // Store the proposed Timestamp for each functionality in Proposed State
     ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
 
@@ -128,12 +128,12 @@ public class SingletonWrapper : ISingletonWrapper {
             });
 
             // Create ManualEvent for Discount item
-            discount_items_manual_reset_events.AddOrUpdate((proposedItem, proposedTS), _ => {
+            discount_items_manual_reset_events.AddOrUpdate(proposedItem, _ => {
                 var manualResetEvent = new ManualResetEvent(false);
-                return new List<ManualResetEvent> { manualResetEvent };
+                return new List<(ManualResetEvent, string, long)> { (manualResetEvent, clientID, proposedTS) };
             }, (_, value) => {
                 var manualResetEvent = new ManualResetEvent(false);
-                value.Add(manualResetEvent);
+                value.Add((new ManualResetEvent(false), clientID, proposedTS));
                 return value;
             });
         }
@@ -159,7 +159,7 @@ public class SingletonWrapper : ISingletonWrapper {
     }
 
    //[Trace]
-    public List<ManualResetEvent> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
+    public List<(ManualResetEvent, string, long)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
         switch (targetTable) {
             case "Discount":
                 // Apply all the conditions to the set of proposed discount items, this set will keep shrinking as we apply more conditions.
@@ -172,12 +172,14 @@ public class SingletonWrapper : ISingletonWrapper {
                 foreach (var proposed_discount_item in filtered_proposed_discount_items2) {
                     foreach (DateTime proposedTS in proposed_discount_item.Value.Keys) {
                         if (proposedTS < readerTimestamp) {
-                            // Console.WriteLine($"The item {proposed_discount_item.Key.ItemName} has a lower timestamp than the reader's timestamp: {proposedTS.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} < {readerTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}. Proposed ticks: {proposedTS.Ticks}, proposed by client: {proposed_discount_item.Value[proposedTS]}");
-                            // There is at least one proposed discount item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
-                            List<ManualResetEvent> manualResetEvents = discount_items_manual_reset_events.GetValueOrDefault((proposed_discount_item.Key, proposedTS.Ticks), null);
-                            if(manualResetEvents == null || manualResetEvents.Count == 0) {
-                                _logger.LogError($"ClientID: {clientID} - ManualResetEvent null: Could not find ManualResetEvent for item {proposed_discount_item.Key.ItemName} with proposed timestamp {proposedTS}");
+                            var allMREsForProposedItem = discount_items_manual_reset_events.GetValueOrDefault(proposed_discount_item.Key, null);
+                            if(allMREsForProposedItem == null || allMREsForProposedItem.Count == 0) {
+                                _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent for catalog item with ID {proposed_discount_item.Key.ItemName} with proposed TS {proposedTS.Ticks} [Date: {proposedTS}]");
                             }
+
+                            // Get the list of MREs for the proposed items that have a proposed timestamp lower than the reader's timestamp
+                            List<(ManualResetEvent, string, long)> manualResetEvents = allMREsForProposedItem.Where(x => x.Item3 <= readerTimestamp.Ticks).ToList();
+
                             return manualResetEvents ?? null;
                         }
                     }
@@ -263,12 +265,22 @@ public class SingletonWrapper : ISingletonWrapper {
             }
 
             lock(discount_items_manual_reset_events) {
-                List<ManualResetEvent> manualResetEvents = discount_items_manual_reset_events.GetValueOrDefault((proposedItem, proposedTS), null);
+                List<(ManualResetEvent, string, long)> allMREs = discount_items_manual_reset_events.GetValueOrDefault(proposedItem, null);
+                if(allMREs == null || allMREs.Count == 0) {
+                    _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent for catalog item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
+                }
+
+                // Find the MRE associated with the notifier ClientID
+                List<(ManualResetEvent, string, long)> manualResetEvents = allMREs.Where(x => x.Item2 == clientID).ToList();
                 if(manualResetEvents.Any()) {
-                    manualResetEvents.First(x => !x.WaitOne(0)).Set(); // Set the first ManualResetEvent that is not set
+                    // Check that there is only 1 MRE associated with the notifier ClientID
+                    if(manualResetEvents.Count > 1) {
+                        _logger.LogError($"ClientID: {clientID} - Found more than one ManualResetEvent for catalog item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
+                    }
+                    manualResetEvents[0].Item1.Set(); // Set the first ManualResetEvent that is not set yet                         
                 }
                 else {
-                    _logger.LogError($"ClientID: {clientID} - ManualResetEvent null: Could not find ManualResetEvent for item {proposedItem.ItemName} with proposed timestamp {proposedTS}");
+                    _logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
                 }
             }
             // TODO: a thread should clear the manual reset events dictionary from time to time to avoid unnecessary memory consumption
