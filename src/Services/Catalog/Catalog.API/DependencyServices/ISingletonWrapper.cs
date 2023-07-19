@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Primitives;
+﻿using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.SharedStructs;
+using Microsoft.Extensions.Primitives;
 using System.Collections.Concurrent;
 using System.Threading;
 
@@ -23,10 +24,13 @@ namespace Catalog.API.DependencyServices {
 
         public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
         public void SingletonRemoveProposedFunctionality(string clientID);
-        public List<(ManualResetEvent, string, long)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
+        public List<EventMonitor> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
 
         public List<CatalogItem> SingletonGetWrappedCatalogItemsToFlush(string clientID, bool onlyUpdate);
         public void CleanWrappedObjects(string clientID);
         public void NotifyReaderThreads(string clientID, List<CatalogItem> committedItems);
+
+        public void RemoveFromDependencyList(ManualResetEvent MRE, string clientID);
+        public void DisposeCommittedDataMREs();
     }
 }

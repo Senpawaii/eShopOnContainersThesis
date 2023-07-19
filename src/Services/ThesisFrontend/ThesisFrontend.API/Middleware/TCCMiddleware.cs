@@ -86,7 +86,7 @@ public class TCCMiddleware {
         string clientID = GenerateRandomString(32);
 
         // Generate a timestamp for the request from the current UTC time minus 1 second
-        // string timestamp = DateTime.UtcNow.AddSeconds(-1).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
+        // string timestamp = DateTime.UtcNow.AddMilliseconds(-100).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
         string timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
         // Generate tokens

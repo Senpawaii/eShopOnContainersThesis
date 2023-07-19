@@ -14,6 +14,7 @@ public class CatalogController : ControllerBase {
 
     public CatalogController(CatalogContext context, IOptionsSnapshot<CatalogSettings> settings, ICatalogIntegrationEventService catalogIntegrationEventService, ILogger<CatalogController> logger) {
         _catalogContext = context ?? throw new ArgumentNullException(nameof(context));
+        _catalogContext.Database.SetCommandTimeout(180);
         _catalogIntegrationEventService = catalogIntegrationEventService ?? throw new ArgumentNullException(nameof(catalogIntegrationEventService));
         _settings = settings.Value;
         _logger = logger;
@@ -243,13 +244,14 @@ public class CatalogController : ControllerBase {
             var priceChangedEvent = new ProductPriceChangedIntegrationEvent(catalogItem.Id, productToUpdate.Price, oldPrice);
 
             // Achieving atomicity between original Catalog database operation and the IntegrationEventLog thanks to a local transaction
-            await _catalogIntegrationEventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
-
+            // await _catalogIntegrationEventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
+            await _catalogContext.SaveChangesAsync();    
             // Publish through the Event Bus and mark the saved event as published
             //await _catalogIntegrationEventService.PublishThroughEventBusAsync(priceChangedEvent);
         }
         else // Just save the updated product because the Product's Price hasn't changed.
         {
+            _logger.LogInformation($"The catalog item: {productToUpdate.Name} THE NEW PRICE IS THE SAME AS THE OLD PRICE: {productToUpdate.Price} = {oldPrice}");
             await _catalogContext.SaveChangesAsync();
         }
 

@@ -13,6 +13,7 @@ public class BasketService : IBasketService {
 
     public BasketService(HttpClient httpClient, ILogger<BasketService> logger, IOptions<ThesisFrontendSettings> settings) { 
         _httpClient = httpClient;
+        _httpClient.Timeout = TimeSpan.FromSeconds(100);
         _logger = logger;
         _settings = settings;
 
@@ -43,6 +44,7 @@ public class BasketService : IBasketService {
 
         // Send the current basket to the basket service on HTTP POST Body
         var basketData = new StringContent(basketDataJson, System.Text.Encoding.UTF8, "application/json");
+
         var response = await _httpClient.PostAsync(uri, basketData);
 
         if (response.StatusCode != HttpStatusCode.OK) {

@@ -14,6 +14,7 @@ public class CatalogService : ICatalogService {
 
     public CatalogService(HttpClient httpClient, ILogger<CatalogService> logger, IOptions<ThesisFrontendSettings> settings) {
         _httpClient = httpClient;
+        _httpClient.Timeout = TimeSpan.FromSeconds(100);
         _logger = logger;
         _remoteCatalogServiceBaseUrl = settings.Value.CatalogUrl;
     }
@@ -22,9 +23,6 @@ public class CatalogService : ICatalogService {
     public async Task<CatalogItem> GetCatalogItemByIdAsync(int catalogItemId) {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}items/{catalogItemId}";
-
-            // Set the request timeout
-            _httpClient.Timeout = TimeSpan.FromSeconds(10);
 
             var response = await _httpClient.GetAsync(uri);
             if (response.StatusCode != HttpStatusCode.OK) {
@@ -49,7 +47,7 @@ public class CatalogService : ICatalogService {
             return catalogItem;
         }
         catch (HttpRequestException ex) {
-            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");
+            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}, uri={_remoteCatalogServiceBaseUrl}items/{catalogItemId}");
             throw; // If needed, wrap the exception in a custom exception and throw it
         }
     }
@@ -58,9 +56,6 @@ public class CatalogService : ICatalogService {
     public async Task<IEnumerable<CatalogBrand>> GetCatalogBrandsAsync() {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}catalogbrands";
-
-            // Set the request timeout
-            _httpClient.Timeout = TimeSpan.FromSeconds(10);
 
             var response = await _httpClient.GetAsync(uri);
             if (response.StatusCode != HttpStatusCode.OK) {
@@ -89,9 +84,6 @@ public class CatalogService : ICatalogService {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}catalogtypes";
 
-            // Set the request timeout
-            _httpClient.Timeout = TimeSpan.FromSeconds(10);
-
             var response = await _httpClient.GetAsync(uri);
             if (response.StatusCode != HttpStatusCode.OK) {
                 _logger.LogError($"An error occurred while getting the catalog types. The response status code is {response.StatusCode}");
@@ -109,7 +101,7 @@ public class CatalogService : ICatalogService {
             return catalogTypes;
         }
         catch (HttpRequestException ex) {
-            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");
+            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}, uri={_remoteCatalogServiceBaseUrl}catalogtypes");
             throw; // If needed, wrap the exception in a custom exception and throw it
         }
     }
@@ -123,8 +115,6 @@ public class CatalogService : ICatalogService {
             string catalogItemJson = JsonConvert.SerializeObject(catalogItem);
             using (StringContent requestContent = new StringContent(catalogItemJson, Encoding.UTF8, "application/json")) {
                 
-                // Set the request timeout
-                _httpClient.Timeout = TimeSpan.FromSeconds(10);
                 
                 var response = await _httpClient.PutAsync(uri, requestContent);
                 if (response.StatusCode != HttpStatusCode.Created) {
@@ -135,7 +125,7 @@ public class CatalogService : ICatalogService {
             }
         }
         catch (HttpRequestException ex) {
-            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");
+            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}, uri={_remoteCatalogServiceBaseUrl}items");
             throw; // If needed, wrap the exception in a custom exception and throw it
         }
 

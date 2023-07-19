@@ -1730,6 +1730,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         // 2. The command is a SELECT query and some rows that are being selected are present in the proposed items
         
         DateTime readerTimestamp = DateTime.Parse(clientTimestamp);
+        _logger.LogInformation($"ClientID {clientID}, the command is: {command.CommandText}");
         List<Tuple<string, string>> conditions = (command.CommandText.IndexOf("WHERE") != -1) ? GetWhereConditions(command) : null;
 
         // Get the Manual Reset Events associated with the item(s) with a lower Timestamp than the client timestamp
@@ -1738,11 +1739,13 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             // There are no proposed items with lower timestamp than the client timestamp
             return;
         }
+        _logger.LogInformation($"ClientID {clientID}: There are {mres.Count} proposed items with lower timestamp than the client timestamp.");
 
-        for (int i = 0; i < mres.Count; i++) {
-            _logger.LogInformation($"ClientID {clientID}: There is at least one proposed item with lower timestamp than the client timestamp. Waiting on item by clientID {mres[i].Item2}");
-            mres[i].Item1.WaitOne();
-            _logger.LogInformation($"ClientID {clientID}: The proposed item by clientID {mres[i].Item2} was committed. Checking others...");
+        foreach(var mre in mres) {
+            _logger.LogInformation($"ClientID {clientID}: Waiting on item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            mre.Event.WaitOne();
+            _logger.LogInformation($"ClientID {clientID}: The proposed item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
+            _wrapper.RemoveFromDependencyList(mre.Event, clientID);
         }
         _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
     }

@@ -15,8 +15,8 @@ public class DiscountService : IDiscountService {
 
     public DiscountService(HttpClient httpClient, ILogger<DiscountService> logger, IOptions<ThesisFrontendSettings> settings) { 
         _httpClient = httpClient;
+        _httpClient.Timeout = TimeSpan.FromSeconds(100);
         _logger = logger;
-    
         _remoteDiscountServiceBaseUrl = settings.Value.DiscountUrl;
     }
 
@@ -32,9 +32,6 @@ public class DiscountService : IDiscountService {
 
             // Log the request URI
             // _logger.LogInformation($"Sending request to {_remoteDiscountServiceBaseUrl}discounts?itemNames={string.Join(",", itemNames)}&itemBrands={string.Join(",", itemBrands)}&itemTypes={string.Join(",", itemTypes)}");
-
-            // Set the request timeout
-            _httpClient.Timeout = TimeSpan.FromSeconds(10);
 
             var response = await _httpClient.GetAsync(uri);
             if (response.StatusCode != HttpStatusCode.OK) {
@@ -59,20 +56,24 @@ public class DiscountService : IDiscountService {
             // Serialize the discount item to JSON
             var discountItemJson = JsonConvert.SerializeObject(discountItem);
             using (StringContent requestContent = new StringContent(discountItemJson, Encoding.UTF8, "application/json")) {
+                var response = new HttpResponseMessage();
+                try {
+                    response = await _httpClient.PutAsync(uri, requestContent);
+                } catch (HttpRequestException ex) {
+                    _logger.LogError($"An error occurred while updating the discount item value. The HTTP request failed with exception message: {ex.Message}");
+                    return HttpStatusCode.InternalServerError;
+                }
 
-                // Set the request timeout
-                _httpClient.Timeout = TimeSpan.FromSeconds(10);
-
-                var response = await _httpClient.PutAsync(uri, requestContent);
                 if (response.StatusCode != HttpStatusCode.Created) {
                     _logger.LogError($"An error occurred while updating the discount item value. The response status code is {response.StatusCode}");
+                    return HttpStatusCode.InternalServerError;
                 }
 
                 return response.StatusCode;
             }
-        } catch (HttpRequestException ex) {
-            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");
-            throw; // If needed, wrap the exception in a custom exception and throw it
+        } catch (Exception ex) {
+            _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}, uri={_remoteDiscountServiceBaseUrl}discounts");
+            return HttpStatusCode.InternalServerError;
         }
     }
 }

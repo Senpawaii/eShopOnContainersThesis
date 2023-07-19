@@ -1424,11 +1424,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             // There are no proposed items with lower timestamp than the client timestamp
             return;
         }
+        _logger.LogInformation($"ClientID {clientID}: There are {mres.Count} proposed items with lower timestamp than the client timestamp.");
 
-        for (int i = 0; i < mres.Count; i++) {
-            _logger.LogInformation($"ClientID {clientID}: There is at least one proposed item with lower timestamp than the client timestamp.");
-            mres[i].WaitOne(); // Since this is a Manual Reset Event, once the object is notified by the writer, all threads can proceed without stopping
-            _logger.LogInformation($"ClientID {clientID}: The proposed item was committed. Checking if there are more proposed items with lower timestamp than the client timestamp.");
+        foreach(var item in mres) {
+            _logger.LogInformation($"ClientID {clientID}: Waiting on item by clientID {item.Item2} with timestamp {new DateTime(item.Item3).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            item.Item1.WaitOne();
         }
         _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
     }

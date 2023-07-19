@@ -5,13 +5,15 @@ namespace Catalog.API.DependencyServices;
 public class GarbageCollectionService : BackgroundService {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<GarbageCollectionService> _logger;
+    private readonly ISingletonWrapper _singletonWrapper;
     private int _executionCount = 0;
     private readonly int MAX_VERSIONS = 500;
     private readonly int TIMER = 4;
 
-    public GarbageCollectionService(IServiceScopeFactory scopeFactory, ILogger<GarbageCollectionService> logger) {
+    public GarbageCollectionService(IServiceScopeFactory scopeFactory, ILogger<GarbageCollectionService> logger, ISingletonWrapper singletonWrapper) {
         _scopeFactory = scopeFactory; 
         _logger = logger;
+        _singletonWrapper = singletonWrapper;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
@@ -40,6 +42,8 @@ public class GarbageCollectionService : BackgroundService {
             GarbageCollectCatalogBrands(dbContext);
             GarbageCollectCatalogTypes(dbContext);
         }
+        _logger.LogInformation($"Garbage Collection timed Hosted Service is working. Count: {_executionCount++}");
+        _singletonWrapper.DisposeCommittedDataMREs();
     }
 
     private void GarbageCollectCatalogItems(GarbageContext dbContext) {
