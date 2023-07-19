@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Threading;
+using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.SharedStructs;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
@@ -17,9 +18,11 @@ public interface ISingletonWrapper {
 
     public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
     public void SingletonRemoveProposedFunctionality(string clientID);
-    public List<(ManualResetEvent, string, long)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
+    public List<EventMonitor> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
 
     public List<DiscountItem> SingletonGetWrappedDiscountItemsToFlush(string clientID, bool onlyUpdate);
     public void CleanWrappedObjects(string clientID);
     public void NotifyReaderThreads(string clientID, List<DiscountItem> committedItems);
+    public void RemoveFromDependencyList(ManualResetEvent MRE, string clientID);
+    public void DisposeCommittedDataMREs();
 }
