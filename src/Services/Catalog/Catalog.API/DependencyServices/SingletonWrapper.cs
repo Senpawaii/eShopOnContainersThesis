@@ -225,19 +225,18 @@ namespace Catalog.API.DependencyServices {
                     Id = catalog_item_to_propose.Id
                 };
 
-                proposed_catalog_items.AddOrUpdate(proposedItem, new ConcurrentDictionary<long, string>(new KeyValuePair<long, string>[] { new KeyValuePair<long, string>(proposedTS, clientID)}), (key, value) => {
-                    if(value.TryAdd(proposedTS, clientID)) {
-                        _logger.LogInformation($"ClientID: {clientID} - \t added proposed timestamp {proposedTS} to proposed item {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id}");
-                    } 
-                    else {
-                        _logger.LogError($"ClientID: {clientID} - \t could not add proposed timestamp {proposedTS} to proposed item {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id}");
-                    }
-                    _logger.LogInformation($"ClientID: {clientID} - \t number of items in inner dict: {value.Count}");
-                    foreach (var item in value) {
-                        _logger.LogInformation($"ClientID: {clientID} - \t \t item: {item.Key} - {item.Value}");
-                    }
+                if(proposed_catalog_items.ContainsKey(proposedItem)) {
+                    _logger.LogInformation($"ClientID: {clientID} - \t proposed catalog item already exists. Before adding count = {proposed_catalog_items[proposedItem].Count}");
+                } else {
+                    _logger.LogInformation($"ClientID: {clientID} - \t proposed catalog does not exist yet.");
+                }
+                _logger.LogInformation($"ClientID: {clientID} - \t .");
+                proposed_catalog_items.AddOrUpdate(proposedItem, new SynchronizedCollection<(long, string)>( new List<(long, string)> { (proposedTS, clientID) }), (key, value) => {
+                    value.Add((proposedTS, clientID));
                     return value;
                 });
+
+                _logger.LogInformation($"ClientID: {clientID} - \t added catalog item to proposed set. After adding count = {proposed_catalog_items[proposedItem].Count}");
                 
                 
                 // _ => {
@@ -321,8 +320,17 @@ namespace Catalog.API.DependencyServices {
                     CatalogTypeId = item.CatalogTypeId,
                     Id = item.Id
                 };
-                // Remove each item from the proposed set
-                proposed_catalog_items.TryRemove(proposedItem, out _);
+                // Remove entry in synchronized collection associated with ProposedItem, for the given clientID
+                lock (proposed_catalog_items[proposedItem]) {
+                    _logger.LogInformation($"ClientID: {clientID} - \t removing catalog item from proposed set. Before removing count = {proposed_catalog_items[proposedItem].Count}");
+                    foreach((long, string) tuple in proposed_catalog_items[proposedItem]) {
+                        if(tuple.Item2 == clientID) {
+                            proposed_catalog_items[proposedItem].Remove(tuple);
+                            break;
+                        }
+                    }
+                    _logger.LogInformation($"ClientID: {clientID} - \t removing catalog item from proposed set. After removing count = {proposed_catalog_items[proposedItem].Count}");
+                }
             }
             foreach(CatalogBrand brand in catalog_brands_to_remove) {
                 ProposedCatalogBrand proposedBrand = new ProposedCatalogBrand {
@@ -346,7 +354,7 @@ namespace Catalog.API.DependencyServices {
                 case "Catalog":
                     // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
                     // Note that the original set of proposed catalog items 2 is not modified, we are just creating a new set with the results of the conditions.
-                    var filtered_proposed_catalog_items2 = new Dictionary<ProposedCatalogItem, ConcurrentDictionary<long, string>>(this.proposed_catalog_items);
+                    var filtered_proposed_catalog_items2 = new Dictionary<ProposedCatalogItem, SynchronizedCollection<(long, string)>>(this.proposed_catalog_items);
                     _logger.LogInformation($"ClientID: {clientID} - Number of proposed catalog items 2: {filtered_proposed_catalog_items2.Count}");
                     if (conditions != null) {
                         filtered_proposed_catalog_items2 = ApplyFiltersToCatalogItems(conditions, filtered_proposed_catalog_items2, clientID);
@@ -452,7 +460,7 @@ namespace Catalog.API.DependencyServices {
         }
 
         //[Trace]
-        private Dictionary<ProposedCatalogItem, ConcurrentDictionary<long, string>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogItem, ConcurrentDictionary<long, string>> filtered_proposed_catalog_items2, string clientID) {
+        private Dictionary<ProposedCatalogItem, SynchronizedCollection<(long, string)>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogItem, SynchronizedCollection<(long, string)>> filtered_proposed_catalog_items2, string clientID) {
             foreach (Tuple<string, string> condition in conditions) {
                 _logger.LogInformation($"ClientID: {clientID} - Condition: {condition.Item1} - {condition.Item2}");
                 switch (condition.Item1) {

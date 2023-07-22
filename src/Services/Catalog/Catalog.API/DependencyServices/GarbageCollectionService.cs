@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 
 namespace Catalog.API.DependencyServices;
 
