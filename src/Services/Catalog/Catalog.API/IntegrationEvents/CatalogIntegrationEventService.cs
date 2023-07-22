@@ -45,12 +45,12 @@ public class CatalogIntegrationEventService : ICatalogIntegrationEventService, I
 
         //Use of an EF Core resiliency strategy when using multiple DbContexts within an explicit BeginTransaction():
         //See: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency            
-        await ResilientTransaction.New(_catalogContext).ExecuteAsync(async () =>
-        {
+        // await ResilientTransaction.New(_catalogContext).ExecuteAsync(async () =>
+        // {
             // Achieving atomicity between original catalog database operation and the IntegrationEventLog thanks to a local transaction
             await _catalogContext.SaveChangesAsync();
             //await _eventLogService.SaveEventAsync(evt, _catalogContext.Database.CurrentTransaction); // Disabled to simplify the sample
-        });
+        // });
     }
 
     protected virtual void Dispose(bool disposing)

@@ -157,13 +157,24 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     }
                     else {
                         foreach(var discountItem in discountWrapperItems) {
-                            // _logger.LogInformation($"ClientID: {clientID}, Adding discount item id: {discountItem.Id}, name: {discountItem.ItemName}, brand: {discountItem.ItemBrand}, type: {discountItem.ItemType}, discount: {discountItem.DiscountValue}");
-                            dbContext.Discount.Add(discountItem);
+                            _logger.LogInformation($"ClientID: {clientID}, Adding discount item id: {discountItem.Id}, name: {discountItem.ItemName}, brand: {discountItem.ItemBrand}, type: {discountItem.ItemType}, discount: {discountItem.DiscountValue}");
+                            
+                            // Make a copy of the discountItem with the Id = 0 (EF Core will generate a new Id for the new item, which is the PK)
+                            var discountItemCopy = new DiscountItem() {
+                                ItemName = discountItem.ItemName,
+                                ItemBrand = discountItem.ItemBrand,
+                                ItemType = discountItem.ItemType,
+                                DiscountValue = discountItem.DiscountValue
+                            };
+                            dbContext.Discount.Add(discountItemCopy);
                         }
                     }
                     await dbContext.SaveChangesAsync();
                 }
             }
+            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
+            // The items have been committed. Notify all threads waiting on the commit to read
+            _data_wrapper.NotifyReaderThreads(clientID, discountWrapperItems);
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _data_wrapper.CleanWrappedObjects(clientID);
             _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    

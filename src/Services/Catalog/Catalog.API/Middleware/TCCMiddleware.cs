@@ -35,7 +35,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 string currentUri = ctx.Request.GetUri().ToString();
                 // _logger.LogInformation($"ClientID: {clientID} - Current URI: {currentUri}");
                 if (currentUri.Contains("commit")) {
-                    _logger.LogInformation($"ClientID: {clientID}: Committing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    _logger.LogInformation($"ClientID: {clientID} - Committing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     // Start flushing the Wrapper Data into the Database associated with the client session
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -44,12 +44,13 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
 
                     await _next.Invoke(ctx);
+                    _logger.LogInformation($"ClientID: {clientID} - Transaction Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     return;
                 } 
                 else if(currentUri.Contains("proposeTS")) {
                     // Update client session to Proposed State and Store data written in the current session in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
-                    _logger.LogInformation($"ClientID: {clientID}: Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
@@ -126,7 +127,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
         //[Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _dataWrapper, IScopedMetadata _request_metadata, IOptions<CatalogSettings> settings) {
-            _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            // _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             // Set client state to the in commit
             _dataWrapper.SingletonSetTransactionState(clientID, true);
                 
@@ -137,7 +138,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
             // TODO: Note, if these were Tasks, we could await them all at once
             var catalogItemsToFlush = _dataWrapper.SingletonGetWrappedCatalogItemsToFlush(clientID, onlyUpdate);
-            _logger.LogInformation($"ClientID: {clientID} - Catalog Items to Flush: {catalogItemsToFlush.Count} {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            _logger.LogInformation($"ClientID: {clientID} - Flushing {catalogItemsToFlush.Count} catalog Items...");
             
             // var catalogBrandToFlush = _dataWrapper.SingletonGetWrappedCatalogBrandsToFlush(clientID, onlyUpdate);
             // var catalogTypeToFlush = _dataWrapper.SingletonGetWrappedCatalogTypesToFlush(clientID, onlyUpdate);
@@ -161,7 +162,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     }
                     else {
                         foreach(var catalogItem in catalogItemsToFlush) {
-                            _logger.LogInformation($"ClientID: {clientID}, Adding catalog item id: {catalogItem.Id}, name: {catalogItem.Name}, brand: {catalogItem.CatalogBrandId}, type: {catalogItem.CatalogTypeId}. at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                            // _logger.LogInformation($"ClientID: {clientID}, Adding catalog item id: {catalogItem.Id}, name: {catalogItem.Name}, brand: {catalogItem.CatalogBrandId}, type: {catalogItem.CatalogTypeId}. at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                             
                             // Make a copy of the catalogItem with the Id = 0 (EF Core will generate a new Id for the new item, which is the PK)
                             var catalogItemCopy = new CatalogItem() {
@@ -178,14 +179,14 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                             dbContext.CatalogItems.Add(catalogItemCopy);
                         }
                     }
-                    _logger.LogInformation($"ClientID {clientID} Saving changes to database");
+                    // _logger.LogInformation($"ClientID {clientID} Saving changes to database");
                     await dbContext.SaveChangesAsync();
                 } 
                 else {
                     _logger.LogError($"ClientID {clientID} - No catalog items to flush");
                 }
             }
-            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
+            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
             // The items have been committed. Notify all threads waiting on the commit to read
             _dataWrapper.NotifyReaderThreads(clientID, catalogItemsToFlush);
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects

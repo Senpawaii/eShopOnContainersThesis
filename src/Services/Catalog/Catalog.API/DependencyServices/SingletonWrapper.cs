@@ -10,6 +10,8 @@ using YamlDotNet.Serialization;
 using System.Threading;
 using System.Diagnostics;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Infrastructure.SharedStructs;
+using System.Diagnostics.CodeAnalysis;
+using System.Collections.Generic;
 
 namespace Catalog.API.DependencyServices {
     public class SingletonWrapper : ISingletonWrapper {
@@ -27,12 +29,12 @@ namespace Catalog.API.DependencyServices {
         ConcurrentDictionary<string, ConcurrentBag<CatalogType>> wrapped_catalog_types = new ConcurrentDictionary<string, ConcurrentBag<CatalogType>>();
         ConcurrentDictionary<string, ConcurrentBag<CatalogBrand>> wrapped_catalog_brands = new ConcurrentDictionary<string, ConcurrentBag<CatalogBrand>>();
 
-        ConcurrentDictionary<ProposedCatalogItem, ConcurrentDictionary<DateTime, string>> proposed_catalog_items = new ConcurrentDictionary<ProposedCatalogItem, ConcurrentDictionary<DateTime, string>>();
-        ConcurrentDictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>> proposed_catalog_brands = new ConcurrentDictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>>();
-        ConcurrentDictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>> proposed_catalog_types = new ConcurrentDictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>>();
+        ConcurrentDictionary<ProposedCatalogItem, SynchronizedCollection<(long, string)>> proposed_catalog_items = new ConcurrentDictionary<ProposedCatalogItem, SynchronizedCollection<(long, string)>>();
+        ConcurrentDictionary<ProposedCatalogBrand, ConcurrentDictionary<long, string>> proposed_catalog_brands = new ConcurrentDictionary<ProposedCatalogBrand, ConcurrentDictionary<long, string>>();
+        ConcurrentDictionary<ProposedCatalogType, ConcurrentDictionary<long, string>> proposed_catalog_types = new ConcurrentDictionary<ProposedCatalogType, ConcurrentDictionary<long, string>>();
 
-        ConcurrentDictionary<ProposedCatalogItem, List<EventMonitor>> catalog_items_manual_reset_events = new ConcurrentDictionary<ProposedCatalogItem, List<EventMonitor>>(); // Holds the MonitorEvent for each proposed catalog item
-        ConcurrentDictionary<ManualResetEvent, List<string>> dependent_client_ids = new ConcurrentDictionary<ManualResetEvent, List<string>>(); // Holds which clients are waiting on a MRE
+        ConcurrentDictionary<ProposedCatalogItem, ConcurrentDictionary<EventMonitor, int>> catalog_items_manual_reset_events = new ConcurrentDictionary<ProposedCatalogItem, ConcurrentDictionary<EventMonitor, int>>(); // Holds the MonitorEvent for each proposed catalog item
+        ConcurrentDictionary<ManualResetEvent, ConcurrentDictionary<string, int>> dependent_client_ids = new ConcurrentDictionary<ManualResetEvent, ConcurrentDictionary<string, int>>(); // Holds which clients are waiting on a MRE
         ConcurrentDictionary<ManualResetEvent, string> committed_Data_MREs = new ConcurrentDictionary<ManualResetEvent, string>(); // Holds the MREs that are associated with committed data (for garbage collection-purposes)
         
         // Store the proposed Timestamp for each functionality in Proposed State
@@ -135,7 +137,7 @@ namespace Catalog.API.DependencyServices {
                     OnReorder = (bool)item[9],
                     RestockThreshold = (int)item[10]
                 };
-                _logger.LogInformation($"ClientID: {clientID}, the catalogItem id: {wrapped_item.Id} when inserting into the wrapper.");
+                _logger.LogInformation($"ClientID: {clientID} - the catalogItem id: {wrapped_item.Id} when inserting into the wrapper.");
                 wrapped_catalog_items.AddOrUpdate(clientID, new ConcurrentBag<CatalogItem> { wrapped_item }, (key, bag) => {
                     bag.Add(wrapped_item);
                     return bag;
@@ -212,7 +214,10 @@ namespace Catalog.API.DependencyServices {
 
             // For each item, add it to the proposed set, adding the proposed timestamp associated
             foreach (CatalogItem catalog_item_to_propose in catalog_items_to_propose) {
-                DateTime proposedTSDate = new DateTime(proposedTS);
+                _logger.LogInformation($"ClientID: {clientID} - is proposing {catalog_items_to_propose.Count} items.");
+                foreach(var item in catalog_items_to_propose) {
+                    _logger.LogInformation($"ClientID: {clientID} - \t adding catalogItem id: {item.Id} to proposed set.");
+                }
                 ProposedCatalogItem proposedItem = new ProposedCatalogItem {
                     Name = catalog_item_to_propose.Name,
                     CatalogBrandId = catalog_item_to_propose.CatalogBrandId,
@@ -220,60 +225,79 @@ namespace Catalog.API.DependencyServices {
                     Id = catalog_item_to_propose.Id
                 };
 
-                proposed_catalog_items.AddOrUpdate(proposedItem, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, string>();
-                    innerDict.TryAdd(proposedTSDate, clientID);
-                    //_logger.LogInformation($"ClientID: {clientID}, inner dict did not exist yet. Adding a new one.");
-                    return innerDict;
-                }, (_, value) => {
-                    value.TryAdd(proposedTSDate, clientID);
-                    //_logger.LogInformation($"ClientID: {clientID}, number of items in inner dict: {value.Count}");
+                proposed_catalog_items.AddOrUpdate(proposedItem, new ConcurrentDictionary<long, string>(new KeyValuePair<long, string>[] { new KeyValuePair<long, string>(proposedTS, clientID)}), (key, value) => {
+                    if(value.TryAdd(proposedTS, clientID)) {
+                        _logger.LogInformation($"ClientID: {clientID} - \t added proposed timestamp {proposedTS} to proposed item {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id}");
+                    } 
+                    else {
+                        _logger.LogError($"ClientID: {clientID} - \t could not add proposed timestamp {proposedTS} to proposed item {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id}");
+                    }
+                    _logger.LogInformation($"ClientID: {clientID} - \t number of items in inner dict: {value.Count}");
+                    foreach (var item in value) {
+                        _logger.LogInformation($"ClientID: {clientID} - \t \t item: {item.Key} - {item.Value}");
+                    }
                     return value;
                 });
+                
+                
+                // _ => {
+                //     var innerDict = new ConcurrentDictionary<DateTime, string>();
+                //     innerDict.TryAdd(proposedTSDate, clientID);
+                //     _logger.LogInformation($"ClientID: {clientID}, inner dict did not exist yet. Adding a new one.");
+                //     return innerDict;
+                // }, (key, value) => {
+                //     value.TryAdd(proposedTSDate, clientID);
+                //     _logger.LogInformation($"ClientID: {clientID}, number of items in inner dict: {value.Count}");
+                //     foreach (var item in value) {
+                //         _logger.LogInformation($"ClientID: {clientID}, item: {item.Key} - {item.Value}");
+                //     }
+                //     return value;
+                // });
 
                 var EM = new EventMonitor {
                     Event = new ManualResetEvent(false),
                     ClientID = clientID,
                     Timestamp = proposedTS,
                 };
- 
+
                 // Create ManualEvent for catalog Item
-                catalog_items_manual_reset_events.AddOrUpdate(proposedItem, _ => {
-                    return new List<EventMonitor> { EM }; 
-                    }, (_, value) => {
-                    value.Add(EM);
+                catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<EventMonitor, int>(new KeyValuePair<EventMonitor, int>[] { new KeyValuePair<EventMonitor, int>(EM, 1) } ), (_, value) => {
+                    if(value.TryAdd(EM, 1)) {
+                        _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with HashCode: {EM.Event.GetHashCode()}");
+                    }
+                    else {
+                        _logger.LogError($"ClientID: {clientID} - \t Could not add ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with HashCode: {EM.Event.GetHashCode()}");
+                    }
                     return value;
                 });
             }
 
             foreach (CatalogType catalog_type_to_propose in catalog_types_to_propose) {
-                DateTime proposedTSDate = new DateTime(proposedTS);
                 ProposedCatalogType proposedCatalogType = new ProposedCatalogType {
                     TypeName = catalog_type_to_propose.Type
                 };
                 
                 proposed_catalog_types.AddOrUpdate(proposedCatalogType, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, string>();
-                    innerDict.TryAdd(proposedTSDate, clientID);
+                    var innerDict = new ConcurrentDictionary<long, string>();
+                    innerDict.TryAdd(proposedTS, clientID);
                     return innerDict;
                 }, (_, value) => {
-                    value.TryAdd(proposedTSDate, clientID);
+                    value.TryAdd(proposedTS, clientID);
                     return value;
                 });
             }
 
             foreach (CatalogBrand catalog_brand_to_propose in catalog_brands_to_propose) {
-                DateTime proposedTSDate = new DateTime(proposedTS);
                 ProposedCatalogBrand proposedCatalogType = new ProposedCatalogBrand {
                     BrandName = catalog_brand_to_propose.Brand
                 };
                 //ProposedBrand newBrand = new ProposedBrand(catalog_brand_to_propose.BrandName);
                 proposed_catalog_brands.AddOrUpdate(proposedCatalogType, _ => {
-                    var innerDict = new ConcurrentDictionary<DateTime, string>();
-                    innerDict.TryAdd(proposedTSDate, clientID);
+                    var innerDict = new ConcurrentDictionary<long, string>();
+                    innerDict.TryAdd(proposedTS, clientID);
                     return innerDict;
                 }, (_, value) => {
-                    value.TryAdd(proposedTSDate, clientID);
+                    value.TryAdd(proposedTS, clientID);
                     return value;
                 });
             }
@@ -290,7 +314,7 @@ namespace Catalog.API.DependencyServices {
 
             // Remove entries from the proposed set. These are identified by their key table identifiers.
             foreach(CatalogItem item in catalog_items_to_remove) {
-                _logger.LogInformation($"ClientID: {clientID}, the catalogItem id: {item.Id}");
+                _logger.LogInformation($"ClientID: {clientID} - the catalogItem id: {item.Id}");
                 ProposedCatalogItem proposedItem = new ProposedCatalogItem {
                     Name = item.Name,
                     CatalogBrandId = item.CatalogBrandId,
@@ -318,56 +342,69 @@ namespace Catalog.API.DependencyServices {
 
         //[Trace]
         public List<EventMonitor> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
-            //Stopwatch sw = new Stopwatch();
-
-            //sw.Start();
-
             switch (targetTable) {
                 case "Catalog":
                     // Apply all the conditions to the set of proposed catalog items 2, this set will keep shrinking as we apply more conditions.
                     // Note that the original set of proposed catalog items 2 is not modified, we are just creating a new set with the results of the conditions.
-                    var filtered_proposed_catalog_items2 = new Dictionary<ProposedCatalogItem, ConcurrentDictionary<DateTime, string>>(this.proposed_catalog_items);
+                    var filtered_proposed_catalog_items2 = new Dictionary<ProposedCatalogItem, ConcurrentDictionary<long, string>>(this.proposed_catalog_items);
                     _logger.LogInformation($"ClientID: {clientID} - Number of proposed catalog items 2: {filtered_proposed_catalog_items2.Count}");
                     if (conditions != null) {
                         filtered_proposed_catalog_items2 = ApplyFiltersToCatalogItems(conditions, filtered_proposed_catalog_items2, clientID);
                     }
+                    
+                    var EMsToWait = new List<EventMonitor>();
                     _logger.LogInformation($"ClientID: {clientID} - Number of proposed catalog items 2 after applying filters: {filtered_proposed_catalog_items2.Count}");
-                    // Check if the there any proposed catalog items 2 with a lower timestamp than the reader's timestamp
+                    
+                    // Iterate the list of interesting proposed_catalog_items
                     foreach (var proposed_catalog_item in filtered_proposed_catalog_items2) {
-                        foreach (DateTime proposedTS in proposed_catalog_item.Value.Keys) {
-                            if (proposedTS < readerTimestamp) {
-                                // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
-                                var allMREsForProposedItem = catalog_items_manual_reset_events.GetValueOrDefault(proposed_catalog_item.Key, null); // Get all the MREs for the proposed item
-                                if(allMREsForProposedItem == null || allMREsForProposedItem.Count == 0) {
-                                    _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name} with proposed TS {proposedTS.Ticks} [Date: {proposedTS}]");
-                                }
+                        _logger.LogInformation($"ClientID: {clientID} - \t Searching for MREs associated with catalog item with parameters: {proposed_catalog_item.Key.Name} - {proposed_catalog_item.Key.CatalogBrandId} - {proposed_catalog_item.Key.CatalogTypeId} - {proposed_catalog_item.Key.Id}");
+                        _logger.LogInformation($"ClientID: {clientID} - \t Number of MREs associated with this item: {proposed_catalog_item}");
+                        
+                        // Iterate the list of MREs
+                        foreach(var kvp_proposed_EM_list in catalog_items_manual_reset_events) {
+                            _logger.LogInformation($"ClientID: {clientID} - \t \t There is a list of MRE for item: {kvp_proposed_EM_list.Key.Name} - {kvp_proposed_EM_list.Key.CatalogBrandId} - {kvp_proposed_EM_list.Key.CatalogTypeId} - {kvp_proposed_EM_list.Key.Id}");
+                            _logger.LogInformation($"ClientID: {clientID} - \t \t Number of MREs for this item: {kvp_proposed_EM_list.Value.Count}");
+                            foreach(var EM_key in kvp_proposed_EM_list.Value.Keys) {
+                                _logger.LogInformation($"ClientID: {clientID} - \t \t \t \t MRE timestamp: {EM_key.Timestamp}, proposed by client: {EM_key.ClientID}");
+                            }
+                        }
+                        // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
+                        var MREsForPropItem_dict = catalog_items_manual_reset_events.GetValueOrDefault(proposed_catalog_item.Key, null); // Get all the MREs for the proposed item
+                        // var proposed_catalog_item_1 = proposed_catalog_item;
+                        // var proposed_catalog_item_2 = 
+                        if(MREsForPropItem_dict == null || MREsForPropItem_dict.Keys.Count == 0) {
+                            _logger.LogError($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name}");
+                        }
 
-                                var MREsToWait = new List<EventMonitor>();
-                                // Get the list of MREs (Manual Reset Events) for the proposed items that have a proposed timestamp lower than the reader's timestamp
-                                foreach(var mre in allMREsForProposedItem) {
-                                    if(mre.Timestamp < readerTimestamp.Ticks) {
-                                        MREsToWait.Add(mre);
-                                        // Add the dependent client ID to the list of dependent client IDs for the MRE
-                                        dependent_client_ids.AddOrUpdate(mre.Event, new List<string> { clientID }, (_, value) => {
-                                            value.Add(clientID);
-                                            return value;
-                                        });
-                                    }
-                                }
-                                return MREsToWait ?? null;
+                        // Get the list of MREs (Manual Reset Events) for the proposed items that have a proposed timestamp lower than the reader's timestamp
+                        foreach(var EM in MREsForPropItem_dict.Keys) {
+                            _logger.LogInformation($"ClientID: {clientID} - \t MRE timestamp: {EM.Timestamp}, proposed by client: {EM.ClientID}, is older than own timestamp: {readerTimestamp.Ticks}? {EM.Timestamp < readerTimestamp.Ticks}");
+                            if(EM.Timestamp < readerTimestamp.Ticks) {
+                                _logger.LogInformation($"ClientID: {clientID} - \t Added MRE timestamp: {EM.Timestamp}, proposed by client: {EM.ClientID}, to the list of MREs to wait for.");
+                                EMsToWait.Add(EM);
+                                // Add the dependent client ID to the list of dependent client IDs for the MRE
+                                dependent_client_ids.AddOrUpdate(EM.Event, new ConcurrentDictionary<string, int>(new List<KeyValuePair<string,int>> {new KeyValuePair<string, int>(clientID, 1)} ) , (_, value) => {
+                                    value.TryAdd(clientID, 1);
+                                    _logger.LogInformation($"ClientID: {clientID} - \t Added (Update) clientID: {clientID} to the list of dependent client IDs for the MRE of client {EM.ClientID}, MRE hashcode: {EM.Event.GetHashCode()}");
+                                    // foreach(var dependent_client_id in dependent_client_ids.GetValueOrDefault(mre.Event, null)) {
+                                    //     _logger.LogInformation($"ClientID: {clientID} - \t \t Dependent client ID: {dependent_client_id} on MRE timestamp: {mre.Timestamp}, proposed by client: {mre.ClientID}");
+                                    // }
+                                    return value;
+                                });
                             }
                         }
                     }
-                    break;
+                    _logger.LogInformation($"ClientID: {clientID} - \t Total Number of MREs to wait for: {EMsToWait.Count}");
+                    return EMsToWait ?? null;
                 case "CatalogBrand":
-                    var filtered_proposed_catalog_brands2 = new Dictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>>(this.proposed_catalog_brands);
+                    var filtered_proposed_catalog_brands2 = new Dictionary<ProposedCatalogBrand, ConcurrentDictionary<long, string>>(this.proposed_catalog_brands);
                     if (conditions != null) {
                         filtered_proposed_catalog_brands2 = ApplyFiltersToCatalogBrands(conditions, filtered_proposed_catalog_brands2);
                     }
                     // Check if the there any proposed catalog brands 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>> proposed_catalog_brand in filtered_proposed_catalog_brands2) {
-                        foreach (DateTime proposedTS in proposed_catalog_brand.Value.Keys) {
-                            if (proposedTS < readerTimestamp) {
+                    foreach (KeyValuePair<ProposedCatalogBrand, ConcurrentDictionary<long, string>> proposed_catalog_brand in filtered_proposed_catalog_brands2) {
+                        foreach (long proposedTS in proposed_catalog_brand.Value.Keys) {
+                            if (proposedTS < readerTimestamp.Ticks) {
                                 // There is at least one proposed catalog brand 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
                                 // TODO: Complete this method
                                 return null;
@@ -377,14 +414,14 @@ namespace Catalog.API.DependencyServices {
 
                     break;
                 case "CatalogType":
-                    var filtered_proposed_catalog_types2 = new Dictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>>(this.proposed_catalog_types);
+                    var filtered_proposed_catalog_types2 = new Dictionary<ProposedCatalogType, ConcurrentDictionary<long, string>>(this.proposed_catalog_types);
                     if (conditions != null) {
                         filtered_proposed_catalog_types2 = ApplyFiltersToCatalogTypes(conditions, filtered_proposed_catalog_types2);
                     }
                     // Check if the there any proposed catalog types 2 with a lower timestamp than the reader's timestamp
-                    foreach (KeyValuePair<ProposedCatalogType, ConcurrentDictionary<DateTime, string>> proposed_catalog_type in filtered_proposed_catalog_types2) {
-                        foreach (DateTime proposedTS in proposed_catalog_type.Value.Keys) {
-                            if (proposedTS < readerTimestamp) {
+                    foreach (KeyValuePair<ProposedCatalogType, ConcurrentDictionary<long, string>> proposed_catalog_type in filtered_proposed_catalog_types2) {
+                        foreach (long proposedTS in proposed_catalog_type.Value.Keys) {
+                            if (proposedTS < readerTimestamp.Ticks) {
                                 // There is at least one proposed catalog type 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
                                 // TODO: Complete this method
                                 return null;
@@ -397,7 +434,7 @@ namespace Catalog.API.DependencyServices {
         }
 
         //[Trace]
-        private static Dictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogTypes(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogType, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_types2) {
+        private static Dictionary<ProposedCatalogType, ConcurrentDictionary<long, string>> ApplyFiltersToCatalogTypes(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogType, ConcurrentDictionary<long, string>> filtered_proposed_catalog_types2) {
             foreach (Tuple<string, string> condition in conditions) {
                 filtered_proposed_catalog_types2 = filtered_proposed_catalog_types2.Where(x => x.Key.TypeName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
             }
@@ -406,7 +443,7 @@ namespace Catalog.API.DependencyServices {
         }
 
         //[Trace]
-        private static Dictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogBrands(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogBrand, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_brands2) {
+        private static Dictionary<ProposedCatalogBrand, ConcurrentDictionary<long, string>> ApplyFiltersToCatalogBrands(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogBrand, ConcurrentDictionary<long, string>> filtered_proposed_catalog_brands2) {
             foreach (Tuple<string, string> condition in conditions) {
                 filtered_proposed_catalog_brands2 = filtered_proposed_catalog_brands2.Where(x => x.Key.BrandName == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
             }
@@ -415,9 +452,9 @@ namespace Catalog.API.DependencyServices {
         }
 
         //[Trace]
-        private Dictionary<ProposedCatalogItem, ConcurrentDictionary<DateTime, string>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogItem, ConcurrentDictionary<DateTime, string>> filtered_proposed_catalog_items2, string clientID) {
+        private Dictionary<ProposedCatalogItem, ConcurrentDictionary<long, string>> ApplyFiltersToCatalogItems(List<Tuple<string, string>> conditions, Dictionary<ProposedCatalogItem, ConcurrentDictionary<long, string>> filtered_proposed_catalog_items2, string clientID) {
             foreach (Tuple<string, string> condition in conditions) {
-                _logger.LogInformation($"ClientID: {clientID}, Condition: {condition.Item1} - {condition.Item2}");
+                _logger.LogInformation($"ClientID: {clientID} - Condition: {condition.Item1} - {condition.Item2}");
                 switch (condition.Item1) {
                     case "Name":
                         filtered_proposed_catalog_items2 = filtered_proposed_catalog_items2.Where(x => x.Key.Name == condition.Item2).ToDictionary(x => x.Key, x => x.Value);
@@ -436,7 +473,7 @@ namespace Catalog.API.DependencyServices {
                 }
             }
             foreach (var item in filtered_proposed_catalog_items2) {
-                _logger.LogInformation($"ClientID: {clientID}, Proposed Item: {item.Key.Name} - {item.Key.CatalogBrandId} - {item.Key.CatalogTypeId}");
+                _logger.LogInformation($"ClientID: {clientID} - Proposed Item: {item.Key.Name} - {item.Key.CatalogBrandId} - {item.Key.CatalogTypeId}");
             }
             return filtered_proposed_catalog_items2;
         }
@@ -488,13 +525,27 @@ namespace Catalog.API.DependencyServices {
                     CatalogTypeId = wrappedItem.CatalogTypeId,
                     Id = wrappedItem.Id
                 };
-                catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new List<EventMonitor> { }, (_, value) => {
-                    // Remove the MREs associated with the wrapped item for this client
-                    var MREsToRemove = value.Where(EM => EM.ClientID == clientID).ToList();
-                    MREsToDispose.AddRange(MREsToRemove);
-                    value.RemoveAll(EM => EM.ClientID == clientID);
-                    return value;
-                });
+                // catalog_items_manual_reset_events.AddOrUpdate(proposedItem, key => null, (_, value) => {
+                //     // Remove the MREs associated with the wrapped item for this client
+                //     var MREsToRemove = value.Where(EM => EM.ClientID == clientID).ToList();
+                //     MREsToDispose.AddRange(MREsToRemove);
+                //     value.RemoveAll(EM => EM.ClientID == clientID);
+                //     return value;
+                // });
+                if (catalog_items_manual_reset_events.TryGetValue(proposedItem, out var EM_dict)) {
+                    var EMsToRemove = EM_dict.Where(kvp => kvp.Key.ClientID == clientID).Select(kvp => kvp.Key).ToList();
+                    MREsToDispose.AddRange(EMsToRemove);
+                    foreach(var EM in EMsToRemove) {
+                        if(EM_dict.TryRemove(EM, out int _)) {
+                            _logger.LogInformation($"ClientID: {clientID} - Removed EM for catalog item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events, by client {EM.ClientID}");
+                        } else {
+                            _logger.LogError($"ClientID: {clientID} - Could not remove EM for catalog item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events, by client {EM.ClientID}");
+                        }
+                    }
+                } else {
+                    _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent associated with catalog item with ID {proposedItem.Name}, to remove from Catalog Items Manual Reset Events");
+                }
+
             }
             return MREsToDispose;
         }
@@ -518,15 +569,24 @@ namespace Catalog.API.DependencyServices {
             // Dispose the MREs associated with the committed data only if there is currently no other client waiting on them
             dictionaryLock.EnterWriteLock();
             try {
+                int numberOfActiveMREs = 0;
                 foreach (var MRE in committed_Data_MREs) {
                     var dependentClientIDs = dependent_client_ids.GetValueOrDefault(MRE.Key, null);
-                    if(dependentClientIDs == null || dependent_client_ids.Count == 0)  {
-                        _logger.LogInformation($"Disposing MRE for committed data with client ID {MRE.Value} ...");
+                    if(dependentClientIDs == null || dependentClientIDs.Keys.Count == 0)  {
+                        _logger.LogInformation($"Garbage Collector: \t Disposing MRE for committed data with client ID {MRE.Value}...");
                         // There are no other clients waiting on this MRE, so we can dispose it
                         MRE.Key.Dispose();
                         committed_Data_MREs.TryRemove(MRE.Key, out string _);
+                    } else {
+                        _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {MRE.Value} because there are {dependentClientIDs.Count} clients waiting on it:");
+                        var dependentClients = dependentClientIDs.Keys.ToList();
+                        foreach(string clientID in dependentClients) {
+                            _logger.LogInformation($"Garbage Collector: \t \t Client ID {clientID} is waiting on this MRE from client ID {MRE.Value}");
+                        }
+                        numberOfActiveMREs++;
                     }
                 }
+                _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
             } finally {
                 dictionaryLock.ExitWriteLock();
             }
@@ -554,6 +614,7 @@ namespace Catalog.API.DependencyServices {
 
         //[Trace]
         public void NotifyReaderThreads(string clientID, List<CatalogItem> committedItems) {
+            _logger.LogInformation($"ClientID: {clientID} - Notifying reader threads waiting on committed data ({committedItems.Count} items) ...");
             foreach(CatalogItem item in committedItems) {
                 ProposedCatalogItem proposedItem = new ProposedCatalogItem {
                     CatalogBrandId = item.CatalogBrandId,
@@ -570,40 +631,64 @@ namespace Catalog.API.DependencyServices {
 
                 // Lock the catalog_items_manual_reset_events list
                 lock(catalog_items_manual_reset_events) {
-                    var allMREs = catalog_items_manual_reset_events.GetValueOrDefault(proposedItem, null);
-                    if(allMREs == null || allMREs.Count == 0) {
-                        _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent for catalog item with ID {proposedItem.Name} with proposed TS {proposedTS}");
+                    _logger.LogInformation($"ClientID: {clientID} - Searching for EMs associated with catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id}");
+                    var EMs_PropItem_dict = catalog_items_manual_reset_events.GetValueOrDefault(proposedItem, null);
+                    if(EMs_PropItem_dict == null || EMs_PropItem_dict.Keys.Count == 0) {
+                        _logger.LogError($"ClientID: {clientID} - A: Could not find any ManualResetEvent for catalog item with ID {proposedItem.Name} with proposed TS {proposedTS}");
                     }
 
                     // Find the MRE associated with the notifier ClientID
-                    var manualResetEvents = allMREs.Where(EM => EM.ClientID == clientID).ToList();
-                    if(manualResetEvents.Any()) {
-                        // Check that there is only 1 MRE associated with the notifier ClientID
-                        manualResetEvents[0].Event.Set(); // Set the first ManualResetEvent that is not set yet                         
-                    }
-                    else {
-                        _logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposedItem.Name} with proposed TS {proposedTS}");
-                    }
+                    var MRE = EMs_PropItem_dict.Where(kvp => kvp.Key.ClientID == clientID).Select(kvp => kvp.Key).Single();
+                    _logger.LogInformation($"ClientID: {clientID} - Found MRE for Proposed item with ID {proposedItem.Name} with proposed TS {proposedTS}. Notifying Event from client {MRE.ClientID} ...");
+                    MRE.Event.Set(); // Set the first ManualResetEvent that is not set yet                         
                 }            
-                
             }
-            // TODO: a thread should clear the manual reset events dictionary from time to time to avoid unnecessary memory consumption
         }
 
         public void RemoveFromDependencyList(ManualResetEvent MRE, string clientID) {
             // Remove the clientID from the list of dependent client IDs for the MRE
-            dependent_client_ids.AddOrUpdate(MRE, new List<string> { }, (_, value) => {
-                value.Remove(clientID);
-                return value;
-            });
+            if(dependent_client_ids.TryGetValue(MRE,out var innerDict)) {
+                _logger.LogInformation($"ClientID: {clientID} - Got inner dict for MRE");
+                lock(innerDict) {
+                    if(innerDict.TryRemove(clientID, out _)) {
+                        _logger.LogInformation($"ClientID: {clientID} - Removed clientID: {clientID} from the list of dependent client IDs for the MRE.");
+                    } else {
+                        _logger.LogError($"ClientID: {clientID} - Could not remove clientID: {clientID} from the list of dependent client IDs for the MRE with hashcode: {MRE.GetHashCode()}.");
+                    }
+                }
+            } 
+            else {
+                _logger.LogInformation($"ClientID: {clientID} - Unable to get inner dict for MRE");
+            }
         }
     }
 
-    public struct ProposedCatalogItem {
+    public struct ProposedCatalogItem : IEquatable<ProposedCatalogItem> {
         public string Name { get; set; }
         public int CatalogTypeId { get; set; }
         public int CatalogBrandId { get; set; }
         public int Id { get; set; }
+
+        public override bool Equals(object obj) {
+            if (ReferenceEquals(null, obj)) return false;
+            return obj is ProposedCatalogItem && Equals((ProposedCatalogItem)obj);
+        }
+
+        public bool Equals(ProposedCatalogItem other) {
+            return Name == other.Name && CatalogTypeId == other.CatalogTypeId && CatalogBrandId == other.CatalogBrandId && Id == other.Id;
+        }
+
+        public override int GetHashCode() {
+            unchecked {
+                int hash = 17;
+                hash = hash * 23 + Name.GetHashCode();
+                hash = hash * 23 + CatalogTypeId.GetHashCode();
+                hash = hash * 23 + CatalogBrandId.GetHashCode();
+                hash = hash * 23 + Id.GetHashCode();
+                // Console.WriteLine($"Hash code for object - {Name} - {CatalogTypeId} - {CatalogBrandId} - {Id} := {hash}");
+                return hash;
+            }
+        }
     }
 
     public struct ProposedCatalogBrand {

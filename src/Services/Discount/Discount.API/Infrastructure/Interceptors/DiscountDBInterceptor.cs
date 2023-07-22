@@ -1426,9 +1426,11 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         }
         _logger.LogInformation($"ClientID {clientID}: There are {mres.Count} proposed items with lower timestamp than the client timestamp.");
 
-        foreach(var item in mres) {
-            _logger.LogInformation($"ClientID {clientID}: Waiting on item by clientID {item.Item2} with timestamp {new DateTime(item.Item3).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-            item.Item1.WaitOne();
+        foreach(var mre in mres) {
+            _logger.LogInformation($"ClientID {clientID}: Waiting on item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            mre.Event.WaitOne();
+            _logger.LogInformation($"ClientID {clientID}: The proposed item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
+            _wrapper.RemoveFromDependencyList(mre.Event, clientID);
         }
         _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
     }

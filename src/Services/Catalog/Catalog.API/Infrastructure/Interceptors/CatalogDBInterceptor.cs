@@ -241,7 +241,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
-                _logger.LogInformation($"ClientID: {clientID}, The original received INSERT command text: {command.CommandText}");
+                _logger.LogInformation($"ClientID: {clientID} - The original received INSERT command text: {command.CommandText}");
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
                     // If the Transaction is not in commit state, store data in wrapper
@@ -249,10 +249,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                 }
                 else {
-                    _logger.LogInformation($"ClientID: {clientID}: Updating INSERT command.");
+                    _logger.LogInformation($"ClientID: {clientID} - Updating INSERT command.");
                     // Transaction is in commit state, update the command to store in the database
                     UpdateInsertCommand(command, targetTable);
-                    _logger.LogInformation($"ClientID: {clientID} is committing to DB...");
+                    _logger.LogInformation($"ClientID: {clientID} - is committing to DB...");
 
                 }
                 break;
@@ -1077,7 +1077,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
 
         if (command.CommandText.Contains("INSERT")) {
-            _logger.LogInformation($"ClientID: {clientID} committed to DB. CommandText: {command.CommandText}");
+            _logger.LogInformation($"ClientID: {clientID} - committed to DB. CommandText: {command.CommandText}");
         }
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
@@ -1737,17 +1737,21 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         var mres = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
         if(mres == null) {
             // There are no proposed items with lower timestamp than the client timestamp
+            _logger.LogInformation($"ClientID: {clientID} - Returned null: There are no proposed items with lower timestamp than the client timestamp.");
             return;
+        } 
+        else {
+            _logger.LogInformation($"ClientID: {clientID} - Returned: There are {mres.Count} proposed items with lower timestamp than the client timestamp.");
         }
-        _logger.LogInformation($"ClientID {clientID}: There are {mres.Count} proposed items with lower timestamp than the client timestamp.");
+        _logger.LogInformation($"ClientID: {clientID}: - There are {mres.Count} proposed items with lower timestamp than the client timestamp.");
 
         foreach(var mre in mres) {
-            _logger.LogInformation($"ClientID {clientID}: Waiting on item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            _logger.LogInformation($"ClientID: {clientID} - \t Waiting on item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             mre.Event.WaitOne();
-            _logger.LogInformation($"ClientID {clientID}: The proposed item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
+            _logger.LogInformation($"ClientID: {clientID} - \t The proposed item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
             _wrapper.RemoveFromDependencyList(mre.Event, clientID);
         }
-        _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
+        _logger.LogInformation($"ClientID: {clientID} - There are no more proposed items with lower timestamp than the client timestamp.");
     }
 
 
