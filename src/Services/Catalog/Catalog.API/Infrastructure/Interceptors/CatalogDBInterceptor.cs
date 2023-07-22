@@ -1734,22 +1734,22 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         List<Tuple<string, string>> conditions = (command.CommandText.IndexOf("WHERE") != -1) ? GetWhereConditions(command) : null;
 
         // Get the Manual Reset Events associated with the item(s) with a lower Timestamp than the client timestamp
-        var mres = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
-        if(mres == null) {
+        var guid_mres = _wrapper.AnyProposalWithLowerTimestamp(conditions, targetTable, readerTimestamp, clientID);
+        if(guid_mres == null) {
             // There are no proposed items with lower timestamp than the client timestamp
             _logger.LogInformation($"ClientID: {clientID} - Returned null: There are no proposed items with lower timestamp than the client timestamp.");
             return;
         } 
         else {
-            _logger.LogInformation($"ClientID: {clientID} - Returned: There are {mres.Count} proposed items with lower timestamp than the client timestamp.");
+            _logger.LogInformation($"ClientID: {clientID} - Returned: There are {guid_mres.Count} proposed items with lower timestamp than the client timestamp.");
         }
-        _logger.LogInformation($"ClientID: {clientID}: - There are {mres.Count} proposed items with lower timestamp than the client timestamp.");
+        _logger.LogInformation($"ClientID: {clientID}: - There are {guid_mres.Count} proposed items with lower timestamp than the client timestamp.");
 
-        foreach(var mre in mres) {
-            _logger.LogInformation($"ClientID: {clientID} - \t Waiting on item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-            mre.Event.WaitOne();
-            _logger.LogInformation($"ClientID: {clientID} - \t The proposed item by clientID {mre.ClientID} with timestamp {new DateTime(mre.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
-            _wrapper.RemoveFromDependencyList(mre.Event, clientID);
+        foreach(var guid_MRE in guid_mres) {
+            _logger.LogInformation($"ClientID: {clientID} - \t Waiting on item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            guid_MRE.Item2.Event.WaitOne();
+            _logger.LogInformation($"ClientID: {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
+            _wrapper.RemoveFromDependencyList(guid_MRE, clientID);
         }
         _logger.LogInformation($"ClientID: {clientID} - There are no more proposed items with lower timestamp than the client timestamp.");
     }
