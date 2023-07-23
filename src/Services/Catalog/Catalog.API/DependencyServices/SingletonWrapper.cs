@@ -255,11 +255,13 @@ namespace Catalog.API.DependencyServices {
                     _logger.LogInformation($"ClientID: {clientID} - \t proposed catalog does not exist yet.");
                 }
                 _logger.LogInformation($"ClientID: {clientID} - \t .");
-                proposed_catalog_items.AddOrUpdate(proposedItem, new SynchronizedCollection<(long, string)>( new List<(long, string)> { (proposedTS, clientID) }), (key, value) => {
-                    value.Add((proposedTS, clientID));
-                    return value;
-                });
-
+                
+                lock(proposed_catalog_items) {
+                    proposed_catalog_items.AddOrUpdate(proposedItem, new SynchronizedCollection<(long, string)>(new List<(long, string)> { (proposedTS, clientID) }), (key, value) => {
+                        value.Add((proposedTS, clientID));
+                        return value;
+                    });
+                }
                 _logger.LogInformation($"ClientID: {clientID} - \t added catalog item to proposed set. After adding count = {proposed_catalog_items[proposedItem].Count}");
             }
 
@@ -314,21 +316,24 @@ namespace Catalog.API.DependencyServices {
                 };
                 // Remove entry in synchronized collection associated with ProposedItem, for the given clientID
                 lock (proposed_catalog_items) {
-                    _logger.LogInformation($"ClientID: {clientID} - \t removing catalog item from proposed set. Before removing count = {proposed_catalog_items[proposedItem].Count}");
-                    foreach((long, string) tuple in proposed_catalog_items[proposedItem]) {
-                        if(tuple.Item2 == clientID) {
-                            proposed_catalog_items[proposedItem].Remove(tuple);
-                            break;
+                    if(proposed_catalog_items.ContainsKey(proposedItem)) {
+                        foreach ((long, string) tuple in proposed_catalog_items[proposedItem]) {
+                            if (tuple.Item2 == clientID) {
+                                proposed_catalog_items[proposedItem].Remove(tuple);
+                                break;
+                            }
+                        }
+                        if (proposed_catalog_items[proposedItem].Count == 0) {
+                            if (proposed_catalog_items.TryRemove(proposedItem, out _)) {
+                                _logger.LogInformation($"ClientID: {clientID} - \t removed catalog item Key from proposed set.");
+                            }
+                            else {
+                                _logger.LogError($"ClientID: {clientID} - \t could not remove catalog item Key from proposed set.");
+                            }
                         }
                     }
-                    _logger.LogInformation($"ClientID: {clientID} - \t removing catalog item from proposed set. After removing count = {proposed_catalog_items[proposedItem].Count}");
-                    if (proposed_catalog_items[proposedItem].Count == 0) {
-                        if(proposed_catalog_items.TryRemove(proposedItem, out _)) {
-                            _logger.LogInformation($"ClientID: {clientID} - \t removed catalog item Key from proposed set.");
-                        }
-                        else {
-                            _logger.LogError($"ClientID: {clientID} - \t could not remove catalog item Key from proposed set.");
-                        }
+                    else {
+                        _logger.LogError($"ClientID: {clientID} - Proposed Catalog Item did not have entry for Item: {proposedItem}");
                     }
                 }
             }
@@ -382,7 +387,8 @@ namespace Catalog.API.DependencyServices {
                         // var proposed_catalog_item_1 = proposed_catalog_item;
                         // var proposed_catalog_item_2 = 
                         if(MREsForPropItem_dict == null || MREsForPropItem_dict.Keys.Count == 0) {
-                            _logger.LogError($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name}");
+                            _logger.LogInformation($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name}.");
+                            continue;
                         }
                         else {
                             _logger.LogInformation($"ClientID: {clientID} - \t Found {MREsForPropItem_dict.Keys.Count} ManualResetEvents for catalog item with ID {proposed_catalog_item.Key.Name}");
@@ -535,22 +541,34 @@ namespace Catalog.API.DependencyServices {
                     Id = wrappedItem.Id
                 };
 
-                if (catalog_items_manual_reset_events.TryGetValue(proposedItem, out var EM_dict)) {
-                    var EMsToRemove = EM_dict.Where(kvp => kvp.Value.ClientID == clientID).ToList();
-                    var EMPairs = new List<(string, EventMonitor)>();
-                    foreach(var kvp in EMsToRemove) {
-                        EMPairs.Add((kvp.Key, kvp.Value));
-                        if(EM_dict.TryRemove(kvp.Key, out var EM)) {
-                            _logger.LogInformation($"ClientID: {clientID} - Removed EM for catalog item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events, by client {EM.ClientID}, GUID={kvp.Key}");
-                        } else {
-                            _logger.LogError($"ClientID: {clientID} - Could not remove EM for catalog item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events, by client {EM.ClientID}, GUID={kvp.Key}");
+                lock(catalog_items_manual_reset_events) {
+                    if (catalog_items_manual_reset_events.TryGetValue(proposedItem, out var EM_dict)) {
+                        var EMsToRemove = EM_dict.Where(kvp => kvp.Value.ClientID == clientID).ToList();
+                        var EMPairs = new List<(string, EventMonitor)>();
+                        foreach (var kvp in EMsToRemove) {
+                            EMPairs.Add((kvp.Key, kvp.Value));
+                            if (EM_dict.TryRemove(kvp.Key, out var EM)) {
+                                _logger.LogInformation($"ClientID: {clientID} - Removed EM for catalog item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events, by client {EM.ClientID}, GUID={kvp.Key}");
+                            }
+                            else {
+                                _logger.LogError($"ClientID: {clientID} - Could not remove EM for catalog item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events, by client {EM.ClientID}, GUID={kvp.Key}");
+                            }
                         }
+                        // If the dictionary is empty, remove it
+                        if(EM_dict.Count == 0) {
+                            if (catalog_items_manual_reset_events.TryRemove(proposedItem, out var dict)) {
+                                _logger.LogInformation($"ClientID: {clientID} - Removed Catalog Item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events");
+                            }
+                            else {
+                                _logger.LogError($"ClientID: {clientID} - Could not remove Catalog Item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events");
+                            }
+                        }   
+                        return EMPairs;
                     }
-                    return EMPairs;
-                } else {
-                    _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent associated with catalog item with ID {proposedItem.Name}, to remove from Catalog Items Manual Reset Events");
+                    else {
+                        _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent associated with catalog item with ID {proposedItem.Name}, to remove from Catalog Items Manual Reset Events");
+                    }
                 }
-
             }
             return new List<(string, EventMonitor)>();
         }
