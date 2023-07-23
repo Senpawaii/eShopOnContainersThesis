@@ -228,19 +228,6 @@ namespace Catalog.API.DependencyServices {
                     Id = catalog_item_to_propose.Id
                 };
 
-                if(proposed_catalog_items.ContainsKey(proposedItem)) {
-                    _logger.LogInformation($"ClientID: {clientID} - \t proposed catalog item already exists. Before adding count = {proposed_catalog_items[proposedItem].Count}");
-                } else {
-                    _logger.LogInformation($"ClientID: {clientID} - \t proposed catalog does not exist yet.");
-                }
-                _logger.LogInformation($"ClientID: {clientID} - \t .");
-                proposed_catalog_items.AddOrUpdate(proposedItem, new SynchronizedCollection<(long, string)>( new List<(long, string)> { (proposedTS, clientID) }), (key, value) => {
-                    value.Add((proposedTS, clientID));
-                    return value;
-                });
-
-                _logger.LogInformation($"ClientID: {clientID} - \t added catalog item to proposed set. After adding count = {proposed_catalog_items[proposedItem].Count}");
-
                 var EM = new EventMonitor {
                     Event = new ManualResetEvent(false),
                     ClientID = clientID,
@@ -252,8 +239,8 @@ namespace Catalog.API.DependencyServices {
                 string guidString = guid.ToString();
 
                 // Create ManualEvent for catalog Item
-                catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<string, EventMonitor>(new KeyValuePair<string, EventMonitor>[] { new KeyValuePair<string, EventMonitor>(guidString, EM) } ), (_, value) => {
-                    if(value.TryAdd(guidString, EM)) {
+                catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<string, EventMonitor>(new KeyValuePair<string, EventMonitor>[] { new KeyValuePair<string, EventMonitor>(guidString, EM) }), (_, value) => {
+                    if (value.TryAdd(guidString, EM)) {
                         _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
                     }
                     else {
@@ -261,6 +248,19 @@ namespace Catalog.API.DependencyServices {
                     }
                     return value;
                 });
+
+                if (proposed_catalog_items.ContainsKey(proposedItem)) {
+                    _logger.LogInformation($"ClientID: {clientID} - \t proposed catalog item already exists. Before adding count = {proposed_catalog_items[proposedItem].Count}");
+                } else {
+                    _logger.LogInformation($"ClientID: {clientID} - \t proposed catalog does not exist yet.");
+                }
+                _logger.LogInformation($"ClientID: {clientID} - \t .");
+                proposed_catalog_items.AddOrUpdate(proposedItem, new SynchronizedCollection<(long, string)>( new List<(long, string)> { (proposedTS, clientID) }), (key, value) => {
+                    value.Add((proposedTS, clientID));
+                    return value;
+                });
+
+                _logger.LogInformation($"ClientID: {clientID} - \t added catalog item to proposed set. After adding count = {proposed_catalog_items[proposedItem].Count}");
             }
 
             foreach (CatalogType catalog_type_to_propose in catalog_types_to_propose) {
@@ -358,7 +358,7 @@ namespace Catalog.API.DependencyServices {
                     // Iterate the list of interesting proposed_catalog_items
                     foreach (var proposed_catalog_item in filtered_proposed_catalog_items2) {
                         _logger.LogInformation($"ClientID: {clientID} - \t Searching for MREs associated with catalog item with parameters: {proposed_catalog_item.Key.Name} - {proposed_catalog_item.Key.CatalogBrandId} - {proposed_catalog_item.Key.CatalogTypeId} - {proposed_catalog_item.Key.Id}");
-                        _logger.LogInformation($"ClientID: {clientID} - \t Number of MREs associated with this item: {proposed_catalog_item}");
+                        _logger.LogInformation($"ClientID: {clientID} - \t Number of MREs associated with this item: {proposed_catalog_item.Key.Id}: {proposed_catalog_item.Value.Count}");
                         
                         // Iterate the list of MREs
                         foreach(var kvp_proposed_EM_list in catalog_items_manual_reset_events) {
