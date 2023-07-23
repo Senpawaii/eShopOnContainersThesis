@@ -364,10 +364,10 @@ namespace Catalog.API.DependencyServices {
                         foreach(var kvp_proposed_EM_list in catalog_items_manual_reset_events) {
                             _logger.LogInformation($"ClientID: {clientID} - \t \t There is a list of MRE for item: {kvp_proposed_EM_list.Key.Name} - {kvp_proposed_EM_list.Key.CatalogBrandId} - {kvp_proposed_EM_list.Key.CatalogTypeId} - {kvp_proposed_EM_list.Key.Id}");
                             _logger.LogInformation($"ClientID: {clientID} - \t \t Number of MREs for this item: {kvp_proposed_EM_list.Value.Count}");
-                            var kvps = kvp_proposed_EM_list.Value.ToList();
-                            foreach(var kvp in kvps) {
-                                _logger.LogInformation($"ClientID: {clientID} - \t \t \t \t MRE timestamp: {kvp.Value.Timestamp}, proposed by client: {kvp.Value.ClientID}, GUID = {kvp.Key}");
-                            }
+                            // var kvps = kvp_proposed_EM_list.Value.ToArray();
+                            // foreach(var kvp in kvps) {
+                            //     _logger.LogInformation($"ClientID: {clientID} - \t \t \t \t MRE timestamp: {kvp.Value.Timestamp}, proposed by client: {kvp.Value.ClientID}, GUID = {kvp.Key}");
+                            // }
                         }
                         // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
                         var MREsForPropItem_dict = catalog_items_manual_reset_events.GetValueOrDefault(proposed_catalog_item.Key, null); // Get all the MREs for the proposed item
@@ -651,11 +651,6 @@ namespace Catalog.API.DependencyServices {
                 int numberOfDependentClients = MRE_depends.Item2.Count;
                 MRE_depends.Item2.Remove(clientID);
                 int numberOfDependentClientsAfterRemoval = MRE_depends.Item2.Count;
-                if (numberOfDependentClientsAfterRemoval - numberOfDependentClients == 1) {
-                    _logger.LogInformation($"ClientID: {clientID} - Removed clientID: {clientID} from the list of dependent client IDs for the MRE with GUID: {guid}.");
-                } else {
-                    _logger.LogInformation($"ClientID: {clientID} - Unable to remove clientID: {clientID} from the list of dependent client IDs for the MRE with GUID: {guid}.");
-                }
             } 
             else {
                 _logger.LogInformation($"ClientID: {clientID} - Unable to get MRE dependencies");

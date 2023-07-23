@@ -43,7 +43,7 @@ public class GarbageCollectionService : BackgroundService {
             GarbageCollectCatalogTypes(dbContext);
         }
         _logger.LogInformation($"Garbage Collection timed Hosted Service is working. Count: {_executionCount++}");
-        _singletonWrapper.DisposeCommittedDataMREs();
+        // _singletonWrapper.DisposeCommittedDataMREs();
     }
 
     private void GarbageCollectCatalogItems(GarbageContext dbContext) {
