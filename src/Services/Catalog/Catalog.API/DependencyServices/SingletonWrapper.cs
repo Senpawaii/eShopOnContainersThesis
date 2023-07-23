@@ -313,7 +313,7 @@ namespace Catalog.API.DependencyServices {
                     Id = item.Id
                 };
                 // Remove entry in synchronized collection associated with ProposedItem, for the given clientID
-                lock (proposed_catalog_items[proposedItem]) {
+                lock (proposed_catalog_items) {
                     _logger.LogInformation($"ClientID: {clientID} - \t removing catalog item from proposed set. Before removing count = {proposed_catalog_items[proposedItem].Count}");
                     foreach((long, string) tuple in proposed_catalog_items[proposedItem]) {
                         if(tuple.Item2 == clientID) {
@@ -322,6 +322,14 @@ namespace Catalog.API.DependencyServices {
                         }
                     }
                     _logger.LogInformation($"ClientID: {clientID} - \t removing catalog item from proposed set. After removing count = {proposed_catalog_items[proposedItem].Count}");
+                    if (proposed_catalog_items[proposedItem].Count == 0) {
+                        if(proposed_catalog_items.TryRemove(proposedItem, out _)) {
+                            _logger.LogInformation($"ClientID: {clientID} - \t removed catalog item Key from proposed set.");
+                        }
+                        else {
+                            _logger.LogError($"ClientID: {clientID} - \t could not remove catalog item Key from proposed set.");
+                        }
+                    }
                 }
             }
             foreach(CatalogBrand brand in catalog_brands_to_remove) {
@@ -375,6 +383,9 @@ namespace Catalog.API.DependencyServices {
                         // var proposed_catalog_item_2 = 
                         if(MREsForPropItem_dict == null || MREsForPropItem_dict.Keys.Count == 0) {
                             _logger.LogError($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name}");
+                        }
+                        else {
+                            _logger.LogInformation($"ClientID: {clientID} - \t Found {MREsForPropItem_dict.Keys.Count} ManualResetEvents for catalog item with ID {proposed_catalog_item.Key.Name}");
                         }
 
                         // Get the list of MREs (Manual Reset Events) for the proposed items that have a proposed timestamp lower than the reader's timestamp
