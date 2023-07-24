@@ -145,7 +145,7 @@ public class SingletonWrapper : ISingletonWrapper {
                     });
             }
 
-            lock(proposed_discount_Items) {
+            //lock(proposed_discount_Items) {
                 _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items.");
                 proposed_discount_Items.AddOrUpdate(proposedItem, 
                     key => new SynchronizedCollection<(long, string)> (new List<(long, string)> { (proposedTS, clientID) }),
@@ -155,7 +155,7 @@ public class SingletonWrapper : ISingletonWrapper {
                         return value;
                 });
                 _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items (after).");
-            }
+            //}
         }
     }
 
@@ -176,7 +176,7 @@ public class SingletonWrapper : ISingletonWrapper {
             };
             
             // Remove entry in synchronized collection associated with ProposedItem, for the given ClientID
-            lock (proposed_discount_Items) {
+            //lock (proposed_discount_Items) {
                 if (proposed_discount_Items.ContainsKey(proposedItem)) {
                     var collection = proposed_discount_Items[proposedItem];
                     foreach((long, string) tuple in collection) {
@@ -193,7 +193,7 @@ public class SingletonWrapper : ISingletonWrapper {
                 else {
                     _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
                 }
-            }
+            //}
         }
     }
 
