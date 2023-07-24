@@ -1740,7 +1740,12 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         } 
         foreach(var guid_MRE in guid_mres) {
             _logger.LogInformation($"ClientID: {clientID} - \t Waiting on item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-            guid_MRE.Item2.Event.WaitOne();
+            try {
+                guid_MRE.Item2.Event.WaitOne();
+            } catch (Exception exc) {
+                _logger.LogInformation($"ClientID {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was aborted with Exception message: {exc.StackTrace}. Checking others...");
+                continue;
+            }
             _logger.LogInformation($"ClientID: {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
             _wrapper.RemoveFromDependencyList(guid_MRE, clientID);
         }

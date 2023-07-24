@@ -137,7 +137,12 @@ public class SingletonWrapper : ISingletonWrapper {
             lock(discount_items_manual_reset_events) {
                 discount_items_manual_reset_events.AddOrUpdate(proposedItem,
                     key => new ConcurrentDictionary<string, EventMonitor> { [guidString] = EM },
-                    (key, value) => { value.TryAdd(guidString, EM); return value; });
+                    (key, value) => {
+                        if (!value.TryAdd(guidString, EM)) { 
+                            _logger.LogError($"ClientID: {clientID}, Error: Could not add event monitor to proposed discount item");                        
+                        }
+                        return value; 
+                    });
             }
 
             lock(proposed_discount_Items) {
@@ -182,8 +187,8 @@ public class SingletonWrapper : ISingletonWrapper {
                 else {
                     _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
                 }
+                proposed_discount_Items.TryRemove(proposedItem, out _);
             }
-            proposed_discount_Items.TryRemove(proposedItem, out _);
         }
     }
 
@@ -305,15 +310,12 @@ public class SingletonWrapper : ISingletonWrapper {
 
     public void AddToCommittedDataMREs(List<(string, EventMonitor)> guid_MREs, string clientID) {
         // Add the MREs to the committed data MREs, so that the garbage collection service can dispose them
-        dictionaryLock.EnterWriteLock();
-        try {
-            foreach (var guid_MRE in guid_MREs) {
-                committed_Data_MREs.AddOrUpdate(guid_MRE.Item1, 
-                    key => (guid_MRE.Item2.Event, clientID), 
-                    (key, value) => { value = (guid_MRE.Item2.Event, clientID); _logger.LogError($"ClientID: {clientID} - The GUID={guid_MRE.Item1}, was found to be duplicate.");  return value; });
+        foreach (var guid_MRE in guid_MREs) {
+            lock(committed_Data_MREs) {
+                committed_Data_MREs.AddOrUpdate(guid_MRE.Item1,
+                    key => (guid_MRE.Item2.Event, clientID),
+                    (key, value) => { value = (guid_MRE.Item2.Event, clientID); _logger.LogError($"ClientID: {clientID} - The GUID={guid_MRE.Item1}, was found to be duplicate."); return value; });
             }
-        } finally {
-            dictionaryLock.ExitWriteLock();
         }
     }
 

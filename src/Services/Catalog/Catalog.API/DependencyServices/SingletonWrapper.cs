@@ -235,15 +235,17 @@ namespace Catalog.API.DependencyServices {
                 string guidString = guid.ToString();
 
                 // Create ManualEvent for catalog Item
-                catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<string, EventMonitor>(new KeyValuePair<string, EventMonitor>[] { new KeyValuePair<string, EventMonitor>(guidString, EM) }), (_, value) => {
-                    if (value.TryAdd(guidString, EM)) {
-                        _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
-                    }
-                    else {
-                        _logger.LogError($"ClientID: {clientID} - \t Could not add ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
-                    }
-                    return value;
-                });
+                lock(catalog_items_manual_reset_events) {
+                    catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<string, EventMonitor>(new KeyValuePair<string, EventMonitor>[] { new KeyValuePair<string, EventMonitor>(guidString, EM) }), (_, value) => {
+                        if (value.TryAdd(guidString, EM)) {
+                            _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
+                        }
+                        else {
+                            _logger.LogError($"ClientID: {clientID} - \t Could not add ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
+                        }
+                        return value;
+                    });
+                }
 
                 _logger.LogInformation($"ClientID: {clientID} - \t .");
                 
@@ -366,10 +368,12 @@ namespace Catalog.API.DependencyServices {
                         foreach(var guid_EM in MREsForPropItem_dict) {
                             if(guid_EM.Value.Timestamp < readerTimestamp.Ticks) {
                                 // Associate the clientID as a dependent of the Proposed Item's MRE
-                                dependent_client_ids.AddOrUpdate(guid_EM.Key, (guid_EM.Value.Event, new SynchronizedCollection<string>(new List<string> { clientID })), (_, value) => {
-                                    value.Item2.Add(clientID);
-                                    return value;
-                                });
+                                lock(dependent_client_ids) {
+                                    dependent_client_ids.AddOrUpdate(guid_EM.Key, (guid_EM.Value.Event, new SynchronizedCollection<string>(new List<string> { clientID })), (_, value) => {
+                                        value.Item2.Add(clientID);
+                                        return value;
+                                    });
+                                }
                                 guid_EMsToWait.Add((guid_EM.Key, guid_EM.Value));
                             }
                         }
@@ -524,43 +528,49 @@ namespace Catalog.API.DependencyServices {
 
         public void AddToCommittedDataMREs(List<(string,EventMonitor)> guid_MREs, string clientID) {
             // Add the MREs to the committed data MREs, so that the garbage collection service can dispose them
-            dictionaryLock.EnterWriteLock();
-            try {
-                foreach (var guid_MRE in guid_MREs) {
-                    committed_Data_MREs.AddOrUpdate(guid_MRE.Item1, (guid_MRE.Item2.Event, clientID), (_, value) => {
-                        value = (guid_MRE.Item2.Event, clientID);
-                        _logger.LogError($"ClientID: {clientID} - The GUID={guid_MRE.Item1}, was found to be duplicate.");
-                        return value;
-                    });
+            //dictionaryLock.EnterWriteLock();
+            //try {
+                lock(committed_Data_MREs) {
+                    foreach (var guid_MRE in guid_MREs) {
+                        committed_Data_MREs.AddOrUpdate(guid_MRE.Item1, (guid_MRE.Item2.Event, clientID), (_, value) => {
+                            value = (guid_MRE.Item2.Event, clientID);
+                            _logger.LogError($"ClientID: {clientID} - The GUID={guid_MRE.Item1}, was found to be duplicate.");
+                            return value;
+                        });
+                    }
                 }
-            } finally {
-                dictionaryLock.ExitWriteLock();
-            }
+                
+            //} finally {
+            //    dictionaryLock.ExitWriteLock();
+            //}
         }
 
         public void DisposeCommittedDataMREs() {
             // Dispose the MREs associated with the committed data only if there is currently no other client waiting on them
-            dictionaryLock.EnterWriteLock();
-            try {
+            //dictionaryLock.EnterWriteLock();
+            //try {
                 int numberOfActiveMREs = 0;
-                foreach (var guid_MRE in committed_Data_MREs) {
-                    var dependentClientIDs = dependent_client_ids.GetValueOrDefault(guid_MRE.Key, (null, null));
-                    if(dependentClientIDs.Item1 == null || dependentClientIDs.Item2.Count == 0)  {
-                        // There are no other clients waiting on this MRE, so we can dispose it
-                        guid_MRE.Value.Item1.Dispose();
-                        if(!committed_Data_MREs.TryRemove(guid_MRE.Key, out var kvp)) {
-                            _logger.LogInformation($"Garbage Collector: \t Could not remove MRE for committed data with client ID {guid_MRE.Value.Item2}");
+                lock(committed_Data_MREs) {
+                    foreach (var guid_MRE in committed_Data_MREs) {
+                        var dependentClientIDs = dependent_client_ids.GetValueOrDefault(guid_MRE.Key, (null, null));
+                        if (dependentClientIDs.Item1 == null || dependentClientIDs.Item2.Count == 0) {
+                            // There are no other clients waiting on this MRE, so we can dispose it
+                            guid_MRE.Value.Item1.Dispose();
+                            if (!committed_Data_MREs.TryRemove(guid_MRE.Key, out var kvp)) {
+                                _logger.LogInformation($"Garbage Collector: \t Could not remove MRE for committed data with client ID {guid_MRE.Value.Item2}");
+                            }
                         }
-                    } 
-                    else {
-                        _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {guid_MRE.Value.Item2} because there are {dependentClientIDs.Item2.Count} clients waiting on it:");
-                        numberOfActiveMREs++;
+                        else {
+                            _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {guid_MRE.Value.Item2} because there are {dependentClientIDs.Item2.Count} clients waiting on it:");
+                            numberOfActiveMREs++;
+                        }
                     }
+                    _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
                 }
-                _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
-            } finally {
-                dictionaryLock.ExitWriteLock();
-            }
+            
+            //} finally {
+            //    dictionaryLock.ExitWriteLock();
+            //}
         }
 
         //[Trace]
@@ -613,11 +623,13 @@ namespace Catalog.API.DependencyServices {
         public void RemoveFromDependencyList((string, EventMonitor) guid_EM, string clientID) {
             string guid = guid_EM.Item1;
             // Remove the clientID from the list of dependent client IDs for the MRE
-            if(dependent_client_ids.TryGetValue(guid, out var MRE_depends)) {
-                MRE_depends.Item2.Remove(clientID);
-            } 
-            else {
-                _logger.LogError($"ClientID: {clientID} - Unable to get MRE dependencies");
+            lock(dependent_client_ids) {
+                if (dependent_client_ids.TryGetValue(guid, out var MRE_depends)) {
+                    MRE_depends.Item2.Remove(clientID);
+                }
+                else {
+                    _logger.LogError($"ClientID: {clientID} - Unable to get MRE dependencies");
+                }
             }
         }
     }
