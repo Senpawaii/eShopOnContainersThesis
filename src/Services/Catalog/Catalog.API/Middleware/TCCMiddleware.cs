@@ -28,7 +28,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
             // To differentiate from a regular call, check for the clientID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
                 _request_metadata.ClientID = clientID;
-
                 // Initially set the read-only flag to true. Update it as write operations are performed.
                 _request_metadata.ReadOnly = true;
 
@@ -54,6 +53,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                }
+                else {
+                    _logger.LogInformation($"ClientID: {clientID} - Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
