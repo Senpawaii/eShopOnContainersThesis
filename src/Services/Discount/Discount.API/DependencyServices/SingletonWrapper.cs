@@ -145,17 +145,15 @@ public class SingletonWrapper : ISingletonWrapper {
                     });
             }
 
-            //lock(proposed_discount_Items) {
-                _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items.");
-                proposed_discount_Items.AddOrUpdate(proposedItem, 
-                    key => new SynchronizedCollection<(long, string)> (new List<(long, string)> { (proposedTS, clientID) }),
-                    (key, value) => { 
-                        value.Add((proposedTS, clientID)); 
-                        _logger.LogInformation($"ClientID: {clientID} - Added proposed to existing list.");
-                        return value;
-                });
-                _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items (after).");
-            //}
+            _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items.");
+            proposed_discount_Items.AddOrUpdate(proposedItem, 
+                key => new SynchronizedCollection<(long, string)> (new List<(long, string)> { (proposedTS, clientID) }),
+                (key, value) => { 
+                    value.Add((proposedTS, clientID)); 
+                    _logger.LogInformation($"ClientID: {clientID} - Added proposed to existing list.");
+                    return value;
+            });
+            _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items (after).");
         }
     }
 
@@ -176,24 +174,15 @@ public class SingletonWrapper : ISingletonWrapper {
             };
             
             // Remove entry in synchronized collection associated with ProposedItem, for the given ClientID
-            //lock (proposed_discount_Items) {
-                if (proposed_discount_Items.ContainsKey(proposedItem)) {
-                    var collection = proposed_discount_Items[proposedItem];
-                    foreach((long, string) tuple in collection) {
-                        if(tuple.Item2 == clientID) {
-                            _logger.LogInformation($"ClientID: {clientID} - Removing proposed item from proposed_discount_Items from client: {tuple.Item2}");
-                            collection.Remove(tuple);
-                            break;
-                        }
-                    }
-                    //if(collection.Count == 0) {
-                    //    proposed_discount_Items.TryRemove(proposedItem, out _);
-                    //}
+            if (proposed_discount_Items.TryGetValue(proposedItem, out var values)) {
+                var toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
+                foreach(var tuple in toRemove) {
+                    values.Remove(tuple);
                 }
-                else {
-                    _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
-                }
-            //}
+            }
+            else {
+                _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
+            }
         }
     }
 

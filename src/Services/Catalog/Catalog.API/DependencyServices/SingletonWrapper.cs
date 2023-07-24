@@ -249,12 +249,10 @@ namespace Catalog.API.DependencyServices {
 
                 _logger.LogInformation($"ClientID: {clientID} - \t .");
                 
-                //lock(proposed_catalog_items) {
                 proposed_catalog_items.AddOrUpdate(proposedItem, new SynchronizedCollection<(long, string)>(new List<(long, string)> { (proposedTS, clientID) }), (key, value) => {
                     value.Add((proposedTS, clientID));
                     return value;
                 });
-                //}
             }
 
             foreach (CatalogType catalog_type_to_propose in catalog_types_to_propose) {
@@ -305,17 +303,15 @@ namespace Catalog.API.DependencyServices {
                     Id = item.Id
                 };
                 // Remove entry in synchronized collection associated with ProposedItem, for the given clientID
-                //lock (proposed_catalog_items) {
-                    if(proposed_catalog_items.TryGetValue(proposedItem, out var values)) {
-                        var toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
-                        foreach(var tuple in toRemove) {
-                            values.Remove(tuple);
-                        }
+                if(proposed_catalog_items.TryGetValue(proposedItem, out var values)) {
+                    var toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
+                    foreach(var tuple in toRemove) {
+                        values.Remove(tuple);
                     }
-                    else {
-                        _logger.LogError($"ClientID: {clientID} - Proposed Catalog Item did not have entry for Item: {proposedItem}");
-                    }
-                //}
+                }
+                else {
+                    _logger.LogError($"ClientID: {clientID} - Proposed Catalog Item did not have entry for Item: {proposedItem}");
+                }
             }
             foreach(CatalogBrand brand in catalog_brands_to_remove) {
                 ProposedCatalogBrand proposedBrand = new ProposedCatalogBrand {
