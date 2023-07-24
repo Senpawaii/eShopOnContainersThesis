@@ -555,10 +555,6 @@ namespace Catalog.API.DependencyServices {
                     } 
                     else {
                         _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {guid_MRE.Value.Item2} because there are {dependentClientIDs.Item2.Count} clients waiting on it:");
-                        //var dependentClients = dependentClientIDs.Item2.ToList();
-                        //foreach(string clientID in dependentClients) {
-                        //    _logger.LogInformation($"Garbage Collector: \t \t Client ID {clientID} is waiting on this MRE from client ID {guid_MRE.Value.Item2}");
-                        //}
                         numberOfActiveMREs++;
                     }
                 }

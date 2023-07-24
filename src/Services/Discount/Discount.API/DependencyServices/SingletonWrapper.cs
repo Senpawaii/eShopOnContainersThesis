@@ -210,9 +210,11 @@ public class SingletonWrapper : ISingletonWrapper {
                     foreach(var guid_EM in MREsForPropItem_dict) {
                         if(guid_EM.Value.Timestamp < readerTimestamp.Ticks) {
                             // Associate the clientID as a dependent of the Proposed Item's MRE
-                            dependent_client_ids.AddOrUpdate(guid_EM.Key, 
-                                key => (guid_EM.Value.Event, new SynchronizedCollection<string>(new List<string> { clientID })),
-                                (key, value) => { value.Item2.Add(clientID); return value; });
+                            lock(dependent_client_ids) {
+                                dependent_client_ids.AddOrUpdate(guid_EM.Key,
+                                    key => (guid_EM.Value.Event, new SynchronizedCollection<string>(new List<string> { clientID })),
+                                    (key, value) => { value.Item2.Add(clientID); return value; });
+                            }
                             guid_EMsToWait.Add((guid_EM.Key, guid_EM.Value));
                         }
                     }
@@ -317,16 +319,16 @@ public class SingletonWrapper : ISingletonWrapper {
 
     public void DisposeCommittedDataMREs() {
         // Dispose the MREs associated with the committed data only if there is currently no other client waiting on them
-        dictionaryLock.EnterWriteLock();
-        try {
+        lock (committed_Data_MREs) {
             int numberOfActiveMREs = 0;
             foreach (var guid_MRE in committed_Data_MREs) {
                 var dependentClientIDs = dependent_client_ids.GetValueOrDefault(guid_MRE.Key, (null, null));
-                if (dependentClientIDs.Item1 == null || dependent_client_ids.Count == 0) {
+                // Either there is no one waiting on this MRE (and never was), or there are / used to be clients waiting on it, but they have all been removed
+                if (dependentClientIDs.Item1 == null || dependentClientIDs.Item2.Count == 0) {
                     // There are no other clients waiting on this MRE, so we can dispose it
                     guid_MRE.Value.Item1.Dispose();
                     if (!committed_Data_MREs.TryRemove(guid_MRE.Key, out var kvp)) {
-                        _logger.LogInformation($"Garbage Collector: \t Could not remove MRE for committed data with client ID {guid_MRE.Value.Item2}");
+                        _logger.LogError($"Garbage Collector: \t Could not remove MRE for committed data with client ID {guid_MRE.Value.Item2}");
                     }
                 }
                 else {
@@ -335,8 +337,6 @@ public class SingletonWrapper : ISingletonWrapper {
                 }
             }
             _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
-        } finally {
-            dictionaryLock.ExitWriteLock();
         }
     }
 
