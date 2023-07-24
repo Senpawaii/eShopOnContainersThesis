@@ -313,14 +313,6 @@ namespace Catalog.API.DependencyServices {
                                 break;
                             }
                         }
-                        if (proposed_catalog_items[proposedItem].Count == 0) {
-                            if (proposed_catalog_items.TryRemove(proposedItem, out _)) {
-                                _logger.LogInformation($"ClientID: {clientID} - \t removed catalog item Key from proposed set.");
-                            }
-                            else {
-                                _logger.LogError($"ClientID: {clientID} - \t could not remove catalog item Key from proposed set.");
-                            }
-                        }
                     }
                     else {
                         _logger.LogError($"ClientID: {clientID} - Proposed Catalog Item did not have entry for Item: {proposedItem}");
