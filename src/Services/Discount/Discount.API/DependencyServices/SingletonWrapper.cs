@@ -181,13 +181,14 @@ public class SingletonWrapper : ISingletonWrapper {
                     var collection = proposed_discount_Items[proposedItem];
                     foreach((long, string) tuple in collection) {
                         if(tuple.Item2 == clientID) {
+                            _logger.LogInformation($"ClientID: {clientID} - Removing proposed item from proposed_discount_Items from client: {tuple.Item2}");
                             collection.Remove(tuple);
                             break;
                         }
                     }
-                    if(collection.Count == 0) {
-                        proposed_discount_Items.TryRemove(proposedItem, out _);
-                    }
+                    //if(collection.Count == 0) {
+                    //    proposed_discount_Items.TryRemove(proposedItem, out _);
+                    //}
                 }
                 else {
                     _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
