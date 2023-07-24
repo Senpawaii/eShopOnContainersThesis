@@ -488,6 +488,7 @@ namespace Catalog.API.DependencyServices {
         }
 
         public List<(string, EventMonitor)> RemoveFromManualResetEvents(List<CatalogItem> wrappedItems, string clientID) {
+            var EMPairs = new List<(string, EventMonitor)>();
             // Remove the MREs associated with the wrapped items
             foreach (CatalogItem wrappedItem in wrappedItems) {
                 ProposedCatalogItem proposedItem = new ProposedCatalogItem {
@@ -500,7 +501,6 @@ namespace Catalog.API.DependencyServices {
                 lock(catalog_items_manual_reset_events) {
                     if (catalog_items_manual_reset_events.TryGetValue(proposedItem, out var EM_dict)) {
                         var EMsToRemove = EM_dict.Where(kvp => kvp.Value.ClientID == clientID).ToList();
-                        var EMPairs = new List<(string, EventMonitor)>();
                         foreach (var kvp in EMsToRemove) {
                             EMPairs.Add((kvp.Key, kvp.Value));
                             if (!EM_dict.TryRemove(kvp.Key, out var EM)) {
@@ -513,14 +513,13 @@ namespace Catalog.API.DependencyServices {
                                 _logger.LogError($"ClientID: {clientID} - Could not remove Catalog Item with ID {proposedItem.Name}, from Catalog Items Manual Reset Events");
                             }
                         }   
-                        return EMPairs;
                     }
                     else {
                         _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent associated with catalog item with ID {proposedItem.Name}, to remove from Catalog Items Manual Reset Events");
                     }
                 }
             }
-            return new List<(string, EventMonitor)>();
+            return EMPairs;
         }
 
         public void AddToCommittedDataMREs(List<(string,EventMonitor)> guid_MREs, string clientID) {
