@@ -188,7 +188,6 @@ public class SingletonWrapper : ISingletonWrapper {
                 else {
                     _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
                 }
-                proposed_discount_Items.TryRemove(proposedItem, out _);
             }
         }
     }
