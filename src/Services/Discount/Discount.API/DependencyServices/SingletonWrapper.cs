@@ -223,7 +223,7 @@ public class SingletonWrapper : ISingletonWrapper {
     }
 
    //[Trace]
-    private Dictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>> ApplyFiltersToDiscountItems(List<Tuple<string, string>> conditions, Dictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>> filtered_proposed_discount_items2, string clientID) {
+    private Dictionary<ProposedDiscountItem, SynchronizedCollection<(long, string)>> ApplyFiltersToDiscountItems(List<Tuple<string, string>> conditions, Dictionary<ProposedDiscountItem, SynchronizedCollection<(long, string)>> filtered_proposed_discount_items2, string clientID) {
         foreach (Tuple<string, string> condition in conditions) {
             switch(condition.Item1) {
                 case "ItemName":
@@ -287,7 +287,7 @@ public class SingletonWrapper : ISingletonWrapper {
                     EMPairs = EMsToRemove.Select(EM => (EM.Key, EM.Value)).ToList();
                     foreach (var EMPair in EMPairs) {
                         if (!EM_dict.TryRemove(EMPair.Item1, out var EM)) {
-                            _logger.LogError($"ClientID: {clientID} - Could not remove EM for catalog item with ID {proposedItem.ItemName}, from Discount Items Manual Reset Events, by client {EM.ClientID}, GUID={EMPair.Key}");
+                            _logger.LogError($"ClientID: {clientID} - Could not remove EM for catalog item with ID {proposedItem.ItemName}, from Discount Items Manual Reset Events, by client {EM.ClientID}, GUID={EMPair.Item1}");
                         }
                     }
                     if (EM_dict.Count == 0) {

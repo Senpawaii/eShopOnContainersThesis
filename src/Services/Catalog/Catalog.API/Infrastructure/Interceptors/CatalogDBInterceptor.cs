@@ -241,7 +241,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             case INSERT_COMMAND:
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
-                _logger.LogInformation($"ClientID: {clientID} - The original received INSERT command text: {command.CommandText}");
+                // _logger.LogInformation($"ClientID: {clientID} - The original received INSERT command text: {command.CommandText}");
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
                     // If the Transaction is not in commit state, store data in wrapper
@@ -249,10 +249,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                 }
                 else {
-                    _logger.LogInformation($"ClientID: {clientID} - Updating INSERT command.");
+                    // _logger.LogInformation($"ClientID: {clientID} - Updating INSERT command.");
                     // Transaction is in commit state, update the command to store in the database
                     UpdateInsertCommand(command, targetTable);
-                    _logger.LogInformation($"ClientID: {clientID} - is committing to DB...");
+                    // _logger.LogInformation($"ClientID: {clientID} - is committing to DB...");
 
                 }
                 break;
