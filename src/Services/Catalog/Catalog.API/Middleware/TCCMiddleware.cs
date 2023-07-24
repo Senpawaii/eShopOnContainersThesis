@@ -42,7 +42,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                     // Flush the Wrapper Data into the Database
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
-
+                    _logger.LogInformation($"ClientID: {clientID} - Flushing Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     await _next.Invoke(ctx);
                     _logger.LogInformation($"ClientID: {clientID} - Transaction Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     return;
@@ -180,7 +180,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                         }
                     }
                     // _logger.LogInformation($"ClientID {clientID} Saving changes to database");
-                    await dbContext.SaveChangesAsync();
+                    dbContext.SaveChanges();
                 } 
                 else {
                     _logger.LogError($"ClientID {clientID} - No catalog items to flush");
