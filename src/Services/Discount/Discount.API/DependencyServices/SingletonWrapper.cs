@@ -149,8 +149,12 @@ public class SingletonWrapper : ISingletonWrapper {
                 _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items.");
                 proposed_discount_Items.AddOrUpdate(proposedItem, 
                     key => new SynchronizedCollection<(long, string)> (new List<(long, string)> { (proposedTS, clientID) }),
-                    (key, value) => { value.Add((proposedTS, clientID)); return value;
+                    (key, value) => { 
+                        value.Add((proposedTS, clientID)); 
+                        _logger.LogInformation($"ClientID: {clientID} - Added proposed to existing list.");
+                        return value;
                 });
+                _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items (after).");
             }
         }
     }
