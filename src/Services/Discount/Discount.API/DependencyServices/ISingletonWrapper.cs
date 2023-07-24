@@ -18,11 +18,11 @@ public interface ISingletonWrapper {
 
     public void SingletonAddProposedFunctionality(string clientID, long proposedTS);
     public void SingletonRemoveProposedFunctionality(string clientID);
-    public List<EventMonitor> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
+    public List<(string, EventMonitor)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID);
 
     public List<DiscountItem> SingletonGetWrappedDiscountItemsToFlush(string clientID, bool onlyUpdate);
     public void CleanWrappedObjects(string clientID);
     public void NotifyReaderThreads(string clientID, List<DiscountItem> committedItems);
-    public void RemoveFromDependencyList(ManualResetEvent MRE, string clientID);
+    public void RemoveFromDependencyList((string, EventMonitor) guid_EM, string clientID);
     public void DisposeCommittedDataMREs();
 }

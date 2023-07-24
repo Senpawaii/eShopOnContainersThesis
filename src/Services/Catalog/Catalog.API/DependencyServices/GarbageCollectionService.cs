@@ -6,6 +6,7 @@ public class GarbageCollectionService : BackgroundService {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<GarbageCollectionService> _logger;
     private readonly ISingletonWrapper _singletonWrapper;
+
     private int _executionCount = 0;
     private readonly int MAX_VERSIONS = 500;
     private readonly int TIMER = 4;
@@ -43,7 +44,7 @@ public class GarbageCollectionService : BackgroundService {
             GarbageCollectCatalogTypes(dbContext);
         }
         _logger.LogInformation($"Garbage Collection timed Hosted Service is working. Count: {_executionCount++}");
-        // _singletonWrapper.DisposeCommittedDataMREs();
+        _singletonWrapper.DisposeCommittedDataMREs();
     }
 
     private void GarbageCollectCatalogItems(GarbageContext dbContext) {

@@ -12,12 +12,11 @@ public class SingletonWrapper : ISingletonWrapper {
     private readonly ReaderWriterLockSlim dictionaryLock = new ReaderWriterLockSlim(); // Lock used by the Garbage Collection Service to lock the dictionaries
 
     ConcurrentDictionary<string, ConcurrentBag<DiscountItem>> wrapped_discount_items = new ConcurrentDictionary<string, ConcurrentBag<DiscountItem>>();
-    ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>> proposed_discount_Items = new ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>>();
+    ConcurrentDictionary<ProposedDiscountItem, SynchronizedCollection<(long, string)>> proposed_discount_Items = new ConcurrentDictionary<ProposedDiscountItem, SynchronizedCollection<(long, string)>>();
 
-    ConcurrentDictionary<ProposedDiscountItem, List<EventMonitor>> discount_items_manual_reset_events = new ConcurrentDictionary<ProposedDiscountItem, List<EventMonitor>>();
-    ConcurrentDictionary<ManualResetEvent, List<string>> dependent_client_ids = new ConcurrentDictionary<ManualResetEvent, List<string>>();
-    ConcurrentDictionary<ManualResetEvent, string> committed_Data_MREs = new ConcurrentDictionary<ManualResetEvent, string>();
-    
+    ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<string, EventMonitor>> discount_items_manual_reset_events = new ConcurrentDictionary<ProposedDiscountItem, ConcurrentDictionary<string, EventMonitor>>();
+    ConcurrentDictionary<string, (ManualResetEvent, SynchronizedCollection<string>)> dependent_client_ids = new ConcurrentDictionary<string, (ManualResetEvent, SynchronizedCollection<string>)>();
+    ConcurrentDictionary<string, (ManualResetEvent, string)> committed_Data_MREs = new ConcurrentDictionary<string, (ManualResetEvent, string)>();
     
     // Store the proposed Timestamp for each functionality in Proposed State
     ConcurrentDictionary<string, long> proposed_functionalities = new ConcurrentDictionary<string, long>();
@@ -117,7 +116,6 @@ public class SingletonWrapper : ISingletonWrapper {
 
         // For each item, add it to the proposed set, adding the proposed timestamp associated
         foreach (DiscountItem discount_item_to_propose in discount_items_to_propose) {
-            DateTime proposedTSDate = new DateTime(proposedTS);
             ProposedDiscountItem proposedItem = new ProposedDiscountItem {
                 ItemName = discount_item_to_propose.ItemName,
                 ItemBrand = discount_item_to_propose.ItemBrand,
@@ -125,28 +123,29 @@ public class SingletonWrapper : ISingletonWrapper {
                 Id = discount_item_to_propose.Id
             };
 
-            proposed_discount_Items.AddOrUpdate(proposedItem, _ => {
-                var innerDict = new ConcurrentDictionary<DateTime, string>();
-                innerDict.TryAdd(proposedTSDate, clientID);
-                return innerDict;
-            }, (_, value) => {
-                value.TryAdd(proposedTSDate, clientID);
-                return value;
-            });
-
             var EM = new EventMonitor {
                 Event = new ManualResetEvent(false),
                 ClientID = clientID,
-                Timestamp = proposedTS
+                Timestamp = proposedTS,
             };
 
+            // Generate a GUID for the event
+            Guid guid = Guid.NewGuid();
+            string guidString = guid.ToString();
+
             // Create ManualEvent for Discount item
-            discount_items_manual_reset_events.AddOrUpdate(proposedItem, _ => {
-                return new List<EventMonitor> { EM };
-                }, (_, value) => {
-                value.Add(EM);
-                return value;
-            });
+            lock(discount_items_manual_reset_events) {
+                discount_items_manual_reset_events.AddOrUpdate(proposedItem,
+                    key => new ConcurrentDictionary<string, EventMonitor> { [guidString] = EM },
+                    (key, value) => { value.TryAdd(guidString, EM); return value; });
+            }
+
+            lock(proposed_discount_Items) {
+                proposed_discount_Items.AddOrUpdate(proposedItem, 
+                    key => new SynchronizedCollection<(long, string)> (new List<(long, string)> { (proposedTS, clientID) }),
+                    (key, value) => { value.Add((proposedTS, clientID)); return value;
+                });
+            }
         }
     }
 
@@ -165,47 +164,60 @@ public class SingletonWrapper : ISingletonWrapper {
                 ItemType = item.ItemType,
                 Id = item.Id
             };
-            // Remove each item from the proposed set
+            
+            // Remove entry in synchronized collection associated with ProposedItem, for the given ClientID
+            lock (proposed_discount_Items) {
+                if (proposed_discount_Items.ContainsKey(proposedItem)) {
+                    var collection = proposed_discount_Items[proposedItem];
+                    foreach((long, string) tuple in collection) {
+                        if(tuple.Item2 == clientID) {
+                            collection.Remove(tuple);
+                            break;
+                        }
+                    }
+                    if(collection.Count == 0) {
+                        proposed_discount_Items.TryRemove(proposedItem, out _);
+                    }
+                }
+                else {
+                    _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
+                }
+            }
             proposed_discount_Items.TryRemove(proposedItem, out _);
         }
     }
 
    //[Trace]
-    public List<EventMonitor> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
+    public List<(string, EventMonitor)> AnyProposalWithLowerTimestamp(List<Tuple<string, string>> conditions, string targetTable, DateTime readerTimestamp, string clientID) {
         switch (targetTable) {
             case "Discount":
                 // Apply all the conditions to the set of proposed discount items, this set will keep shrinking as we apply more conditions.
                 // Note that the original set of proposed discount items is not modified, we are just creating a new set with the results of the conditions.
-                var filtered_proposed_discount_items2 = new Dictionary<ProposedDiscountItem, ConcurrentDictionary<DateTime, string>>(this.proposed_discount_Items);
+                var filtered_proposed_discount_items2 = new Dictionary<ProposedDiscountItem, SynchronizedCollection<(long, string)>>(this.proposed_discount_Items);
                 if (conditions != null) {
                     filtered_proposed_discount_items2 = ApplyFiltersToDiscountItems(conditions, filtered_proposed_discount_items2, clientID);
                 }
-                // Check if the there any proposed disocount items 2 with a lower timestamp than the reader's timestamp
-                foreach (var proposed_discount_item in filtered_proposed_discount_items2) {
-                    foreach (DateTime proposedTS in proposed_discount_item.Value.Keys) {
-                        if (proposedTS < readerTimestamp) {
-                            var allMREsForProposedItem = discount_items_manual_reset_events.GetValueOrDefault(proposed_discount_item.Key, null); // Get all the MREs for the proposed item
-                            if(allMREsForProposedItem == null || allMREsForProposedItem.Count == 0) {
-                                _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent for catalog item with ID {proposed_discount_item.Key.ItemName} with proposed TS {proposedTS.Ticks} [Date: {proposedTS}]");
-                            }
 
-                            var MREsToWait = new List<EventMonitor>();
-                            // Get the list of MREs for the proposed items that have a proposed timestamp lower than the reader's timestamp
-                            foreach(var mre in allMREsForProposedItem) {
-                                if(mre.Timestamp < readerTimestamp.Ticks) {
-                                    MREsToWait.Add(mre);
-                                }
-                                // Add the dependent client ID to the list of dependent client IDs for the MRE
-                                dependent_client_ids.AddOrUpdate(mre.Event, new List<string> { clientID }, (_, value) => {
-                                    value.Add(clientID);
-                                    return value;
-                                });
-                            }
-                            return MREsToWait ?? null;
+                var guid_EMsToWait = new List<(string, EventMonitor)>();
+                foreach (var proposed_discount_item in filtered_proposed_discount_items2) {
+                    var MREsForPropItem_dict = discount_items_manual_reset_events.GetValueOrDefault(proposed_discount_item.Key, null); // Get all the MREs for the proposed item
+                    if(MREsForPropItem_dict == null || MREsForPropItem_dict.Keys.Count == 0) {
+                        _logger.LogInformation($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_discount_item.Key.ItemName}.");
+                        continue;
+                    }
+
+                    // Get List of MREs (Manual Reset Events) for the proposed items that have a proposed timestamp lower than the reader's timestamp
+                    foreach(var guid_EM in MREsForPropItem_dict) {
+                        if(guid_EM.Value.Timestamp < readerTimestamp.Ticks) {
+                            // Associate the clientID as a dependent of the Proposed Item's MRE
+                            dependent_client_ids.AddOrUpdate(guid_EM.Key, 
+                                key => (guid_EM.Value.Event, new SynchronizedCollection<string>(new List<string> { clientID })),
+                                (key, value) => { value.Item2.Add(clientID); return value; });
+                            guid_EMsToWait.Add((guid_EM.Key, guid_EM.Value));
                         }
                     }
                 }
-                break;
+                return guid_EMsToWait ?? null;
         }
         return null;
     }
@@ -228,9 +240,6 @@ public class SingletonWrapper : ISingletonWrapper {
                     break;
             }
         }
-        foreach (var item in filtered_proposed_discount_items2) {
-            _logger.LogInformation($"ClientID: {clientID}, Proposed Item: {item.Key.ItemName} - {item.Key.ItemBrand} - {item.Key.ItemType} - {item.Key.Id}");
-        }
         return filtered_proposed_discount_items2;
     }
 
@@ -240,7 +249,6 @@ public class SingletonWrapper : ISingletonWrapper {
         
         var discountItems = new List<DiscountItem>();
         
-        // Console.WriteLine("Getting proposed data to flush from client: " + clientID + " ...");
         if (wrapped_discount_items.TryGetValue(clientID, out ConcurrentBag<DiscountItem> clientDiscountItems)) {
             foreach (DiscountItem wrappedDiscountItem in clientDiscountItems) {
                 if (onlyUpdate) {
@@ -259,14 +267,11 @@ public class SingletonWrapper : ISingletonWrapper {
             }
             return discountItems;
         }
-        // _logger.LogInformation("No items were registered in the wrapper for clientID " + clientID);
         return null;
     }
 
-    public List<EventMonitor> RemoveFromManualResetEvents(List<DiscountItem> wrappedItems, string clientID) {
-        // Remove the MREs associated with the wrapped items, so that no other client will wait on them (they have been committed)
-        List<EventMonitor> MREsToDispose = new List<EventMonitor>();
-
+    public List<(string, EventMonitor)> RemoveFromManualResetEvents(List<DiscountItem> wrappedItems, string clientID) {
+        var EMPairs = new List<(string, EventMonitor)>();
         // Remove the MREs associated with the wrapped items
         foreach (DiscountItem wrappedItem in wrappedItems) {
             ProposedDiscountItem proposedItem = new ProposedDiscountItem {
@@ -275,26 +280,35 @@ public class SingletonWrapper : ISingletonWrapper {
                 ItemType = wrappedItem.ItemType,
                 Id = wrappedItem.Id
             };
-            discount_items_manual_reset_events.AddOrUpdate(proposedItem, new List<EventMonitor> { }, (_, value) => {
-                // Remove the MREs associated with the wrapped item for this client
-                var MREsToRemove = value.Where(EM => EM.ClientID == clientID).ToList();
-                MREsToDispose.AddRange(MREsToRemove);
-                value.RemoveAll(EM => EM.ClientID == clientID);
-                return value;
-            });
+
+            lock(discount_items_manual_reset_events) {
+                if (discount_items_manual_reset_events.TryGetValue(proposedItem, out var EM_dict)) {
+                    var EMsToRemove = EM_dict.Where(EM => EM.Value.ClientID == clientID).ToList();
+                    EMPairs = EMsToRemove.Select(EM => (EM.Key, EM.Value)).ToList();
+                    foreach (var EMPair in EMPairs) {
+                        if (!EM_dict.TryRemove(EMPair.Item1, out var EM)) {
+                            _logger.LogError($"ClientID: {clientID} - Could not remove EM for catalog item with ID {proposedItem.ItemName}, from Discount Items Manual Reset Events, by client {EM.ClientID}, GUID={EMPair.Key}");
+                        }
+                    }
+                    if (EM_dict.Count == 0) {
+                        if(!discount_items_manual_reset_events.TryRemove(proposedItem, out var dict)) {
+                            _logger.LogError($"ClientID: {clientID} - Could not remove Discount Item with ID {proposedItem.ItemName}, from Catalog Items Manual Reset Events");
+                        }
+                    }
+                }
+            }
         }
-        return MREsToDispose;
+        return EMPairs;
     }
 
-    public void AddToCommittedDataMREs(List<EventMonitor> MREsToDispose, string clientID) {
+    public void AddToCommittedDataMREs(List<(string, EventMonitor)> guid_MREs, string clientID) {
         // Add the MREs to the committed data MREs, so that the garbage collection service can dispose them
         dictionaryLock.EnterWriteLock();
         try {
-            foreach (EventMonitor MRE in MREsToDispose) {
-                committed_Data_MREs.AddOrUpdate(MRE.Event, clientID, (_, value) => {
-                    value = clientID;
-                    return value;
-                });
+            foreach (var guid_MRE in guid_MREs) {
+                committed_Data_MREs.AddOrUpdate(guid_MRE.Item1, 
+                    key => (guid_MRE.Item2.Event, clientID), 
+                    (key, value) => { value = (guid_MRE.Item2.Event, clientID); _logger.LogError($"ClientID: {clientID} - The GUID={guid_MRE.Item1}, was found to be duplicate.");  return value; });
             }
         } finally {
             dictionaryLock.ExitWriteLock();
@@ -305,15 +319,22 @@ public class SingletonWrapper : ISingletonWrapper {
         // Dispose the MREs associated with the committed data only if there is currently no other client waiting on them
         dictionaryLock.EnterWriteLock();
         try {
-            foreach (var MRE in committed_Data_MREs) {
-                var dependentClientIDs = dependent_client_ids.GetValueOrDefault(MRE.Key, null);
-                if(dependentClientIDs == null || dependent_client_ids.Count == 0)  {
-                    _logger.LogInformation($"Disposing MRE for committed data with client ID {MRE.Value} ...");
+            int numberOfActiveMREs = 0;
+            foreach (var guid_MRE in committed_Data_MREs) {
+                var dependentClientIDs = dependent_client_ids.GetValueOrDefault(guid_MRE.Key, (null, null));
+                if (dependentClientIDs.Item1 == null || dependent_client_ids.Count == 0) {
                     // There are no other clients waiting on this MRE, so we can dispose it
-                    MRE.Key.Dispose();
-                    committed_Data_MREs.TryRemove(MRE.Key, out string _);
+                    guid_MRE.Value.Item1.Dispose();
+                    if (!committed_Data_MREs.TryRemove(guid_MRE.Key, out var kvp)) {
+                        _logger.LogInformation($"Garbage Collector: \t Could not remove MRE for committed data with client ID {guid_MRE.Value.Item2}");
+                    }
+                }
+                else {
+                    _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {guid_MRE.Value.Item2}, because there are {dependentClientIDs.Item2.Count} clients waiting on it");
+                    numberOfActiveMREs++;
                 }
             }
+            _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
         } finally {
             dictionaryLock.ExitWriteLock();
         }
@@ -338,8 +359,7 @@ public class SingletonWrapper : ISingletonWrapper {
     }
 
     public void NotifyReaderThreads(string clientID, List<DiscountItem> committedItems) {
-        foreach(DiscountItem item in committedItems) {
-            // Locate the wrappedDiscountItem associated with the committed item
+        foreach (DiscountItem item in committedItems) {
             ProposedDiscountItem proposedItem = new ProposedDiscountItem {
                 ItemName = item.ItemName,
                 ItemBrand = item.ItemBrand,
@@ -349,42 +369,59 @@ public class SingletonWrapper : ISingletonWrapper {
             // Get proposed timestamp for the wrapped item for client with ID clientID
             var proposedTS = proposed_functionalities.GetValueOrDefault(clientID, 0);
 
-            if(proposedTS == 0) {
+            if (proposedTS == 0) {
                 _logger.LogError($"ClientID: {clientID} - DateTime 0: Could not find proposed timestamp for client {clientID}");
             }
-
-            lock(discount_items_manual_reset_events) {
-                var allMREs = discount_items_manual_reset_events.GetValueOrDefault(proposedItem, null);
-                if(allMREs == null || allMREs.Count == 0) {
-                    _logger.LogError($"ClientID: {clientID} - Could not find any ManualResetEvent for catalog item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
+            lock (discount_items_manual_reset_events) {
+                var EMs_PropItem_dict = discount_items_manual_reset_events.GetValueOrDefault(proposedItem, null);
+                if (EMs_PropItem_dict == null || EMs_PropItem_dict.Keys.Count == 0) {
+                    _logger.LogError($"ClientID: {clientID} - A: Could not find any ManualResetEvent for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
                 }
 
                 // Find the MRE associated with the notifier ClientID
-                var manualResetEvents = allMREs.Where(EM => EM.ClientID == clientID).ToList();
-                if(manualResetEvents.Any()) {
-                    // Check that there is only 1 MRE associated with the notifier ClientID
-                    manualResetEvents[0].Event.Set(); // Set the first ManualResetEvent that is not set yet                         
-                }
-                else {
-                    _logger.LogError($"ClientID: {clientID} - Could not find ManualResetEvent for catalog item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
-                }
+                var guid_EM = EMs_PropItem_dict.Where(EM => EM.Value.ClientID == clientID).Single();
+                guid_EM.Value.Event.Set(); // Set the first ManualResetEvent that is not set yet
             }
-            // TODO: a thread should clear the manual reset events dictionary from time to time to avoid unnecessary memory consumption
         }
     }
 
-     public void RemoveFromDependencyList(ManualResetEvent MRE, string clientID) {
+     public void RemoveFromDependencyList((string, EventMonitor) guid_EM, string clientID) {
+        string guid = guid_EM.Item1;
         // Remove the clientID from the list of dependent client IDs for the MRE
-        dependent_client_ids.AddOrUpdate(MRE, new List<string> { }, (_, value) => {
-            value.Remove(clientID);
-            return value;
-        });
+        lock(dependent_client_ids) {
+            if (dependent_client_ids.TryGetValue(guid, out var MRE_depends)) {
+                MRE_depends.Item2.Remove(clientID);
+            }
+            else {
+                _logger.LogError($"ClientID: {clientID} - Unable to get MRE dependencies");
+            }
+        }
     }
     
-    public struct ProposedDiscountItem {
+    public struct ProposedDiscountItem : IEquatable<ProposedDiscountItem> {
         public string ItemName { get; set; }
         public string ItemBrand { get; set; }
         public string ItemType { get; set; }
         public int Id { get; set; }
+
+        public override bool Equals(object obj) {
+            if (ReferenceEquals(null, obj)) return false;
+            return obj is ProposedDiscountItem && Equals((ProposedDiscountItem)obj);
+        }
+
+        public bool Equals(ProposedDiscountItem other) {
+            return ItemName.Equals(other.ItemName) && ItemBrand.Equals(other.ItemBrand) && ItemType.Equals(other.ItemType) && Id == other.Id;
+        }
+
+        public override int GetHashCode() {
+            unchecked {
+                int hash = 17;
+                hash = hash * 23 + ItemName.GetHashCode();
+                hash = hash * 23 + ItemBrand.GetHashCode();
+                hash = hash * 23 + ItemType.GetHashCode();
+                hash = hash * 23 + Id.GetHashCode();
+                return hash;
+            }
+        }
     }
 }
