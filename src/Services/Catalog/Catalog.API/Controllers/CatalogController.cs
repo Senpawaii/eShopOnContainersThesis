@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Catalog.API.IntegrationEvents.Events;
+using Catalog.API.IntegrationEvents.Events.Factories;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 //using NewRelic.Api.Agent;
 
@@ -10,12 +12,15 @@ public class CatalogController : ControllerBase {
     private readonly CatalogContext _catalogContext;
     private readonly CatalogSettings _settings;
     private readonly ICatalogIntegrationEventService _catalogIntegrationEventService;
+    private readonly IFactoryClientIDWrappedProductPriceChangedIntegrationEvent _clientIDWrappedEventFactory;
     private readonly ILogger<CatalogController> _logger;
 
-    public CatalogController(CatalogContext context, IOptionsSnapshot<CatalogSettings> settings, ICatalogIntegrationEventService catalogIntegrationEventService, ILogger<CatalogController> logger) {
+    public CatalogController(CatalogContext context, IOptionsSnapshot<CatalogSettings> settings, ICatalogIntegrationEventService catalogIntegrationEventService, ILogger<CatalogController> logger, 
+        IFactoryClientIDWrappedProductPriceChangedIntegrationEvent clientIDWrappedEventFactory) {
         _catalogContext = context ?? throw new ArgumentNullException(nameof(context));
         _catalogContext.Database.SetCommandTimeout(180);
         _catalogIntegrationEventService = catalogIntegrationEventService ?? throw new ArgumentNullException(nameof(catalogIntegrationEventService));
+        _clientIDWrappedEventFactory = clientIDWrappedEventFactory ?? throw new ArgumentNullException(nameof(clientIDWrappedEventFactory));
         _settings = settings.Value;
         _logger = logger;
 
@@ -240,14 +245,14 @@ public class CatalogController : ControllerBase {
 
         if (raiseProductPriceChangedEvent) // Save product's data and publish integration event through the Event Bus if price has changed
         {
-            //Create Integration Event to be published through the Event Bus
-            var priceChangedEvent = new ProductPriceChangedIntegrationEvent(catalogItem.Id, productToUpdate.Price, oldPrice);
+            //Create Wrapped Integration Event to be published through the Event Bus
+            var priceChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductPriceChangedIntegrationEvent(catalogItem.Id, catalogItem.Price, oldPrice);
 
             // Achieving atomicity between original Catalog database operation and the IntegrationEventLog thanks to a local transaction
             // await _catalogIntegrationEventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
-            await _catalogContext.SaveChangesAsync();    
+            await _catalogContext.SaveChangesAsync();
             // Publish through the Event Bus and mark the saved event as published
-            //await _catalogIntegrationEventService.PublishThroughEventBusAsync(priceChangedEvent);
+            await _catalogIntegrationEventService.PublishThroughEventBusAsync(priceChangedEvent);
         }
         else // Just save the updated product because the Product's Price hasn't changed.
         {

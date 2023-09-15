@@ -314,7 +314,9 @@ public class Startup
     {
         var eventBus = app.ApplicationServices.GetRequiredService<IEventBus>();
 
-        eventBus.Subscribe<ProductPriceChangedIntegrationEvent, ProductPriceChangedIntegrationEventHandler>();
+
+        //eventBus.Subscribe<ProductPriceChangedIntegrationEvent, ProductPriceChangedIntegrationEventHandler>();
+        eventBus.Subscribe<ClientIDWrappedProductPriceChangedIntegrationEvent, ClientIDWrappedProductPriceChangedIntegrationEventHandler>();
         eventBus.Subscribe<OrderStartedIntegrationEvent, OrderStartedIntegrationEventHandler>();
     }
 }
