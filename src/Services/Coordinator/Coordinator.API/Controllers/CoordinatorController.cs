@@ -10,6 +10,7 @@ using System;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using YamlDotNet.Serialization;
 using Autofac.Core;
+using Coordinator.API.Services;
 
 namespace Microsoft.eShopOnContainers.Services.Coordinator.API.Controllers;
 
@@ -22,14 +23,31 @@ public class CoordinatorController : ControllerBase {
     private readonly ICatalogService _catalogService;
     private readonly IDiscountService _discountService;
     private readonly IThesisFrontendService _thesisFrontendService;
+    private readonly IBasketService _basketService;
 
-    public CoordinatorController(IOptions<CoordinatorSettings> settings, ILogger<CoordinatorController> logger, IFunctionalityService functionalityService, ICatalogService catalogSvc, IDiscountService discountSvc, IThesisFrontendService thesisfrontendSvc) {
+    public CoordinatorController(IOptions<CoordinatorSettings> settings, ILogger<CoordinatorController> logger, IFunctionalityService functionalityService, ICatalogService catalogSvc, IDiscountService discountSvc, IThesisFrontendService thesisfrontendSvc, IBasketService basketService) {
         _settings = settings.Value;
         _logger = logger;
         _functionalityService = functionalityService;
         _catalogService = catalogSvc;
         _discountService = discountSvc;
         _thesisFrontendService = thesisfrontendSvc;
+        _basketService = basketService;
+    }
+
+    [HttpGet]
+    [Route("confirmation")]
+    [ProducesResponseType(typeof(bool), (int)HttpStatusCode.OK)]
+    public ActionResult<bool> CheckConfirmation([FromQuery] string clientID = "", [FromQuery] string serviceName = "") {
+        // _logger.LogInformation($"Received confirmation request from {serviceName} for client {clientID}");
+        // Check if the client has confirmed the functionality
+        if (_functionalityService.HasConfirmedFunctionality(clientID)) {
+            return Ok(true);
+        }
+
+        // Add serviceName to list of Services to be contacted for this functionality after confirmation is issued
+        _functionalityService.AddNewEventServiceToConfirmationList(clientID, serviceName);
+        return Ok(false);
     }
 
     [HttpGet]
@@ -61,6 +79,8 @@ public class CoordinatorController : ControllerBase {
 
             // Call Services to commit with the MAX TS
             await BeginCommitProcess(clientID, maxTS);
+
+            await IssueCommitEventBasedServices(clientID);
         }
 
         return Ok(tokens);
@@ -96,6 +116,33 @@ public class CoordinatorController : ControllerBase {
 
         // Clear all the data structures from the functionality
         _functionalityService.ClearFunctionality(clientID);
+    }
+
+    private async ValueTask IssueCommitEventBasedServices(string clientID) {
+        // Get all services' addresses involved in the functionality
+        List<string> addresses = _functionalityService.EventServicesToConfirm[clientID]
+                                    .Distinct()
+                                    .ToList();
+
+        // Parallelize the commit process
+        List<Task> taskList = new List<Task>();
+        foreach (string address in addresses) {
+            _logger.LogInformation($"Issuing event confirmation to {address} for client {clientID}");
+            Task task = null;
+            switch(address) {
+                case "BasketService":
+                    // Implement BasketService, IBasketService, and declare the IBasketService object in this class
+                    task = _basketService.IssueCommitEventBased(clientID);
+                    break;
+            }
+            taskList.Add(task);
+        }
+
+        // Issue commit to the ThesisFrontendService: this allows the service to return the functionality results to the client 
+        taskList.Add(_thesisFrontendService.IssueCommit(clientID));
+
+        // Wait for all the services to commit
+        await Task.WhenAll(taskList);
     }
 
     private async Task ReceiveProposals(string clientID) {

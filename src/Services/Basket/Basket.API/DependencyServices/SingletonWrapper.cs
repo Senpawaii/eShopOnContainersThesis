@@ -55,6 +55,36 @@ namespace Basket.API.DependencyServices {
             }
         }
 
+        public async Task ConfirmFunctionality(string clientID) {
+            Task updatePriceTask = null;
+            Task updateDiscountTask = null;
+
+            updateEvents.TryAdd(clientID, new PairedEvents() { PriceEvent = null, ConfirmedFunctionality = false });
+            lock (updateEvents[clientID]) {
+                updateEvents[clientID].ConfirmedFunctionality = true;
+
+                if (isPairedEventReady(updateEvents[clientID])) {
+                    // We have both events and the functionality has been confirmed, so we can update the Redis Database by calling the original handlers    
+                    using var handlerScope = _serviceScopeFactory.CreateScope();
+                    var originalPriceEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductPriceChangedIntegrationEventHandler>();
+                    //var originalDiscountEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductDiscountChangedIntegrationEventHandler>();
+                    updatePriceTask = originalPriceEventHandler.Handle(updateEvents[clientID].PriceEvent);
+                    //updateDiscountTask = originalDiscountEventHandler.Handle(updateEvents[clientID].DiscountEvent);
+
+                    // The Update Price and Update Discount are complete
+                    updateEvents.TryRemove(clientID, out PairedEvents _);
+                    //completed_pairs_to_persist.TryRemove(clientID, out ManualResetEvent _);
+                }
+            }
+
+            if (updatePriceTask != null) {
+                await updatePriceTask;
+            }
+            if (updateDiscountTask != null) {
+                await updateDiscountTask;
+            }
+        }
+
         //private void TryGenerateNewMonitor(string clientID) {
         //    if (!completed_pairs_to_persist.TryGetValue(clientID, out var _)) {
         //        // This is the first event for this clientID, so we need to create a new ManualResetEvent
