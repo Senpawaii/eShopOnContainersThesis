@@ -575,9 +575,9 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     // Not performance-tested
    //[Trace]
     private void UpdateUpdateCommand(DbCommand command, string targetTable, string clientID) {
-        Stopwatch sw;
+        // Stopwatch sw;
 
-        sw = Stopwatch.StartNew();
+        // sw = Stopwatch.StartNew();
         // Get the timestamp received from the Coordinator
         string timestamp = _request_metadata.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
@@ -585,10 +585,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         string commandWithTimestamp;
         commandWithTimestamp = UpdateUpdateCommandText(command, targetTable);
 
-        sw.Stop();
-        Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
-        Timespans.Add(sw.Elapsed);
-        sw.Restart();
+        // sw.Stop();
+        // Console.WriteLine("Elapsed time 1: {0}", sw.Elapsed);
+        // Timespans.Add(sw.Elapsed);
+        // sw.Restart();
 
         // Add new Parameter and Command text to database command
         command.CommandText = commandWithTimestamp;
@@ -599,11 +599,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         clientTimestampParameter.Value = timestamp;
         command.Parameters.Add(clientTimestampParameter);
         // _logger.LogInformation($"Number of parameters: {command.Parameters.Count}");
-        sw.Stop();
-        Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
-        Timespans2.Add(sw.Elapsed);
-        _logger.LogInformation($"Average time 1: {Average(Timespans)}");
-        _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
+        // sw.Stop();
+        // Console.WriteLine("Elapsed time 2: {0}", sw.Elapsed);
+        // Timespans2.Add(sw.Elapsed);
+        // _logger.LogInformation($"Average time 1: {Average(Timespans)}");
+        // _logger.LogInformation($"Average time 2: {Average(Timespans2)}");
     }
 
     // Not performance-tested
@@ -855,7 +855,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
 
         if (command.CommandText.Contains("INSERT")) {
-            _logger.LogInformation($"ClientID: {clientID} - committed to DB. CommandText: {command.CommandText}");
+            // _logger.LogInformation($"ClientID: {clientID} - committed to DB. CommandText: {command.CommandText}");
         }
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
@@ -1083,7 +1083,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
         }
 
         if (command.CommandText.Contains("INSERT")) {
-            _logger.LogInformation($"ClientID: {clientID} - committed to DB. CommandText: {command.CommandText}");
+            // _logger.LogInformation($"ClientID: {clientID} - committed to DB. CommandText: {command.CommandText}");
         }
 
         // Note: It is important that the wrapper data is cleared before saving it to the database, when the commit happens.
@@ -1745,17 +1745,17 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             return;
         } 
         foreach(var guid_MRE in guid_mres) {
-            _logger.LogInformation($"ClientID: {clientID} - \t Waiting on item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            // _logger.LogInformation($"ClientID: {clientID} - \t Waiting on item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             try {
                 guid_MRE.Item2.Event.WaitOne();
-            } catch (Exception exc) {
-                _logger.LogInformation($"ClientID {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was aborted with Exception message: {exc.StackTrace}. Checking others...");
+            } catch (Exception) {
+                // _logger.LogInformation($"ClientID {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was aborted with Exception message: {exc.StackTrace}. Checking others...");
                 continue;
             }
-            _logger.LogInformation($"ClientID: {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
+            // _logger.LogInformation($"ClientID: {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
             _wrapper.RemoveFromDependencyList(guid_MRE, clientID);
         }
-        _logger.LogInformation($"ClientID: {clientID} - There are no more proposed items with lower timestamp than the client timestamp.");
+        // _logger.LogInformation($"ClientID: {clientID} - There are no more proposed items with lower timestamp than the client timestamp.");
     }
 
 

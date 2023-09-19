@@ -95,7 +95,7 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         // The transaction is not in commit state, add to the wrapper
                         // _logger.LogInformation($"ClientID: {clientID}, transactionState: {transactionState}, commandText= {command.CommandText}");
                         Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable); // Get the columns and parameter names
-                        var mockReader = StoreDataInWrapper1RowVersion(command, columnsToInsert, targetTable);
+                        var mockReader = StoreDataInWrapper1RowVersion(command, INSERT_COMMAND, targetTable);
                         result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                         break;
                     } 
@@ -202,7 +202,31 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                         // The transaction is not in commit state, add to the wrapper
                         // _logger.LogInformation($"ClientID: {clientID}, transactionState: {transactionState}, commandText= {command.CommandText}");
                         Dictionary<string, object> columnsToInsert = UpdateToInsert(command, targetTable);
-                        var mockReader = StoreDataInWrapper1RowVersion(command, columnsToInsert, targetTable);
+                        
+                        // Create a new INSERT COMMAND
+                        var insertCommand = new StringBuilder("SET IMPLICIT_TRANSACTIONS OFF; SET NOCOUNT ON; INSERT INTO [")
+                            .Append(targetTable)
+                            .Append("] (");
+
+                        // Add the columns incased in squared brackets
+                        var columnNames = columnsToInsert.Keys.Select(x => $"[{x}]");
+                        insertCommand.Append(string.Join(", ", columnNames));
+
+                        // Add the values as parameters
+                        var parameterNames = columnsToInsert.Keys.Select(x => $"@{x}");
+                        var parameters = columnsToInsert.Select(x => new Microsoft.Data.SqlClient.SqlParameter($"@{x.Key}", x.Value)).ToArray();
+                        insertCommand.Append(") VALUES (")
+                            .Append(string.Join(", ", parameterNames))
+                            .AppendLine(")");
+                        
+                        // Set the parameters on the command
+                        command.Parameters.Clear();
+                        command.Parameters.AddRange(parameters);
+                        
+                        // Set the command text to the INSERT command
+                        command.CommandText = insertCommand.ToString();
+                        
+                        var mockReader = StoreDataInWrapper1RowVersion(command, INSERT_COMMAND, targetTable);
                         result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
                         break;
                     } 
@@ -249,28 +273,57 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
         return new ValueTask<InterceptionResult<DbDataReader>>(result);
     }
 
-    private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, Dictionary<string, object> columnNamesAndValues, string targetTable) {
+    private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, int operation, string targetTable) {
         var clientID = _request_metadata.ClientID;
-
-        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);  // Get the expected order of the columns
-        // Get the number of rows being inserted
-        var rowsAffected = 0;
-        
-        var rows = new List<object[]>();
-        var row = new object[columnNamesAndValues.Keys.Count + 1]; // Added Timestamp at the end
-
-        foreach(var columnName in columnNamesAndValues.Keys) {
-            var paramValue = columnNamesAndValues[columnName];
-            var correctIndexToStore = standardColumnIndexes[columnName];
-            row[correctIndexToStore] = paramValue;
+        // _logger.LogInformation($"Storing data in WrapperV2... ClientID: {clientID}, commandText= {command.CommandText}");
+        string regexPattern;
+        if( operation == UPDATE_COMMAND) {
+            regexPattern = @"\[(\w+)\] = (@\w+)";
         }
-        // Define the uncommitted timestamp as the current time
-        row[^1] = DateTime.UtcNow;
-        rowsAffected++;
-        rows.Append(row);
+        else if(operation == INSERT_COMMAND) {
+            regexPattern = @"(?:, |\()\[(\w+)\]";
+        }
+        else {
+            _logger.LogError($"Operation not supported, command text: {command.CommandText}");
+            regexPattern = "";
+        }
+
+        // Get the number of columns in each row to be inserted
+        var regex = new Regex(regexPattern);
+        var matches = regex.Matches(command.CommandText); // Each match includes a column name
+
+        var columns = new List<string>(); // List of column names
+
+        for(int i = 0; i < matches.Count; i++) {
+            columns.Add(matches[i].Groups[1].Value);
+        }
+
+        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexes(targetTable);
+        // Get the number of rows being inserted
+        int numberRows = command.Parameters.Count / columns.Count;
+        var rowsAffected = 0;
+
+        var rows = new List<object[]>();
+        for(int i = 0; i < numberRows; i += 1) {
+            var row = new object[columns.Count + 1]; // Added Timestamp at the end
+
+            for(int j = 0; j < columns.Count; j++) {
+                var columnName = columns[j];
+                var paramValue = command.Parameters["@"+columnName].Value;
+                var correctIndexToStore = standardColumnIndexes[columnName];
+                row[correctIndexToStore] = paramValue;
+                // _logger.LogInformation($"Row: {columnName}: {paramValue}");
+
+            }
+            // Define the uncommitted timestamp as the current time
+            row[^1] = DateTime.UtcNow;
+            rows.Add(row);
+            rowsAffected++;
+        }
+
         // Log the rows
         // foreach (object[] row in rows) {
-        //     _logger.LogInformation($"ClientID: {clientID} adding to the wrapper row: {string.Join(", ", row)}");
+        //     // _logger.LogInformation($"Row: {string.Join(", ", row)}");
         // }
         var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
         _wrapper.SingletonAddDiscountItem(clientID, rows.ToArray());
@@ -1110,10 +1163,10 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     case "Discount":
                         newData.Add(new object[] {
                             1, // Id
+                            2, // DiscountValue
+                            "Mug", // ItemType
                             ".NET Bot Black Hoodie", // ItemName
                             ".NET", // ItemBrand
-                            "Mug", // ItemType
-                            2, // DiscountValue
                         });
                         break;
                 }
@@ -1126,14 +1179,18 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
                     // The select query has a partial row selection
                     var originalNumColumns = newData[0].Length;
                     for(int i = 0; i < newData.Count; i++) {
-                        newData[i] = PartialRowSelection(command.CommandText, newData[i], selectedColumns);
+                        newData[i] = PartialRowSelectionV2(command.CommandText, newData[i], selectedColumns, result.GetSchemaTable());
                     }
                     // _logger.LogInformation($"ClientID {clientID}: Applied the partial row selection. The original data had {originalNumColumns} columns. The new data has {newData[0].Length} columns. CommandText was {_originalCommandText}");
                     // foreach (object value in newData[0]) {
                     //     _logger.LogInformation($"ClientID {clientID} The value {value.ToString()} was selected");
                     // }
                 }
+                _logger.LogInformation($"ClientID: {clientID}: Data version is no longer available. Generated artificial version.");
             }
+            // else {
+                // _logger.LogInformation($"ClientID: {clientID} - Order of newData items: {String.Join(", ", newData[0])}");
+            // }
         }
         return new WrapperDbDataReader(newData, result, targetTable);
     }
@@ -1425,12 +1482,18 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
             return;
         }
         foreach(var guid_MRE in guid_mres) {
-            _logger.LogInformation($"ClientID: {clientID} - \t Waiting on item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-            guid_MRE.Item2.Event.WaitOne();
-            _logger.LogInformation($"ClientID: {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
+            // _logger.LogInformation($"ClientID: {clientID} - \t Waiting on item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            try {
+                guid_MRE.Item2.Event.WaitOne();
+            } catch (Exception)
+            {
+                // _logger.LogInformation($"ClientID {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was aborted with Exception message: {exc.StackTrace}. Checking others...");
+                continue;
+            }
+            // _logger.LogInformation($"ClientID: {clientID} - \t The proposed item by clientID {guid_MRE.Item2.ClientID} with timestamp {new DateTime(guid_MRE.Item2.Timestamp).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")} was committed. Checking others...");
             _wrapper.RemoveFromDependencyList(guid_MRE, clientID);
         }
-        _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
+        // _logger.LogInformation($"ClientID {clientID}: There are no more proposed items with lower timestamp than the client timestamp.");
     }
 
    //[Trace]

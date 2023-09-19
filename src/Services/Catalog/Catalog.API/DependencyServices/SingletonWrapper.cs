@@ -140,7 +140,7 @@ namespace Catalog.API.DependencyServices {
                     OnReorder = (bool)item[9],
                     RestockThreshold = (int)item[10]
                 };
-                _logger.LogInformation($"ClientID: {clientID} - the catalogItem id: {wrapped_item.Id} when inserting into the wrapper.");
+                // _logger.LogInformation($"ClientID: {clientID} - the catalogItem id: {wrapped_item.Id} when inserting into the wrapper.");
                 wrapped_catalog_items.AddOrUpdate(clientID, new ConcurrentBag<CatalogItem> { wrapped_item }, (key, bag) => {
                     bag.Add(wrapped_item);
                     return bag;
@@ -238,7 +238,7 @@ namespace Catalog.API.DependencyServices {
                 lock(catalog_items_manual_reset_events) {
                     catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<string, EventMonitor>(new KeyValuePair<string, EventMonitor>[] { new KeyValuePair<string, EventMonitor>(guidString, EM) }), (_, value) => {
                         if (value.TryAdd(guidString, EM)) {
-                            _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
+                            // _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
                         }
                         else {
                             _logger.LogError($"ClientID: {clientID} - \t Could not add ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
@@ -247,7 +247,7 @@ namespace Catalog.API.DependencyServices {
                     });
                 }
 
-                _logger.LogInformation($"ClientID: {clientID} - \t .");
+                // _logger.LogInformation($"ClientID: {clientID} - \t .");
                 
                 proposed_catalog_items.AddOrUpdate(proposedItem, new SynchronizedCollection<(long, string)>(new List<(long, string)> { (proposedTS, clientID) }), (key, value) => {
                     value.Add((proposedTS, clientID));
@@ -295,7 +295,7 @@ namespace Catalog.API.DependencyServices {
 
             // Remove entries from the proposed set. These are identified by their key table identifiers.
             foreach(CatalogItem item in catalog_items_to_remove) {
-                _logger.LogInformation($"ClientID: {clientID} - the catalogItem id: {item.Id}");
+                // _logger.LogInformation($"ClientID: {clientID} - the catalogItem id: {item.Id}");
                 ProposedCatalogItem proposedItem = new ProposedCatalogItem {
                     Name = item.Name,
                     CatalogBrandId = item.CatalogBrandId,
@@ -346,7 +346,7 @@ namespace Catalog.API.DependencyServices {
                         // There is at least one proposed catalog item 2 with a lower timestamp than the reader's timestamp that might be committed before the reader's timestamp
                         var MREsForPropItem_dict = catalog_items_manual_reset_events.GetValueOrDefault(proposed_catalog_item.Key, null); // Get all the MREs for the proposed item
                         if(MREsForPropItem_dict == null || MREsForPropItem_dict.Keys.Count == 0) {
-                            _logger.LogInformation($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name}.");
+                            // _logger.LogInformation($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_catalog_item.Key.Name}.");
                             continue;
                         }
 
@@ -547,11 +547,11 @@ namespace Catalog.API.DependencyServices {
                             }
                         }
                         else {
-                            _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {guid_MRE.Value.Item2} because there are {dependentClientIDs.Item2.Count} clients waiting on it:");
+                            // _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {guid_MRE.Value.Item2} because there are {dependentClientIDs.Item2.Count} clients waiting on it:");
                             numberOfActiveMREs++;
                         }
                     }
-                    _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
+                    // _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
                 }
             
             //} finally {
