@@ -120,6 +120,9 @@ public class CoordinatorController : ControllerBase {
 
     private async ValueTask IssueCommitEventBasedServices(string clientID) {
         // Get all services' addresses involved in the functionality
+        if(!_functionalityService.EventServicesToConfirm.ContainsKey(clientID)) {
+            return;
+        }
         List<string> addresses = _functionalityService.EventServicesToConfirm[clientID]
                                     .Distinct()
                                     .ToList();

@@ -1,6 +1,7 @@
 ﻿using Microsoft.eShopOnContainers.Services.Coordinator.API.Grpc;
 using Microsoft.eShopOnContainers.Services.Coordinator.API.Infrastructure.Filters;
 using Microsoft.eShopOnContainers.Services.Coordinator.API.Services;
+using Coordinator.API.Services;
 
 namespace Microsoft.eShopOnContainers.Services.Coordinator.API;
 
@@ -25,6 +26,7 @@ public class Startup {
         services.AddHttpClient<ICatalogService, CatalogService>();
         services.AddHttpClient<IDiscountService, DiscountService>();
         services.AddHttpClient<IThesisFrontendService, ThesisFrontendService>();
+        services.AddHttpClient<IBasketService, BasketService>();
 
         var container = new ContainerBuilder();
         container.Populate(services);

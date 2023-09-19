@@ -1,6 +1,8 @@
 ﻿using Microsoft.eShopOnContainers.Services.Basket.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.HttpHandlers;
 using Microsoft.eShopOnContainers.Services.Basket.API.Middleware;
+using Basket.API.DependencyServices;
+
 
 namespace Microsoft.eShopOnContainers.Services.Basket.API;
 public class Startup
@@ -148,6 +150,8 @@ public class Startup
             services.AddScoped<TCCHttpInjector>();
             
             services.AddScoped<IScopedMetadata, ScopedMetadata>();
+            services.AddSingleton<ISingletonWrapper, SingletonWrapper>();
+
             services.AddSingleton<ITokensContextSingleton, TokensContextSingleton>();
 
             services.AddHttpClient<ICoordinatorService, CoordinatorService>();
@@ -306,7 +310,11 @@ public class Startup
 
         services.AddSingleton<IEventBusSubscriptionsManager, InMemoryEventBusSubscriptionsManager>();
 
-        services.AddTransient<ProductPriceChangedIntegrationEventHandler>();
+        if (Configuration["ThesisWrapperEnabled"] == "True") {
+            services.AddTransient<ClientIDWrappedProductPriceChangedIntegrationEventHandler>();
+        } else {
+            services.AddTransient<ProductPriceChangedIntegrationEventHandler>();
+        }
         services.AddTransient<OrderStartedIntegrationEventHandler>();
     }
 
@@ -317,8 +325,10 @@ public class Startup
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             eventBus.Subscribe<ClientIDWrappedProductPriceChangedIntegrationEvent, ClientIDWrappedProductPriceChangedIntegrationEventHandler>();
+            Console.WriteLine("\n\n\n=============== ThesisWrapperEnabled == True =============== \n\n\n");
         } else {
             eventBus.Subscribe<ProductPriceChangedIntegrationEvent, ProductPriceChangedIntegrationEventHandler>();
+            Console.WriteLine("\n\n\n=============== ThesisWrapperEnabled == False =============== \n\n\n");
         }
         eventBus.Subscribe<OrderStartedIntegrationEvent, OrderStartedIntegrationEventHandler>();
     }
