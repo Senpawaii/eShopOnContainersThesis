@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Basket.API.DependencyServices {
@@ -33,7 +34,7 @@ namespace Basket.API.DependencyServices {
                 // Add the event to the updateEvents dictionary
                 updateEvents[clientID].PriceEvent = @event;
 
-                if (isPairedEventReady(updateEvents[clientID])) {
+                if (isPairedEventReady(clientID)) {
                     // We have both events and the functionality has been confirmed, so we can update the Redis Database by calling the original handlers    
                     using var handlerScope = _serviceScopeFactory.CreateScope();
                     var originalPriceEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductPriceChangedIntegrationEventHandler>();
@@ -42,8 +43,9 @@ namespace Basket.API.DependencyServices {
                     //updateDiscountTask = originalDiscountEventHandler.Handle(updateEvents[clientID].DiscountEvent);
 
                     // The Update Price and Update Discount are complete
-                    updateEvents.TryRemove(clientID, out PairedEvents _);
+                    //updateEvents.TryRemove(clientID, out PairedEvents _);
                     //completed_pairs_to_persist.TryRemove(clientID, out ManualResetEvent _);
+                    updateEvents[clientID].Persisted = true;
                 }
             }
 
@@ -63,7 +65,7 @@ namespace Basket.API.DependencyServices {
             lock (updateEvents[clientID]) {
                 updateEvents[clientID].ConfirmedFunctionality = true;
 
-                if (isPairedEventReady(updateEvents[clientID])) {
+                if (isPairedEventReady(clientID)) {
                     // We have both events and the functionality has been confirmed, so we can update the Redis Database by calling the original handlers    
                     using var handlerScope = _serviceScopeFactory.CreateScope();
                     var originalPriceEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductPriceChangedIntegrationEventHandler>();
@@ -72,7 +74,7 @@ namespace Basket.API.DependencyServices {
                     //updateDiscountTask = originalDiscountEventHandler.Handle(updateEvents[clientID].DiscountEvent);
 
                     // The Update Price and Update Discount are complete
-                    updateEvents.TryRemove(clientID, out PairedEvents _);
+                    //updateEvents.TryRemove(clientID, out PairedEvents _);
                     //completed_pairs_to_persist.TryRemove(clientID, out ManualResetEvent _);
                 }
             }
@@ -85,6 +87,10 @@ namespace Basket.API.DependencyServices {
             }
         }
 
+        public void UpdateConfirmation(string clientID) {
+            updateEvents[clientID].ConfirmedFunctionality = true;
+        }
+
         //private void TryGenerateNewMonitor(string clientID) {
         //    if (!completed_pairs_to_persist.TryGetValue(clientID, out var _)) {
         //        // This is the first event for this clientID, so we need to create a new ManualResetEvent
@@ -93,8 +99,30 @@ namespace Basket.API.DependencyServices {
         //    }
         //}
 
-        private bool isPairedEventReady(PairedEvents events) {
-            return events.PriceEvent != null && events.ConfirmedFunctionality; // TODO: Add Discount Event verification
+        public bool isPairedEventReady(string clientID) {
+            return updateEvents[clientID].PriceEvent != null && updateEvents[clientID].ConfirmedFunctionality; // TODO: Add Discount Event verification
+        }
+
+        public async Task PersistEvents(string clientID) {
+            Task updatePriceTask;
+            
+            // The events have already been persisted
+            if (updateEvents[clientID].Persisted) {
+                return;
+            }
+
+            lock (updateEvents[clientID]) {
+                // We have both events and the functionality has been confirmed, so we can update the Redis Database by calling the original handlers    
+                using var handlerScope = _serviceScopeFactory.CreateScope();
+                var originalPriceEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductPriceChangedIntegrationEventHandler>();
+                //var originalDiscountEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductDiscountChangedIntegrationEventHandler>();
+                updatePriceTask = originalPriceEventHandler.Handle(updateEvents[clientID].PriceEvent);
+                //updateDiscountTask = originalDiscountEventHandler.Handle(updateEvents[clientID].DiscountEvent);
+
+                updateEvents[clientID].Persisted = true;
+            }
+
+            await updatePriceTask;
         }
     }
 
@@ -102,5 +130,6 @@ namespace Basket.API.DependencyServices {
         public ProductPriceChangedIntegrationEvent PriceEvent { get; set; }
         //public ProductDiscountChangedIntegrationEvent DiscountEvent { get; set; }
         public bool ConfirmedFunctionality { get; set;}
+        public bool Persisted { get; set; }
     }
 }

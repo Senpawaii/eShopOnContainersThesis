@@ -30,14 +30,14 @@ public class CoordinatorService : ICoordinatorService {
         var responseString = await response.Content.ReadAsStringAsync();
     }
 
-    public async Task QueryConfirmation() {
+    public async Task<bool> QueryConfirmation() {
         string uri = $"{_settings.Value.CoordinatorUrl}confirmation?clientID={_metadata.ClientID.Value}&serviceName=BasketService";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
 
         var responseString = await response.Content.ReadAsStringAsync();
-
         // Return the response to the caller
+        return responseString == "True";
     }
 
 }
