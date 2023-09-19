@@ -86,4 +86,12 @@ public class BasketController : ControllerBase
     {
         await _repository.DeleteBasketAsync(id);
     }
+
+    // Confirm Transaction
+    [HttpGet]
+    [Route("confirm")]
+    [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
+    public Task ConfirmTransactionAsync() {
+        return Task.CompletedTask;
+    }
 }

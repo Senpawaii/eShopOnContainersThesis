@@ -314,7 +314,12 @@ public class Startup
     {
         var eventBus = app.ApplicationServices.GetRequiredService<IEventBus>();
 
-        eventBus.Subscribe<ProductPriceChangedIntegrationEvent, ProductPriceChangedIntegrationEventHandler>();
+
+        if (Configuration["ThesisWrapperEnabled"] == "True") {
+            eventBus.Subscribe<ClientIDWrappedProductPriceChangedIntegrationEvent, ClientIDWrappedProductPriceChangedIntegrationEventHandler>();
+        } else {
+            eventBus.Subscribe<ProductPriceChangedIntegrationEvent, ProductPriceChangedIntegrationEventHandler>();
+        }
         eventBus.Subscribe<OrderStartedIntegrationEvent, OrderStartedIntegrationEventHandler>();
     }
 }

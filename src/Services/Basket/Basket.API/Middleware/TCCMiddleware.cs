@@ -5,6 +5,7 @@ using Microsoft.eShopOnContainers.Services.Basket.API.Services;
 using System.Collections.Concurrent;
 using System.Globalization;
 using static System.Net.Mime.MediaTypeNames;
+using Basket.API.DependencyServices;
 
 namespace Microsoft.eShopOnContainers.Services.Basket.API.Middleware;
 public class TCCMiddleware {
@@ -23,28 +24,37 @@ public class TCCMiddleware {
     }
 
     // Middleware has access to Scoped Data, dependency-injected at Startup
-    public async Task Invoke(HttpContext ctx) {
+    public async Task Invoke(HttpContext ctx, ISingletonWrapper _dataWrapper) {
 
         // To differentiate from a regular call, check for the client ID
         if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             // Store the client ID in the scoped metadata
             _request_metadata.ClientID.Value = clientID;
 
-            // Initially set the read-only flag to true. Update it as write operations are performed.
-            _request_metadata.ReadOnly.Value = true;
-            if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
-                //_logger.LogInformation($"Registered timestamp: {timestamp}");
-                _request_metadata.Timestamp.Value = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
-            }
+            string currentUri = ctx.Request.GetUri().ToString();
 
-            if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
-                //_logger.LogInformation($"Registered tokens: {tokens}");
-                if(!int.TryParse(tokens, out int numTokens)) {
-                    _logger.LogError("Couldn't extract the number of tokens from the request query string.");
-                }
-                _request_metadata.Tokens.Value = numTokens;
-                _remainingTokens.AddRemainingTokens(clientID, numTokens);
+            if (currentUri.Contains("confirm")) {
+                // The functionality that led to the event is now confirmed
+                await _dataWrapper.ConfirmFunctionality(clientID);
             }
+            else {
+                // Initially set the read-only flag to true. Update it as write operations are performed.
+                _request_metadata.ReadOnly.Value = true;
+                if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
+                    //_logger.LogInformation($"Registered timestamp: {timestamp}");
+                    _request_metadata.Timestamp.Value = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
+                }
+
+                if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
+                    //_logger.LogInformation($"Registered tokens: {tokens}");
+                    if (!int.TryParse(tokens, out int numTokens)) {
+                        _logger.LogError("Couldn't extract the number of tokens from the request query string.");
+                    }
+                    _request_metadata.Tokens.Value = numTokens;
+                    _remainingTokens.AddRemainingTokens(clientID, numTokens);
+                }
+            }
+        
 
             var removeTheseParams = new List<string> { "clientID", "timestamp", "tokens" }.AsReadOnly();
 
