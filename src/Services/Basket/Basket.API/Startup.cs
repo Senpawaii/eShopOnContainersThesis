@@ -21,7 +21,6 @@ public class Startup
         });
 
         RegisterAppInsights(services);
-
         services.AddControllers(options =>
             {
                 options.Filters.Add(typeof(HttpGlobalExceptionFilter));
@@ -306,7 +305,12 @@ public class Startup
 
         services.AddSingleton<IEventBusSubscriptionsManager, InMemoryEventBusSubscriptionsManager>();
 
-        services.AddTransient<ProductPriceChangedIntegrationEventHandler>();
+        if (Configuration["ThesisWrapperEnabled"] == "True") {
+            services.AddTransient<ClientIDWrappedProductPriceChangedIntegrationEventHandler>();
+        }
+        else {
+            services.AddTransient<ProductPriceChangedIntegrationEventHandler>();
+        }
         services.AddTransient<OrderStartedIntegrationEventHandler>();
     }
 

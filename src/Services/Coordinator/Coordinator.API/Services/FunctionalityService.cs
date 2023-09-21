@@ -8,7 +8,7 @@ public class FunctionalityService : IFunctionalityService {
     ConcurrentDictionary<string, List<(string, long)>> _proposals = new ConcurrentDictionary<string, List<(string, long)>>(); 
     ConcurrentDictionary<string, double> _tokens = new ConcurrentDictionary<string, double>();
     ConcurrentDictionary<string, List<string>> _servicesSentTokens = new ConcurrentDictionary<string, List<string>>();
-    ConcurrentDictionary<string, List<string>> _eventServicesToContactAfterConfirmation = new ConcurrentDictionary<string, List<string>>();
+    ConcurrentDictionary<string, List<string>> _servicesSentEventTokens = new ConcurrentDictionary<string, List<string>>();
 
     public FunctionalityService() {
     }
@@ -24,8 +24,8 @@ public class FunctionalityService : IFunctionalityService {
         get { return _servicesSentTokens; } 
     }
 
-    public ConcurrentDictionary<string, List<string>> EventServicesToConfirm {
-        get { return _eventServicesToContactAfterConfirmation; }
+    public ConcurrentDictionary<string, List<string>> ServicesEventTokensProposed {
+        get { return _servicesSentEventTokens; }
     }
 
     public void AddNewServiceSentTokens(string clientID, string service) {
@@ -33,6 +33,15 @@ public class FunctionalityService : IFunctionalityService {
             new List<string> { service },
             (_, list) =>
             {
+                list.Add(service);
+                return list;
+            });
+    }
+
+    public void AddNewServiceSentEventTokens(string clientID, string service) {
+        _servicesSentEventTokens.AddOrUpdate(clientID,
+                       new List<string> { service },
+                                  (_, list) => {
                 list.Add(service);
                 return list;
             });
@@ -62,20 +71,15 @@ public class FunctionalityService : IFunctionalityService {
         // Remove the functionality from the proposals
         _proposals.TryRemove(clientID, out _);
         // Remove the functionality from the tokens
-        //_tokens.TryRemove(clientID, out _); // Event Based approach disabled for now
+        _tokens.TryRemove(clientID, out _);
         // Remove the functionality from the services sent tokens
         _servicesSentTokens.TryRemove(clientID, out _);
+        // Remove the functionality from the services sent event tokens
+        _servicesSentEventTokens.TryRemove(clientID, out _);
     }
 
     public bool HasConfirmedFunctionality(string clientID) {
         // Return true if the functionality has ended => the max number of tokens have been reached
         return _tokens[clientID] == 1000000000;
-    }
-
-    public void AddNewEventServiceToConfirmationList(string clientID, string serviceName) {
-        _eventServicesToContactAfterConfirmation.AddOrUpdate(clientID, new List<string> { serviceName }, (_, list) => {
-            list.Add(serviceName);
-            return list;
-        });
     }
 }

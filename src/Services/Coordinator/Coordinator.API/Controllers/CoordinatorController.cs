@@ -36,18 +36,35 @@ public class CoordinatorController : ControllerBase {
     }
 
     [HttpGet]
-    [Route("confirmation")]
+    [Route("eventtokens")]
     [ProducesResponseType(typeof(bool), (int)HttpStatusCode.OK)]
-    public ActionResult<bool> CheckConfirmation([FromQuery] string clientID = "", [FromQuery] string serviceName = "") {
+    public async Task<ActionResult<int>> ReceiveEventTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "") {
         // _logger.LogInformation($"Received confirmation request from {serviceName} for client {clientID}");
-        // Check if the client has confirmed the functionality
-        if (_functionalityService.HasConfirmedFunctionality(clientID)) {
-            return Ok(true);
+        double.TryParse(tokens, out var numTokens);
+        _functionalityService.IncreaseTokens(clientID, numTokens);
+        _functionalityService.AddNewServiceSentEventTokens(clientID, serviceName);
+
+        if (_functionalityService.HasCollectedAllTokens(clientID)) {
+            // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
+            // If no services are registered (read-only functionality), and no Event-based services sent tokens do not ask for proposals / commit
+            if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || allServicesReadOnly(clientID)) {
+                // Clear all the data structures from the functionality
+                _functionalityService.ClearFunctionality(clientID);
+                return Ok(tokens);
+            }
+
+            // Receive proposals only from Non-Event-based services
+            await ReceiveProposals(clientID);
+
+            long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
+
+            // Call Services to commit with the MAX TS
+            await BeginCommitProcess(clientID, maxTS);
+
+            await IssueCommitEventBasedServices(clientID);
         }
 
-        // Add serviceName to list of Services to be contacted for this functionality after confirmation is issued
-        _functionalityService.AddNewEventServiceToConfirmationList(clientID, serviceName);
-        return Ok(false);
+        return Ok(tokens);
     }
 
     [HttpGet]
@@ -86,6 +103,10 @@ public class CoordinatorController : ControllerBase {
         return Ok(tokens);
     }
 
+    private bool allServicesReadOnly(string clientID) {
+        return _functionalityService.ServicesTokensProposed[clientID].Count == 0 && _functionalityService.ServicesEventTokensProposed[clientID].Count == 0;
+    }
+
     private async ValueTask BeginCommitProcess(string clientID, long maxTS) {
         // Get all services' addresses involved in the functionality
         List<string> addresses = _functionalityService.Proposals[clientID]
@@ -120,7 +141,7 @@ public class CoordinatorController : ControllerBase {
 
     private async ValueTask IssueCommitEventBasedServices(string clientID) {
         // Get all services' addresses involved in the functionality
-        List<string> addresses = _functionalityService.EventServicesToConfirm[clientID]
+        List<string> addresses = _functionalityService.ServicesEventTokensProposed[clientID]
                                     .Distinct()
                                     .ToList();
 
