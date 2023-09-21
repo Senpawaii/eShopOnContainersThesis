@@ -145,15 +145,15 @@ public class SingletonWrapper : ISingletonWrapper {
                     });
             }
 
-            _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items.");
+            // _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items.");
             proposed_discount_Items.AddOrUpdate(proposedItem, 
                 key => new SynchronizedCollection<(long, string)> (new List<(long, string)> { (proposedTS, clientID) }),
                 (key, value) => { 
                     value.Add((proposedTS, clientID)); 
-                    _logger.LogInformation($"ClientID: {clientID} - Added proposed to existing list.");
+                    // _logger.LogInformation($"ClientID: {clientID} - Added proposed to existing list.");
                     return value;
             });
-            _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items (after).");
+            // _logger.LogInformation($"ClientID: {clientID} - There are {proposed_discount_Items.Keys.Count} proposed discount Items (after).");
         }
     }
 
@@ -175,7 +175,10 @@ public class SingletonWrapper : ISingletonWrapper {
             
             // Remove entry in synchronized collection associated with ProposedItem, for the given ClientID
             if (proposed_discount_Items.TryGetValue(proposedItem, out var values)) {
-                var toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
+                var toRemove = new List<(long, string)>();
+                lock(values) {
+                    toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
+                }
                 foreach(var tuple in toRemove) {
                     values.Remove(tuple);
                 }
@@ -201,7 +204,7 @@ public class SingletonWrapper : ISingletonWrapper {
                 foreach (var proposed_discount_item in filtered_proposed_discount_items2) {
                     var MREsForPropItem_dict = discount_items_manual_reset_events.GetValueOrDefault(proposed_discount_item.Key, null); // Get all the MREs for the proposed item
                     if(MREsForPropItem_dict == null || MREsForPropItem_dict.Keys.Count == 0) {
-                        _logger.LogInformation($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_discount_item.Key.ItemName}.");
+                        // _logger.LogInformation($"ClientID: {clientID} - \t Could not find any ManualResetEvent for catalog item with ID {proposed_discount_item.Key.ItemName}.");
                         continue;
                     }
 
@@ -328,11 +331,11 @@ public class SingletonWrapper : ISingletonWrapper {
                     }
                 }
                 else {
-                    _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {guid_MRE.Value.Item2}, because there are {dependentClientIDs.Item2.Count} clients waiting on it");
+                    // _logger.LogInformation($"Garbage Collector: \t Not disposing MRE for committed data with client ID {guid_MRE.Value.Item2}, because there are {dependentClientIDs.Item2.Count} clients waiting on it");
                     numberOfActiveMREs++;
                 }
             }
-            _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
+            // _logger.LogInformation($"Garbage Collector: Number of active MREs: {numberOfActiveMREs}");
         }
     }
 
@@ -373,10 +376,15 @@ public class SingletonWrapper : ISingletonWrapper {
                 if (EMs_PropItem_dict == null || EMs_PropItem_dict.Keys.Count == 0) {
                     _logger.LogError($"ClientID: {clientID} - A: Could not find any ManualResetEvent for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
                 }
-
                 // Find the MRE associated with the notifier ClientID
                 var guid_EM = EMs_PropItem_dict.Where(EM => EM.Value.ClientID == clientID).Single();
-                guid_EM.Value.Event.Set(); // Set the first ManualResetEvent that is not set yet
+                try {
+                    guid_EM.Value.Event.Set(); // Set the first ManualResetEvent that is not set yet
+                } 
+                catch (Exception exc) {
+                    _logger.LogError($"ClientID: {clientID} - B: Could not find any ManualResetEvent for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
+                    continue;
+                }
             }
         }
     }

@@ -12,6 +12,7 @@ using CoordinatorAPI;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Config;
 using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using Microsoft.eShopOnContainers.Services.Catalog.API.DependencyServices;
+using Catalog.API.IntegrationEvents.Events.Factories;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API;
 
@@ -302,6 +303,7 @@ public static class CustomExtensionMethods
             sp => (DbConnection c) => new IntegrationEventLogService(c));
 
         services.AddTransient<ICatalogIntegrationEventService, CatalogIntegrationEventService>();
+        services.AddSingleton<IFactoryClientIDWrappedProductPriceChangedIntegrationEvent, FactoryClientIDWrappedProductPriceChangedIntegrationEvent>();
 
         if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
         {

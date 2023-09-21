@@ -6,6 +6,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using System.Collections.Concurrent;
 using System.Globalization;
 using static System.Net.Mime.MediaTypeNames;
+using Microsoft.EntityFrameworkCore;
 //using NewRelic.Api.Agent;
 
 namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
@@ -38,7 +39,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {
-                    _logger.LogInformation($"ClientID: {clientID}: Committing Transaction");
+                    // _logger.LogInformation($"ClientID: {clientID} - Committing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     // Start flushing the Wrapper Data into the Database associated with the functionality
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -47,14 +48,19 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
 
                     await _next.Invoke(ctx);
+                    // _logger.LogInformation($"ClientID: {clientID} - Transaction Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
                     return;
                 }
                 else if (currentUri.Contains("proposeTS")) {
                     // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
-                    _logger.LogInformation($"ClientID: {clientID}: Proposing Transaction");
+                    // _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                }
+                else {
+                    // _logger.LogInformation($"ClientID: {clientID} - Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
@@ -128,7 +134,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
        //[Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
-            _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database");
+            // _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database");
             // Set functionality state to the in commit
             _data_wrapper.SingletonSetTransactionState(clientID, true);
 
@@ -142,7 +148,8 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-                
+                dbContext.Database.SetCommandTimeout(TimeSpan.FromSeconds(180));
+
                 // Copy the request metadata to the scoped metadata
                 var scopedMetadata = scope.ServiceProvider.GetRequiredService<IScopedMetadata>();
                 scopedMetadata.ClientID = _request_metadata.ClientID;
@@ -157,7 +164,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     }
                     else {
                         foreach(var discountItem in discountWrapperItems) {
-                            _logger.LogInformation($"ClientID: {clientID}, Adding discount item id: {discountItem.Id}, name: {discountItem.ItemName}, brand: {discountItem.ItemBrand}, type: {discountItem.ItemType}, discount: {discountItem.DiscountValue}");
+                            // _logger.LogInformation($"ClientID: {clientID}, Adding discount item id: {discountItem.Id}, name: {discountItem.ItemName}, brand: {discountItem.ItemBrand}, type: {discountItem.ItemType}, discount: {discountItem.DiscountValue}");
                             
                             // Make a copy of the discountItem with the Id = 0 (EF Core will generate a new Id for the new item, which is the PK)
                             var discountItemCopy = new DiscountItem() {
@@ -172,12 +179,12 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     await dbContext.SaveChangesAsync();
                 }
             }
-            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
+            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
             // The items have been committed. Notify all threads waiting on the commit to read
             _data_wrapper.NotifyReaderThreads(clientID, discountWrapperItems);
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _data_wrapper.CleanWrappedObjects(clientID);
-            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
+            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
         }
     }
 

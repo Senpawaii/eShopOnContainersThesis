@@ -8,8 +8,8 @@ public class GarbageCollectionService : BackgroundService {
     private readonly ISingletonWrapper _singletonWrapper;
 
     private int _executionCount = 0;
-    private readonly int MAX_VERSIONS = 500;
-    private readonly int TIMER = 4;
+    private readonly int MAX_VERSIONS = 25;
+    private readonly int TIMER = 5; // milliseconds
 
     public GarbageCollectionService(IServiceScopeFactory scopeFactory, ILogger<GarbageCollectionService> logger, ISingletonWrapper singletonWrapper) {
         _scopeFactory = scopeFactory; 
@@ -23,7 +23,7 @@ public class GarbageCollectionService : BackgroundService {
         // Execute an initial garbage collection
         ExecuteGarbageCollection();
 
-        using PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromSeconds(TIMER));
+        using PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromMilliseconds(TIMER));
 
         try {
             while (await timer.WaitForNextTickAsync(stoppingToken)) {
@@ -43,7 +43,7 @@ public class GarbageCollectionService : BackgroundService {
             GarbageCollectCatalogBrands(dbContext);
             GarbageCollectCatalogTypes(dbContext);
         }
-        _logger.LogInformation($"Garbage Collection timed Hosted Service is working. Count: {_executionCount++}");
+        // _logger.LogInformation($"Garbage Collection timed Hosted Service is working. Count: {_executionCount++}");
         _singletonWrapper.DisposeCommittedDataMREs();
     }
 

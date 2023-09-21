@@ -32,7 +32,7 @@ public class TCCMiddleware {
         // Else, we are handling a read request or the beginning of a write request
         // Initialize the metadata fields
         SeedMetadata();
-        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, currentUri: {currentUri} at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         // Add a new ManualResetEvent associated with the clientID if we are handling a write request
         if( currentUri.Contains("updatepricediscount")) {
@@ -57,10 +57,10 @@ public class TCCMiddleware {
             _functionalitySingleton.RemoveTransactionState(_request_metadata.ClientID.Value);
             _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
 
-            _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, WRITE transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, WRITE transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         }
         else {
-            _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, READ transaction ({currentUri}) completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, READ transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         }
         return;
     }
@@ -69,7 +69,7 @@ public class TCCMiddleware {
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
-            _logger.LogInformation($"ClientID: {clientID}, Committing... Signal ManualResetEvent at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            // _logger.LogInformation($"ClientID: {clientID}, Committing... Signal ManualResetEvent at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             _functionalitySingleton.SignalManualResetEvent(clientID);
         }
         else {

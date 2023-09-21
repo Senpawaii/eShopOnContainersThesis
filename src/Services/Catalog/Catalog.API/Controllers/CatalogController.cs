@@ -249,8 +249,8 @@ public class CatalogController : ControllerBase {
             var priceChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductPriceChangedIntegrationEvent(catalogItem.Id, catalogItem.Price, oldPrice);
 
             // Achieving atomicity between original Catalog database operation and the IntegrationEventLog thanks to a local transaction
-            // await _catalogIntegrationEventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
-            await _catalogContext.SaveChangesAsync();
+            await _catalogIntegrationEventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
+            // await _catalogContext.SaveChangesAsync();
             // Publish through the Event Bus and mark the saved event as published
             await _catalogIntegrationEventService.PublishThroughEventBusAsync(priceChangedEvent);
         }

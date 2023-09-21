@@ -31,7 +31,7 @@ public class CatalogService : ICatalogService {
     public async Task<long> GetProposal(string clientID) {
         string uri = $"{_settings.Value.CatalogUrl}proposeTS?clientID={clientID}";
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
-        response.EnsureSuccessStatusCode();
+        // response.EnsureSuccessStatusCode();
         var responseString = await response.Content.ReadAsStringAsync();
         
         // Return the Timestamp Ticks received from the Catalog Service
