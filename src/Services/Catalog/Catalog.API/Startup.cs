@@ -303,7 +303,7 @@ public static class CustomExtensionMethods
             sp => (DbConnection c) => new IntegrationEventLogService(c));
 
         services.AddTransient<ICatalogIntegrationEventService, CatalogIntegrationEventService>();
-        services.AddSingleton<IFactoryClientIDWrappedProductPriceChangedIntegrationEvent, FactoryClientIDWrappedProductPriceChangedIntegrationEvent>();
+        services.AddScoped<IFactoryClientIDWrappedProductPriceChangedIntegrationEvent, FactoryClientIDWrappedProductPriceChangedIntegrationEvent>();
 
         if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
         {
