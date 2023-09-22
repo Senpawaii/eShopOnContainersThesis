@@ -6,15 +6,15 @@ namespace Basket.API.IntegrationEvents.EventHandling {
     public class ClientIDWrappedProductPriceChangedIntegrationEventHandler : IIntegrationEventHandler<ClientIDWrappedProductPriceChangedIntegrationEvent> {
 
         private readonly ILogger<ClientIDWrappedProductPriceChangedIntegrationEventHandler> _logger;
-        private readonly Func<ProductPriceChangedIntegrationEventHandler, Task> originalHandler;
+        // private readonly Func<ProductPriceChangedIntegrationEventHandler, Task> originalHandler;
         private readonly ISingletonWrapper _wrapper;
         private readonly ICoordinatorService _coordinator;
         private readonly IScopedMetadata _metadata;
 
         public ClientIDWrappedProductPriceChangedIntegrationEventHandler(ILogger<ClientIDWrappedProductPriceChangedIntegrationEventHandler> logger, 
-            Func<ProductPriceChangedIntegrationEventHandler, Task> originalHandler, ISingletonWrapper wrapper, ICoordinatorService coordinator, IScopedMetadata metadata) {
+            ISingletonWrapper wrapper, ICoordinatorService coordinator, IScopedMetadata metadata) {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            this.originalHandler = originalHandler;
+            // this.originalHandler = originalHandler;
             _wrapper = wrapper ?? throw new ArgumentNullException(nameof(wrapper));
             _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
             _metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));

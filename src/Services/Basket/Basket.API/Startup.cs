@@ -312,9 +312,7 @@ public class Startup
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services.AddTransient<ClientIDWrappedProductPriceChangedIntegrationEventHandler>();
         }
-        else {
-            services.AddTransient<ProductPriceChangedIntegrationEventHandler>();
-        }
+        services.AddTransient<ProductPriceChangedIntegrationEventHandler>();
         services.AddTransient<OrderStartedIntegrationEventHandler>();
     }
 

@@ -7,12 +7,16 @@
          * This Event class wraps the ProductPriceChangedIntegrationEvent class, adding the ClientID property, used to identify the functionality being executed.
          * **/
         public string ClientID { get; private init; }
+
         public int Tokens { get; private init; }
+        
         public ProductPriceChangedIntegrationEvent ProductPriceChangedIntegrationEvent { get; private init; }
-        public ClientIDWrappedProductPriceChangedIntegrationEvent(string clientID, int tokens, ProductPriceChangedIntegrationEvent wrapped_event) {
+        
+        /* Warning! The names of the parameters must match the names of the variables inside the event! (Because of Json Deserialization) */
+        public ClientIDWrappedProductPriceChangedIntegrationEvent(string clientID, int tokens, ProductPriceChangedIntegrationEvent productPriceChangedIntegrationEvent) {
             ClientID = clientID;
             Tokens = tokens;
-            ProductPriceChangedIntegrationEvent = wrapped_event;
+            ProductPriceChangedIntegrationEvent = productPriceChangedIntegrationEvent;
         }
     }
 }
