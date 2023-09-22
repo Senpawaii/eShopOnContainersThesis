@@ -39,8 +39,10 @@ public class CoordinatorController : ControllerBase {
     [Route("eventtokens")]
     [ProducesResponseType(typeof(bool), (int)HttpStatusCode.OK)]
     public async Task<ActionResult<int>> ReceiveEventTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "") {
-        // _logger.LogInformation($"Received confirmation request from {serviceName} for client {clientID}");
         double.TryParse(tokens, out var numTokens);
+
+        _logger.LogInformation($"Event Service: Received {numTokens} tokens from {serviceName} for client {clientID}");
+
         _functionalityService.IncreaseTokens(clientID, numTokens);
         _functionalityService.AddNewServiceSentEventTokens(clientID, serviceName);
 
@@ -72,7 +74,7 @@ public class CoordinatorController : ControllerBase {
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     public async Task<ActionResult<int>> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
         double.TryParse(tokens, out var numTokens);
-        // _logger.LogInformation($"Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
+        _logger.LogInformation($"HTTP Service: Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
         // Incremement the Tokens
         _functionalityService.IncreaseTokens(clientID, numTokens);
 
@@ -134,9 +136,6 @@ public class CoordinatorController : ControllerBase {
 
         // Wait for all the services to commit
         await Task.WhenAll(taskList);
-
-        // Clear all the data structures from the functionality
-        _functionalityService.ClearFunctionality(clientID);
     }
 
     private async ValueTask IssueCommitEventBasedServices(string clientID) {
@@ -164,6 +163,9 @@ public class CoordinatorController : ControllerBase {
 
         // Wait for all the services to commit
         await Task.WhenAll(taskList);
+
+        // Clear all the data structures from the functionality
+        _functionalityService.ClearFunctionality(clientID);
     }
 
     private async Task ReceiveProposals(string clientID) {
