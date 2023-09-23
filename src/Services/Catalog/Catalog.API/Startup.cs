@@ -38,8 +38,6 @@ public class Startup
             .AddEventBus(Configuration)
             .AddSwagger(Configuration)
             .AddCustomHealthCheck(Configuration);
-            
-
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services
@@ -52,7 +50,6 @@ public class Startup
                 services.AddHostedService<GarbageCollectionService>();
             }
         }
-
 
         var container = new ContainerBuilder();
         container.Populate(services);

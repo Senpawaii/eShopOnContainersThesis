@@ -1,6 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Discount.API.IntegrationEvents.Events.Factories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Utilities;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
+using Microsoft.eShopOnContainers.Services.Discount.API.IntegrationEvents;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Microsoft.IdentityModel.Tokens;
 
@@ -11,10 +13,16 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Controllers;
 public class DiscountController : ControllerBase {
     private readonly DiscountContext _discountContext;
     private readonly DiscountSettings _settings;
+    private readonly IDiscountIntegrationEventService _discountIntegrationEventService;
+    private readonly IFactoryClientIDWrappedProductDiscountChangedIntegrationEvent _clientIDWrappedEventFactory;
     private readonly ILogger<DiscountController> _logger;
+    
 
-    public DiscountController(DiscountContext discountContext, IOptionsSnapshot<DiscountSettings> settings, ILogger<DiscountController> logger) {
+    public DiscountController(DiscountContext discountContext, IOptionsSnapshot<DiscountSettings> settings, IDiscountIntegrationEventService discountIntegrationEventService, ILogger<DiscountController> logger,
+        IFactoryClientIDWrappedProductDiscountChangedIntegrationEvent clientIDWrappedEventFactory) {
         _discountContext = discountContext ?? throw new ArgumentNullException(nameof(discountContext));
+        _discountIntegrationEventService = discountIntegrationEventService ?? throw new ArgumentNullException(nameof(discountIntegrationEventService));
+        _clientIDWrappedEventFactory = clientIDWrappedEventFactory ?? throw new ArgumentNullException(nameof(clientIDWrappedEventFactory));
         _settings = settings.Value;
         _logger = logger;
 
@@ -120,24 +128,28 @@ public class DiscountController : ControllerBase {
         }
 
         var oldDiscount = discountItem.DiscountValue;
+        var raiseProductDiscountChangedEvent = oldDiscount != discountToUpdate.DiscountValue;
 
         // Update current product
         discountItem = discountToUpdate;
 
-        // Log the discount item update
-        // _logger.LogInformation($"Controller: Body Discount Item with Name: {discountToUpdate.ItemName}, Brand: {discountToUpdate.ItemBrand}, Type: {discountToUpdate.ItemType}, and Discount Value: {discountToUpdate.DiscountValue}");
-
         _discountContext.Discount.Update(discountItem);
 
-        // _logger.LogInformation($"Checkpoint Update: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        if(raiseProductDiscountChangedEvent) { // Save product's data and publish integration event through the Event Bus if price has changed
+            // Create Wrapped Integration Event to be published through the Event Bus
+            var discountChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductDiscountChangedIntegrationEvent(discountItem.Id, discountItem.DiscountValue, oldDiscount);
 
-        await ResilientTransaction.New(_discountContext).ExecuteAsync(async () => {
-            // Save the changes to the database
+            // Achieving atomicity between original Discountdatbase operation and the IntegrationEventLog thanks to a local transaction
+            await _discountIntegrationEventService.SaveEventAndDiscountContextChangesAsync(discountChangedEvent);
+            // await _discountContext.SaveChangesAsync();
+            // Publish through the Event Bus and mark the saved event as published
+            await _discountIntegrationEventService.PublishThroughEventBusAsync(discountChangedEvent);
+        } 
+        else { // Just save the updated product because the Product's Price hasn't changed.
+            _logger.LogInformation($"The item: {itemName} {itemBrand} {itemType} has the same discount value: {discountToUpdate.DiscountValue} as the previous discount value: {oldDiscount}");
             await _discountContext.SaveChangesAsync();
-        });
-
-        // _logger.LogInformation($"Checkpoint Saved Changes: {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
+        }
+        
         // Return the updated discount item
         return CreatedAtAction(nameof(DiscountsAsync), new { discountToUpdate.Id }, null);
     }

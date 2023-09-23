@@ -240,7 +240,6 @@ public class CatalogController : ControllerBase {
         // Update current product
         catalogItem = productToUpdate;
 
-       
         _catalogContext.CatalogItems.Update(catalogItem);
 
         if (raiseProductPriceChangedEvent) // Save product's data and publish integration event through the Event Bus if price has changed

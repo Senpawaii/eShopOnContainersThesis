@@ -1,4 +1,4 @@
-using Discount.API;
+﻿using Discount.API;
 using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF;
 using Microsoft.eShopOnContainers.Services.Discount.API;
 using Microsoft.eShopOnContainers.Services.Discount.API.Extensions;
@@ -21,8 +21,8 @@ try {
         var thesisWrappers = settings.Value.ThesisWrapperEnabled;
 
         new DiscountContextSeed().SeedAsync(context, env, settings, logger).Wait();
-    });
-        // .MigrateDbContext<IntegrationEventLogContext>((_, __) => { });
+    })
+    .MigrateDbContext<IntegrationEventLogContext>((_, __) => { });
 
     Log.Information($"Starting web host ({Program.AppName})");
     host.Run();

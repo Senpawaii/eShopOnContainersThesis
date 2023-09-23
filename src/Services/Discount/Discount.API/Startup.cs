@@ -17,6 +17,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Data.SqlClient;
 using System.Data;
+using Microsoft.eShopOnContainers.Services.Discount.API.IntegrationEvents;
+using Discount.API.IntegrationEvents.Events.Factories;
 
 namespace Discount.API;
 public class Startup {
@@ -50,7 +52,6 @@ public class Startup {
             if (Configuration["Limit1Version"] == "False") {
                 services.AddHostedService<GarbageCollectionService>();
             }
-
         }
 
         var container = new ContainerBuilder();
@@ -120,15 +121,7 @@ public class Startup {
         });
 
         //app.UseRouter(buildRouter(app));
-
-        //ConfigureEventBus(app);
     }
-
-    //protected virtual void ConfigureEventBus(IApplicationBuilder app) {
-    //    var eventBus = app.ApplicationServices.GetRequiredService<IEventBus>();
-    //    eventBus.Subscribe<OrderStatusChangedToAwaitingValidationIntegrationEvent, OrderStatusChangedToAwaitingValidationIntegrationEventHandler>();
-    //    eventBus.Subscribe<OrderStatusChangedToPaidIntegrationEvent, OrderStatusChangedToPaidIntegrationEventHandler>();
-    //}
 }
 
 
@@ -209,14 +202,14 @@ public static class CustomExtensionMethods {
                                         });
             });
 
-        // services.AddDbContext<IntegrationEventLogContext>(options => {
-        //     options.UseSqlServer(configuration["ConnectionString"],
-        //                             sqlServerOptionsAction: sqlOptions => {
-        //                                 sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
-        //                                 //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
-        //                                 sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
-        //                             });
-        // });
+        services.AddDbContext<IntegrationEventLogContext>(options => {
+            options.UseSqlServer(configuration["ConnectionString"],
+                                    sqlServerOptionsAction: sqlOptions => {
+                                        sqlOptions.MigrationsAssembly(typeof(Startup).GetTypeInfo().Assembly.GetName().Name);
+                                        //Configuring Connection Resiliency: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency 
+                                        sqlOptions.EnableRetryOnFailure(maxRetryCount: 15, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+                                    });
+        });
 
         // Get the Catalog Settings service
         var thesis = configuration.GetValue<bool>("ThesisWrapperEnabled");
@@ -284,83 +277,82 @@ public static class CustomExtensionMethods {
     }
 
     public static IServiceCollection AddIntegrationServices(this IServiceCollection services, IConfiguration configuration) {
-        // services.AddTransient<Func<DbConnection, IIntegrationEventLogService>>(
-        //     sp => (DbConnection c) => new IntegrationEventLogService(c));
+        services.AddTransient<Func<DbConnection, IIntegrationEventLogService>>(
+            sp => (DbConnection c) => new IntegrationEventLogService(c));
 
-        // //services.AddTransient<IDiscountIntegrationEventService, DiscountIntegrationEventService>();
+        services.AddTransient<IDiscountIntegrationEventService, DiscountIntegrationEventService>();
+        services.AddScoped<IFactoryClientIDWrappedProductDiscountChangedIntegrationEvent, FactoryClientIDWrappedProductDiscountChangedIntegrationEvent>();
 
-        // if (configuration.GetValue<bool>("AzureServiceBusEnabled")) {
-        //     services.AddSingleton<IServiceBusPersisterConnection>(sp => {
-        //         var settings = sp.GetRequiredService<IOptions<DiscountSettings>>().Value;
-        //         var serviceBusConnection = settings.EventBusConnection;
+        if (configuration.GetValue<bool>("AzureServiceBusEnabled")) {
+            services.AddSingleton<IServiceBusPersisterConnection>(sp => {
+                var settings = sp.GetRequiredService<IOptions<DiscountSettings>>().Value;
+                var serviceBusConnection = settings.EventBusConnection;
 
-        //         return new DefaultServiceBusPersisterConnection(serviceBusConnection);
-        //     });
-        // }
-        // else {
-        //     services.AddSingleton<IRabbitMQPersistentConnection>(sp => {
-        //         var settings = sp.GetRequiredService<IOptions<DiscountSettings>>().Value;
-        //         var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
+                return new DefaultServiceBusPersisterConnection(serviceBusConnection);
+            });
+        }
+        else {
+            services.AddSingleton<IRabbitMQPersistentConnection>(sp => {
+                var settings = sp.GetRequiredService<IOptions<DiscountSettings>>().Value;
+                var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
 
-        //         var factory = new ConnectionFactory() {
-        //             HostName = configuration["EventBusConnection"],
-        //             DispatchConsumersAsync = true
-        //         };
+                var factory = new ConnectionFactory() {
+                    HostName = configuration["EventBusConnection"],
+                    DispatchConsumersAsync = true
+                };
 
-        //         if (!string.IsNullOrEmpty(configuration["EventBusUserName"])) {
-        //             factory.UserName = configuration["EventBusUserName"];
-        //         }
+                if (!string.IsNullOrEmpty(configuration["EventBusUserName"])) {
+                    factory.UserName = configuration["EventBusUserName"];
+                }
 
-        //         if (!string.IsNullOrEmpty(configuration["EventBusPassword"])) {
-        //             factory.Password = configuration["EventBusPassword"];
-        //         }
+                if (!string.IsNullOrEmpty(configuration["EventBusPassword"])) {
+                    factory.Password = configuration["EventBusPassword"];
+                }
 
-        //         var retryCount = 5;
-        //         if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"])) {
-        //             retryCount = int.Parse(configuration["EventBusRetryCount"]);
-        //         }
+                var retryCount = 5;
+                if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"])) {
+                    retryCount = int.Parse(configuration["EventBusRetryCount"]);
+                }
 
-        //         return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
-        //     });
-        // }
+                return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
+            });
+        }
 
         return services;
     }
 
     public static IServiceCollection AddEventBus(this IServiceCollection services, IConfiguration configuration) {
-        // if (configuration.GetValue<bool>("AzureServiceBusEnabled")) {
-        //     services.AddSingleton<IEventBus, EventBusServiceBus>(sp => {
-        //         var serviceBusPersisterConnection = sp.GetRequiredService<IServiceBusPersisterConnection>();
-        //         var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
-        //         var logger = sp.GetRequiredService<ILogger<EventBusServiceBus>>();
-        //         var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
-        //         string subscriptionName = configuration["SubscriptionClientName"];
+        if (configuration.GetValue<bool>("AzureServiceBusEnabled")) {
+            services.AddSingleton<IEventBus, EventBusServiceBus>(sp => {
+                var serviceBusPersisterConnection = sp.GetRequiredService<IServiceBusPersisterConnection>();
+                var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
+                var logger = sp.GetRequiredService<ILogger<EventBusServiceBus>>();
+                var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
+                string subscriptionName = configuration["SubscriptionClientName"];
 
-        //         return new EventBusServiceBus(serviceBusPersisterConnection, logger,
-        //             eventBusSubcriptionsManager, iLifetimeScope, subscriptionName);
-        //     });
+                return new EventBusServiceBus(serviceBusPersisterConnection, logger,
+                    eventBusSubcriptionsManager, iLifetimeScope, subscriptionName);
+            });
 
-        // }
-        // else {
-        //     services.AddSingleton<IEventBus, EventBusRabbitMQ>(sp => {
-        //         var subscriptionClientName = configuration["SubscriptionClientName"];
-        //         var rabbitMQPersistentConnection = sp.GetRequiredService<IRabbitMQPersistentConnection>();
-        //         var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
-        //         var logger = sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
-        //         var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
+        }
+        else {
+            services.AddSingleton<IEventBus, EventBusRabbitMQ>(sp => {
+                var subscriptionClientName = configuration["SubscriptionClientName"];
+                var rabbitMQPersistentConnection = sp.GetRequiredService<IRabbitMQPersistentConnection>();
+                var iLifetimeScope = sp.GetRequiredService<ILifetimeScope>();
+                var logger = sp.GetRequiredService<ILogger<EventBusRabbitMQ>>();
+                var eventBusSubcriptionsManager = sp.GetRequiredService<IEventBusSubscriptionsManager>();
 
-        //         var retryCount = 5;
-        //         if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"])) {
-        //             retryCount = int.Parse(configuration["EventBusRetryCount"]);
-        //         }
+                var retryCount = 5;
+                if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"])) {
+                    retryCount = int.Parse(configuration["EventBusRetryCount"]);
+                }
 
-        //         return new EventBusRabbitMQ(rabbitMQPersistentConnection, logger, iLifetimeScope, eventBusSubcriptionsManager, subscriptionClientName, retryCount);
-        //     });
-        // }
+                return new EventBusRabbitMQ(rabbitMQPersistentConnection, logger, iLifetimeScope, eventBusSubcriptionsManager, subscriptionClientName, retryCount);
+            });
+        }
 
-        // services.AddSingleton<IEventBusSubscriptionsManager, InMemoryEventBusSubscriptionsManager>();
-        //services.AddTransient<OrderStatusChangedToAwaitingValidationIntegrationEventHandler>();
-        //services.AddTransient<OrderStatusChangedToPaidIntegrationEventHandler>();
+        services.AddSingleton<IEventBusSubscriptionsManager, InMemoryEventBusSubscriptionsManager>();
 
         return services;
     }
