@@ -68,7 +68,8 @@ public class BasketService : Basket.BasketBase
             Producttype = item.ProductType,
             Quantity = item.Quantity,
             Unitprice = (double)item.UnitPrice,
-            Discount = (double)item.Discount
+            Discount = (double)item.Discount,
+            OldDiscount = (double)item.OldDiscount
         }));
 
         return response;
@@ -92,7 +93,8 @@ public class BasketService : Basket.BasketBase
             ProductType = item.Producttype,
             Quantity = item.Quantity,
             UnitPrice = (decimal)item.Unitprice,
-            Discount = (decimal)item.Discount
+            Discount = (decimal)item.Discount,
+            OldDiscount = (decimal)item.OldDiscount
         }));
 
         return response;

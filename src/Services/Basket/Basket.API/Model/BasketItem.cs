@@ -12,6 +12,7 @@ public class BasketItem : IValidatableObject
     public int Quantity { get; set; }
     public string PictureUrl { get; set; }
     public decimal Discount { get; set; }
+    public decimal OldDiscount { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {

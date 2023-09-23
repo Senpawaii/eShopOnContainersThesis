@@ -34,4 +34,5 @@ message BasketItemResponse {
 	int32 quantity = 8;
 	string pictureurl = 9;
 	double discount = 10;
+    double olddiscount = 11;
 }
