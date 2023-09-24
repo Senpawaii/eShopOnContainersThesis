@@ -3,6 +3,7 @@ using Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.HttpHandler
 using Microsoft.eShopOnContainers.Services.Basket.API.Middleware;
 using Basket.API.DependencyServices;
 using Basket.API.Infrastructure.RedisInterceptors;
+using Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.Interceptors;
 
 namespace Microsoft.eShopOnContainers.Services.Basket.API;
 public class Startup
@@ -157,7 +158,7 @@ public class Startup
             services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<TCCHttpInjector>();
             services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<TCCHttpInjector>();
 
-            services.AddTransient<IRedisDatabaseInterceptor, IRedisDatabaseInterceptor>();
+            services.AddTransient<IRedisDatabaseInterceptor, RedisDatabaseInterceptor>();
         } else {
             services.AddHttpClient<ICatalogService, CatalogService>();
             services.AddHttpClient<IDiscountService, DiscountService>();
