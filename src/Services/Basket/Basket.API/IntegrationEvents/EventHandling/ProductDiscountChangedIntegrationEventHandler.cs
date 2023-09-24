@@ -40,15 +40,15 @@ public class ProductDiscountChangedIntegrationEventHandler : IIntegrationEventHa
 
             foreach (var item in itemsToUpdate)
             {
-                if (item.Discount == oldDiscount)
-                {
+                //if (item.Discount == oldDiscount)
+                //{
                     var originalDiscount = item.Discount;
                     item.Discount = newDiscount;
                     item.OldDiscount = originalDiscount;
-                }
-                else {
-                    _logger.LogInformation($"Product current discount {item.Discount} doesn't match received old discount {oldDiscount}.");
-                }
+                //}
+                //else {
+                    //_logger.LogInformation($"Product current discount {item.Discount} doesn't match received old discount {oldDiscount}.");
+                //}
             }
             await _repository.UpdateBasketAsync(basket);
         }

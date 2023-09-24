@@ -40,15 +40,15 @@ public class ProductPriceChangedIntegrationEventHandler : IIntegrationEventHandl
 
             foreach (var item in itemsToUpdate)
             {
-                if (item.UnitPrice == oldPrice)
-                {
+                //if (item.UnitPrice == oldPrice)
+                //{
                     var originalPrice = item.UnitPrice;
                     item.UnitPrice = newPrice;
                     item.OldUnitPrice = originalPrice;
-                } 
-                else {
-                    _logger.LogInformation($"Product current price {item.UnitPrice} doesn't match received old price {oldPrice}.");
-                }
+                //} 
+                //else {
+                //    _logger.LogInformation($"Product current price {item.UnitPrice} doesn't match received old price {oldPrice}.");
+                //}
             }
             await _repository.UpdateBasketAsync(basket);
         }
