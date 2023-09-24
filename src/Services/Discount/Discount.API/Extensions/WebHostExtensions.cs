@@ -75,7 +75,11 @@ public static class WebHostExtensions
             if (!appliedMigrations.Contains("20161103152832_Initial")) {
                 context.Database.GetService<IMigrator>().Migrate("20161103152832_Initial");
                 context.Database.GetService<IMigrator>().Migrate("20161103153420_UpdateTableNames");
-                
+                context.Database.GetService<IMigrator>().Migrate("20230923183700_AddEventTable");
+                context.Database.GetService<IMigrator>().Migrate("20230923183701_RefactoringToIntegrationEventLog");
+                context.Database.GetService<IMigrator>().Migrate("20230923183702_RefactoringEventBusNamespaces");
+                context.Database.GetService<IMigrator>().Migrate("20230923183703_RemoveIntegrationEventLogs");
+
                 var settings = services.GetService<IOptions<DiscountSettings>>();
                 var thesisWrappers = settings.Value.ThesisWrapperEnabled;
                 if (thesisWrappers) {

@@ -1,15 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore.Migrations;
 
-namespace Discount.API.Infrastructure.Migrations
-{
-    public partial class AddEventTable : Migration
-    {
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
+namespace Discount.API.Infrastructure.Migrations {
+    public partial class AddEventTable : Migration {
+        protected override void Up(MigrationBuilder migrationBuilder) {
             migrationBuilder.CreateTable(
                 name: "IntegrationEvent",
-                columns: table => new
-                {
+                columns: table => new {
                     EventId = table.Column<Guid>(nullable: false),
                     Content = table.Column<string>(nullable: false),
                     CreationTime = table.Column<DateTime>(nullable: false),
@@ -17,14 +13,12 @@ namespace Discount.API.Infrastructure.Migrations
                     State = table.Column<int>(nullable: false),
                     TimesSent = table.Column<int>(nullable: false)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_IntegrationEvent", x => x.EventId);
                 });
         }
 
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
+        protected override void Down(MigrationBuilder migrationBuilder) {
             migrationBuilder.DropTable(
                 name: "IntegrationEvent");
         }
