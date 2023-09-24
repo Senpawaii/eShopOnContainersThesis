@@ -8,7 +8,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 namespace Discount.API.Infrastructure.Migrations
 {
     [DbContext(typeof(DiscountContext))]
-    [Migration("20170322124244_RemoveIntegrationEventLogs")]
+    [Migration("20230923183703_RemoveIntegrationEventLogs")]
     partial class RemoveIntegrationEventLogs
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder) {

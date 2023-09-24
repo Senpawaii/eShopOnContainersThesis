@@ -9,7 +9,7 @@ using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Events;
 namespace Discount.API.Infrastructure.Migrations
 {
     [DbContext(typeof(DiscountContext))]
-    [Migration("20170316120022_RefactoringEventBusNamespaces")]
+    [Migration("20230923183702_RefactoringEventBusNamespaces")]
     partial class RefactoringEventBusNamespaces
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

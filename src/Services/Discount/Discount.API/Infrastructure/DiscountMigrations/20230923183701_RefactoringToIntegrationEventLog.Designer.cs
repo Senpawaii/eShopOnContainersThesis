@@ -8,7 +8,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 namespace Discount.API.Infrastructure.Migrations
 {
     [DbContext(typeof(DiscountContext))]
-    [Migration("20170316012921_RefactoringToIntegrationEventLog")]
+    [Migration("20230923183701_RefactoringToIntegrationEventLog")]
     partial class RefactoringToIntegrationEventLog
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
