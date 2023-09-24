@@ -49,10 +49,13 @@ namespace Basket.API.DependencyServices {
             if (updatePriceTask != null) {
                 _logger.LogInformation($"Waiting for Price Update Task to complete...");
                 await updatePriceTask;
+                _logger.LogInformation($"Price Update Task completed!");
+
             }
             if (updateDiscountTask != null) {
                 _logger.LogInformation($"Waiting for Discount Update Task to complete...");
                 await updateDiscountTask;
+                _logger.LogInformation($"Discount Update Task completed!");
             }
         }
 
