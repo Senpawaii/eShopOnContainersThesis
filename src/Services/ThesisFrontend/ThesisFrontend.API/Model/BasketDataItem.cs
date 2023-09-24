@@ -18,4 +18,6 @@ public class BasketDataItem {
     public string pictureUrl { get; set; }
     
     public decimal discount { get; set; }
+
+    public decimal oldDiscount { get; set; }
 }
