@@ -1,8 +1,4 @@
-﻿using Basket.API.DependencyServices;
-using Microsoft.eShopOnContainers.Services.Basket.API.DependencyServices;
-using Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.Interceptors;
-
-namespace Microsoft.eShopOnContainers.Services.Basket.API.IntegrationEvents.EventHandling;
+﻿namespace Microsoft.eShopOnContainers.Services.Basket.API.IntegrationEvents.EventHandling;
 
 public class ProductPriceChangedIntegrationEventHandler : IIntegrationEventHandler<ProductPriceChangedIntegrationEvent>
 {
