@@ -94,7 +94,7 @@ public class BasketService : Basket.BasketBase
             Quantity = item.Quantity,
             UnitPrice = (decimal)item.Unitprice,
             Discount = (decimal)item.Discount,
-            OldDiscount = (decimal)item.OldDiscount
+            OldDiscount = (decimal)item.Olddiscount
         }));
 
         return response;
