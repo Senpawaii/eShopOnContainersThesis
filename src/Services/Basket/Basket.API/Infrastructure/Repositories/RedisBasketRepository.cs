@@ -66,7 +66,7 @@ public class RedisBasketRepository : IBasketRepository
             return null;
         }
 
-        // _logger.LogInformation("Basket item persisted succesfully.");
+        _logger.LogInformation("Basket item persisted succesfully.");
 
         return await GetBasketAsync(basket.BuyerId);
     }

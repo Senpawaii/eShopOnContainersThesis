@@ -17,7 +17,7 @@ public class ProductDiscountChangedIntegrationEventHandler : IIntegrationEventHa
     {
         using (LogContext.PushProperty("IntegrationEventContext", $"{@event.Id}-{Program.AppName}"))
         {
-            _logger.LogInformation("----- Handling integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
+            _logger.LogInformation("----- Handling original integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
 
             var userIds = _repository.GetUsers();
 
@@ -45,6 +45,9 @@ public class ProductDiscountChangedIntegrationEventHandler : IIntegrationEventHa
                     var originalDiscount = item.Discount;
                     item.Discount = newDiscount;
                     item.OldDiscount = originalDiscount;
+                }
+                else {
+                    _logger.LogInformation($"Product current discount {item.Discount} doesn't match received old discount {oldDiscount}.");
                 }
             }
             await _repository.UpdateBasketAsync(basket);
