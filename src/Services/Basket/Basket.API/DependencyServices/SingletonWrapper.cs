@@ -6,9 +6,11 @@ namespace Basket.API.DependencyServices {
     public class SingletonWrapper : ISingletonWrapper {
         ConcurrentDictionary<string, PairedEvents> updateEvents = new ConcurrentDictionary<string, PairedEvents>();
         IServiceScopeFactory _serviceScopeFactory;
+        ILogger<SingletonWrapper> _logger;
 
-        public SingletonWrapper(IServiceScopeFactory serviceScope) { 
+        public SingletonWrapper(IServiceScopeFactory serviceScope, ILogger<SingletonWrapper> logger) { 
             _serviceScopeFactory = serviceScope;
+            _logger = logger;
         }
 
         public void StoreDiscountUpdateEvent(ProductDiscountChangedIntegrationEvent @event, string clientID) {
@@ -45,9 +47,11 @@ namespace Basket.API.DependencyServices {
 
             // TODO: Create N threads (in this case 2) to update the database in parallel
             if (updatePriceTask != null) {
+                _logger.LogInformation($"Waiting for Price Update Task to complete...");
                 await updatePriceTask;
             }
             if (updateDiscountTask != null) {
+                _logger.LogInformation($"Waiting for Discount Update Task to complete...");
                 await updateDiscountTask;
             }
         }

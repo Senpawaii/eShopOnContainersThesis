@@ -35,9 +35,6 @@ namespace Basket.API.IntegrationEvents.EventHandling {
                 // Send Tokens
                 await _coordinator.SendEventTokens();
 
-                //if(confirmed && _wrapper.isPairedEventReady(clientID)) {
-                //    await _wrapper.PersistEvents(clientID);
-                //}
             }
         }
 
