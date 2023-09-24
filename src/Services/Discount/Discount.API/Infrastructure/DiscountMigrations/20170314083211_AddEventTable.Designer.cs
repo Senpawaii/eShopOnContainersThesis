@@ -7,15 +7,12 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 
 namespace Discount.API.Infrastructure.Migrations {
     [DbContext(typeof(DiscountContext))]
-    [Migration("20230923183700_AddEventTable")]
+    [Migration("20170314083211_AddEventTable")]
     partial class AddEventTable {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
             modelBuilder
                 .HasAnnotation("ProductVersion", "1.1.0-rtm-22752")
-                ////.HasAnnotation("SqlServer:Sequence:.catalog_brand_hilo", "'catalog_brand_hilo', '', '1', '10', '', '', 'Int64', 'False'")
-                //.HasAnnotation("SqlServer:Sequence:.catalog_hilo", "'catalog_hilo', '', '1', '10', '', '', 'Int64', 'False'")
-                //.HasAnnotation("SqlServer:Sequence:.catalog_type_hilo", "'catalog_type_hilo', '', '1', '10', '', '', 'Int64', 'False'")
                 .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
 
             modelBuilder.Entity("Microsoft.eShopOnContainers.Services.Discount.API.Model.DiscountItem", b =>

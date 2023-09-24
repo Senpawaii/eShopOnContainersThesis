@@ -8,11 +8,10 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 namespace Discount.API.Infrastructure.Migrations
 {
     [DbContext(typeof(DiscountContext))]
-    [Migration("20230923183701_RefactoringToIntegrationEventLog")]
-    partial class RefactoringToIntegrationEventLog
+    [Migration("20170322124244_RemoveIntegrationEventLogs")]
+    partial class RemoveIntegrationEventLogs
     {
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
-        {
+        protected override void BuildTargetModel(ModelBuilder modelBuilder) {
             modelBuilder
                 .HasAnnotation("ProductVersion", "1.1.1")
                 //.HasAnnotation("SqlServer:Sequence:.catalog_brand_hilo", "'catalog_brand_hilo', '', '1', '10', '', '', 'Int64', 'False'")
@@ -38,29 +37,6 @@ namespace Discount.API.Infrastructure.Migrations
 
                 b.ToTable("Discount");
             });
-
-            modelBuilder.Entity("Microsoft.eShopOnContainers.Services.Common.Infrastructure.Data.IntegrationEventLogEntry", b =>
-                {
-                    b.Property<Guid>("EventId")
-                        .ValueGeneratedOnAdd();
-
-                    b.Property<string>("Content")
-                        .IsRequired();
-
-                    b.Property<DateTime>("CreationTime");
-
-                    b.Property<string>("EventTypeName")
-                        .IsRequired();
-
-                    b.Property<int>("State");
-
-                    b.Property<int>("TimesSent");
-
-                    b.HasKey("EventId");
-
-                    b.ToTable("IntegrationEventLog");
-                });
-
         }
     }
 }
