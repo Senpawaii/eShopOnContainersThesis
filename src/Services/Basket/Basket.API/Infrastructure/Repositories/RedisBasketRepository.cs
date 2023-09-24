@@ -1,4 +1,6 @@
-﻿namespace Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.Repositories;
+﻿using Basket.API.Infrastructure.RedisInterceptors;
+
+namespace Microsoft.eShopOnContainers.Services.Basket.API.Infrastructure.Repositories;
 
 public class RedisBasketRepository : IBasketRepository
 {
@@ -7,14 +9,19 @@ public class RedisBasketRepository : IBasketRepository
     private readonly IDatabase _database;
     private readonly ICatalogService _catalogService;
     private readonly IDiscountService _discountService;
+    private readonly IRedisDatabaseInterceptor _redisDatabaseInterceptor;
+    private readonly IOptions<BasketSettings> _settings;
 
-    public RedisBasketRepository(ILoggerFactory loggerFactory, ConnectionMultiplexer redis, ICatalogService catalogSvc, IDiscountService discountSvc)
+    public RedisBasketRepository(ILoggerFactory loggerFactory, ConnectionMultiplexer redis, ICatalogService catalogSvc, IDiscountService discountSvc,
+        IRedisDatabaseInterceptor redisDatabaseInterceptor, IOptions<BasketSettings> settings)
     {
         _logger = loggerFactory.CreateLogger<RedisBasketRepository>();
         _redis = redis;
         _database = redis.GetDatabase();
         _catalogService = catalogSvc;
         _discountService = discountSvc;
+        _redisDatabaseInterceptor = redisDatabaseInterceptor;
+        _settings = settings;
     }
 
     public async Task<bool> DeleteBasketAsync(string id)
@@ -58,7 +65,14 @@ public class RedisBasketRepository : IBasketRepository
 
     public async Task<CustomerBasket> UpdateBasketAsync(CustomerBasket basket)
     {
-        var created = await _database.StringSetAsync(basket.BuyerId, JsonSerializer.Serialize(basket));
+        bool created;
+
+        if(_settings.Value.ThesisWrapperEnabled) {
+            created = await _redisDatabaseInterceptor.StringSetAsync(basket.BuyerId, JsonSerializer.Serialize(basket));
+        } 
+        else {
+            created = await _database.StringSetAsync(basket.BuyerId, JsonSerializer.Serialize(basket));
+        }
 
         if (!created)
         {

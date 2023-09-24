@@ -31,7 +31,7 @@ namespace Basket.API.DependencyServices {
 
         public async Task ConfirmFunctionality(string clientID) {
             Task updatePriceTask = null;
-            Task updateDiscountTask = null;
+            //Task updateDiscountTask = null;
 
             lock (updateEvents[clientID]) {
                 updateEvents.TryGetValue(clientID, out PairedEvents pairEvs);
@@ -40,9 +40,11 @@ namespace Basket.API.DependencyServices {
                 // We have both events and the functionality has been confirmed, so we can update the Redis Database by calling the original handlers    
                 using var handlerScope = _serviceScopeFactory.CreateScope();
                 var originalPriceEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductPriceChangedIntegrationEventHandler>();
-                var originalDiscountEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductDiscountChangedIntegrationEventHandler>();
                 updatePriceTask = originalPriceEventHandler.Handle(updateEvents[clientID].PriceEvent);
-                updateDiscountTask = originalDiscountEventHandler.Handle(updateEvents[clientID].DiscountEvent);
+
+                // We drop the discount event, as we will fetch it from the wrapper once we intercept the call to the Basket Update on Redis
+                //var originalDiscountEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductDiscountChangedIntegrationEventHandler>();
+                //updateDiscountTask = originalDiscountEventHandler.Handle(updateEvents[clientID].DiscountEvent);
             }
 
             // TODO: Create N threads (in this case 2) to update the database in parallel
@@ -52,21 +54,19 @@ namespace Basket.API.DependencyServices {
                 _logger.LogInformation($"Price Update Task completed!");
 
             }
-            if (updateDiscountTask != null) {
-                _logger.LogInformation($"Waiting for Discount Update Task to complete...");
-                await updateDiscountTask;
-                _logger.LogInformation($"Discount Update Task completed!");
-            }
+            //if (updateDiscountTask != null) {
+            //    _logger.LogInformation($"Waiting for Discount Update Task to complete...");
+            //    await updateDiscountTask;
+            //    _logger.LogInformation($"Discount Update Task completed!");
+            //}
         }
 
         public bool isPairedEventReady(string clientID) {
             return updateEvents[clientID].PriceEvent != null && updateEvents[clientID].ConfirmedFunctionality; // TODO: Add Discount Event verification
         }
-    }
 
-    internal class PairedEvents {
-        public ProductPriceChangedIntegrationEvent PriceEvent { get; set; }
-        public ProductDiscountChangedIntegrationEvent DiscountEvent { get; set; }
-        public bool ConfirmedFunctionality { get; set;}
+        public PairedEvents GetEvents(string clientID) {
+            return updateEvents[clientID];
+        }
     }
 }

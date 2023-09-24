@@ -6,5 +6,6 @@ namespace Basket.API.DependencyServices {
         public void StoreDiscountUpdateEvent(ProductDiscountChangedIntegrationEvent @event, string clientID);
         public Task ConfirmFunctionality(string clientID);
         public bool isPairedEventReady(string clientID);
-        }
+        public PairedEvents GetEvents(string clientID);
     }
+}
