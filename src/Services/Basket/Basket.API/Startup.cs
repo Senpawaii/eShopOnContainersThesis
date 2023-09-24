@@ -311,8 +311,10 @@ public class Startup
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services.AddTransient<ClientIDWrappedProductPriceChangedIntegrationEventHandler>();
+            services.AddTransient<ClientIDWrappedProductDiscountChangedIntegrationEventHandler>();
         }
         services.AddTransient<ProductPriceChangedIntegrationEventHandler>();
+        services.AddTransient<ProductDiscountChangedIntegrationEventHandler>();
         services.AddTransient<OrderStartedIntegrationEventHandler>();
     }
 
@@ -323,9 +325,11 @@ public class Startup
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             eventBus.Subscribe<ClientIDWrappedProductPriceChangedIntegrationEvent, ClientIDWrappedProductPriceChangedIntegrationEventHandler>();
+            eventBus.Subscribe<ClientIDWrappedProductDiscountChangedIntegrationEvent, ClientIDWrappedProductDiscountChangedIntegrationEventHandler>();
             Console.WriteLine("\n\n\n=============== ThesisWrapperEnabled == True =============== \n\n\n");
         } else {
             eventBus.Subscribe<ProductPriceChangedIntegrationEvent, ProductPriceChangedIntegrationEventHandler>();
+            eventBus.Subscribe<ProductDiscountChangedIntegrationEvent, ProductDiscountChangedIntegrationEventHandler>();
             Console.WriteLine("\n\n\n=============== ThesisWrapperEnabled == False =============== \n\n\n");
         }
         eventBus.Subscribe<OrderStartedIntegrationEvent, OrderStartedIntegrationEventHandler>();

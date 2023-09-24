@@ -11,14 +11,15 @@ namespace Basket.API.DependencyServices {
             _serviceScopeFactory = serviceScope;
         }
 
-        public Task UpdateBasketItemDiscountAsync(CustomerBasket basket, string clientID) {
-            throw new NotImplementedException();
+        public void StoreDiscountUpdateEvent(ProductDiscountChangedIntegrationEvent @event, string clientID) {
+            updateEvents.TryAdd(clientID, new PairedEvents() { PriceEvent = null, ConfirmedFunctionality = false });
+            lock (updateEvents[clientID]) {
+                // Add the event to the updateEvents dictionary
+                updateEvents[clientID].DiscountEvent = @event;
+            }
         }
 
         public void StorePriceUpdateEvent(ProductPriceChangedIntegrationEvent @event, string clientID) {
-            //Task updatePriceTask = null;
-            //Task updateDiscountTask = null;
-
             updateEvents.TryAdd(clientID, new PairedEvents() { PriceEvent = null, ConfirmedFunctionality = false });
             lock (updateEvents[clientID]) {
                 // Add the event to the updateEvents dictionary
@@ -37,9 +38,9 @@ namespace Basket.API.DependencyServices {
                 // We have both events and the functionality has been confirmed, so we can update the Redis Database by calling the original handlers    
                 using var handlerScope = _serviceScopeFactory.CreateScope();
                 var originalPriceEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductPriceChangedIntegrationEventHandler>();
-                //var originalDiscountEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductDiscountChangedIntegrationEventHandler>();
+                var originalDiscountEventHandler = handlerScope.ServiceProvider.GetRequiredService<ProductDiscountChangedIntegrationEventHandler>();
                 updatePriceTask = originalPriceEventHandler.Handle(updateEvents[clientID].PriceEvent);
-                //updateDiscountTask = originalDiscountEventHandler.Handle(updateEvents[clientID].DiscountEvent);
+                updateDiscountTask = originalDiscountEventHandler.Handle(updateEvents[clientID].DiscountEvent);
             }
 
             // TODO: Create N threads (in this case 2) to update the database in parallel
@@ -58,7 +59,7 @@ namespace Basket.API.DependencyServices {
 
     internal class PairedEvents {
         public ProductPriceChangedIntegrationEvent PriceEvent { get; set; }
-        //public ProductDiscountChangedIntegrationEvent DiscountEvent { get; set; }
+        public ProductDiscountChangedIntegrationEvent DiscountEvent { get; set; }
         public bool ConfirmedFunctionality { get; set;}
     }
 }

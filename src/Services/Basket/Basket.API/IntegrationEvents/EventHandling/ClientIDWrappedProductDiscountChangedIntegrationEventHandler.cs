@@ -1,0 +1,42 @@
+﻿using Basket.API.DependencyServices;
+using Microsoft.eShopOnContainers.Services.Basket.API.DependencyServices;
+using System.Threading;
+
+namespace Basket.API.IntegrationEvents.EventHandling {
+    public class ClientIDWrappedProductDiscountChangedIntegrationEventHandler : IIntegrationEventHandler<ClientIDWrappedProductDiscountChangedIntegrationEvent> {
+
+        private readonly ILogger<ClientIDWrappedProductDiscountChangedIntegrationEventHandler> _logger;
+        // private readonly Func<ProductPriceChangedIntegrationEventHandler, Task> originalHandler;
+        private readonly ISingletonWrapper _wrapper;
+        private readonly ICoordinatorService _coordinator;
+        private readonly IScopedMetadata _metadata;
+
+        public ClientIDWrappedProductDiscountChangedIntegrationEventHandler(ILogger<ClientIDWrappedProductDiscountChangedIntegrationEventHandler> logger, 
+            ISingletonWrapper wrapper, ICoordinatorService coordinator, IScopedMetadata metadata) {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            // this.originalHandler = originalHandler;
+            _wrapper = wrapper ?? throw new ArgumentNullException(nameof(wrapper));
+            _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
+            _metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
+        }
+
+        public async Task Handle(ClientIDWrappedProductDiscountChangedIntegrationEvent @event) {
+            using (LogContext.PushProperty("IntegrationEventContext", $"{@event.Id}-{Program.AppName}")) {
+                _logger.LogInformation("----- Handling integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
+
+                string clientID = @event.ClientID;
+                int tokens = @event.Tokens;
+                _metadata.Tokens.Value = tokens;
+                _metadata.ClientID.Value = clientID;
+
+                ProductDiscountChangedIntegrationEvent @innerEvent = @event.ProductDiscountChangedIntegrationEvent;
+                _wrapper.StoreDiscountUpdateEvent(@innerEvent, clientID);
+
+                // Send Tokens
+                await _coordinator.SendEventTokens();
+
+            }
+        }
+
+    }
+}
