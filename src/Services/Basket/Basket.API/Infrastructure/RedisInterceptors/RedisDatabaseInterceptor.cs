@@ -24,13 +24,12 @@ public class RedisDatabaseInterceptor : IRedisDatabaseInterceptor {
         PairedEvents events = _wrapper.GetEvents(clientID);
         int productID = events.PriceEvent.ProductId;
         decimal newPrice = events.PriceEvent.NewPrice;
+        decimal oldPrice = events.PriceEvent.OldPrice;
         decimal newDiscount = events.DiscountEvent.NewDiscount;
+        decimal oldDiscount = events.DiscountEvent.OldDiscount;
         CustomerBasket basket = JsonSerializer.Deserialize<CustomerBasket>(jsonBasketSerialized);
         
         basket.Items.Where(item => item.ProductId == productID).ToList().ForEach(item => {
-            decimal oldPrice = item.UnitPrice;
-            decimal oldDiscount = item.Discount;
-            
             item.UnitPrice = newPrice;
             item.Discount = newDiscount;
 
