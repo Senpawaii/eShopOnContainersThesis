@@ -7,26 +7,14 @@ namespace Microsoft.eShopOnContainers.Services.Basket.API.IntegrationEvents.Even
 public class ProductDiscountChangedIntegrationEventHandler : IIntegrationEventHandler<ProductDiscountChangedIntegrationEvent>
 {
     private readonly ILogger<ProductDiscountChangedIntegrationEventHandler> _logger;
-    private readonly ILoggerFactory _loggerFactory;
     private readonly IBasketRepository _repository;
-    private readonly RedisDatabaseInterceptor _redisDatabaseInterceptor;
-    private readonly ISingletonWrapper _wrapper;
-    private readonly IScopedMetadata _scope_metadata;
 
     public ProductDiscountChangedIntegrationEventHandler(
         ILogger<ProductDiscountChangedIntegrationEventHandler> logger,
-        IBasketRepository repository,
-        ISingletonWrapper wrapper,
-        ILoggerFactory loggerFactory,
-        IScopedMetadata scopeMetadata)
+        IBasketRepository repository)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-        _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
-        _wrapper = wrapper ?? throw new ArgumentNullException(nameof(wrapper));
-        ILogger<RedisDatabaseInterceptor> redisLogger = loggerFactory.CreateLogger<RedisDatabaseInterceptor>();
-        _scope_metadata = scopeMetadata ?? throw new ArgumentNullException(nameof(scopeMetadata));
-        _redisDatabaseInterceptor = new RedisDatabaseInterceptor(wrapper, redisLogger, scopeMetadata);
     }
 
     public async Task Handle(ProductDiscountChangedIntegrationEvent @event)
