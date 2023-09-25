@@ -34,7 +34,7 @@ public class TCCMiddleware {
             string currentUri = ctx.Request.GetUri().ToString();
 
             if (currentUri.Contains("confirm")) {
-                _logger.LogInformation($"Received a confirmation request from Coordinator for client {clientID}.");
+                // _logger.LogInformation($"Received a confirmation request from Coordinator for client {clientID}.");
                 // The functionality that led to the event is now confirmed
                 await _dataWrapper.ConfirmFunctionality(clientID);
             }

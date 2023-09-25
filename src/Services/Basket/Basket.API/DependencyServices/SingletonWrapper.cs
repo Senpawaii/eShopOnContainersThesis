@@ -49,9 +49,9 @@ namespace Basket.API.DependencyServices {
 
             // TODO: Create N threads (in this case 2) to update the database in parallel
             if (updatePriceTask != null) {
-                _logger.LogInformation($"Waiting for Price Update Task to complete...");
+                // _logger.LogInformation($"Waiting for Price Update Task to complete...");
                 await updatePriceTask;
-                _logger.LogInformation($"Price Update Task completed!");
+                // _logger.LogInformation($"Price Update Task completed!");
 
             }
             //if (updateDiscountTask != null) {

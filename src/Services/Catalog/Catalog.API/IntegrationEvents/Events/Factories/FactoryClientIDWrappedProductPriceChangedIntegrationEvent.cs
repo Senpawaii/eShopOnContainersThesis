@@ -15,7 +15,7 @@ namespace Catalog.API.IntegrationEvents.Events.Factories {
             string clientID = _scopedMetadata.ClientID;
             int sessionTokens = _scopedMetadata.Tokens;
 
-            _logger.LogInformation("Event Factory | ClientID: {0} - Tokens: {1}", clientID, sessionTokens);
+            // _logger.LogInformation("Event Factory | ClientID: {0} - Tokens: {1}", clientID, sessionTokens);
 
             // Split the tokens in half
             int partialTokensToSend = sessionTokens / 2;

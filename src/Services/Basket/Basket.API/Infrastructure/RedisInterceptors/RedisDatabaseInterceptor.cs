@@ -42,7 +42,7 @@ public class RedisDatabaseInterceptor : IRedisDatabaseInterceptor {
             item.OldUnitPrice = oldPrice;
             item.OldDiscount = oldDiscount;
 
-            _logger.LogInformation($"ClientID: {clientID} - ProductID: {productID} - OldPrice: {oldPrice} - NewPrice: {newPrice} - OldDiscount: {oldDiscount} - NewDiscount: {newDiscount}.");
+            // _logger.LogInformation($"ClientID: {clientID} - ProductID: {productID} - OldPrice: {oldPrice} - NewPrice: {newPrice} - OldDiscount: {oldDiscount} - NewDiscount: {newDiscount}.");
         });
 
         var created = await _database.StringSetAsync(buyerID, JsonSerializer.Serialize(basket));

@@ -17,7 +17,7 @@ public class ProductDiscountChangedIntegrationEventHandler : IIntegrationEventHa
     {
         using (LogContext.PushProperty("IntegrationEventContext", $"{@event.Id}-{Program.AppName}"))
         {
-            _logger.LogInformation("----- Handling original integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
+            // _logger.LogInformation("----- Handling original integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
 
             var userIds = _repository.GetUsers();
 
@@ -36,7 +36,7 @@ public class ProductDiscountChangedIntegrationEventHandler : IIntegrationEventHa
 
         if (itemsToUpdate != null)
         {
-            _logger.LogInformation("----- ProductDiscountChangedIntegrationEventHandler - Updating items in basket for user: {BuyerId} ({@Items})", basket.BuyerId, itemsToUpdate);
+            // _logger.LogInformation("----- ProductDiscountChangedIntegrationEventHandler - Updating items in basket for user: {BuyerId} ({@Items})", basket.BuyerId, itemsToUpdate);
 
             foreach (var item in itemsToUpdate)
             {

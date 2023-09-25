@@ -41,7 +41,7 @@ public class CoordinatorController : ControllerBase {
     public async Task<ActionResult<int>> ReceiveEventTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "") {
         double.TryParse(tokens, out var numTokens);
 
-        _logger.LogInformation($"Event Service: Received {numTokens} tokens from {serviceName} for client {clientID}");
+        // _logger.LogInformation($"Event Service: Received {numTokens} tokens from {serviceName} for client {clientID}");
 
         _functionalityService.IncreaseTokens(clientID, numTokens);
         _functionalityService.AddNewServiceSentEventTokens(clientID, serviceName);
@@ -74,7 +74,7 @@ public class CoordinatorController : ControllerBase {
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     public async Task<ActionResult<int>> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
         double.TryParse(tokens, out var numTokens);
-        _logger.LogInformation($"HTTP Service: Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
+        // _logger.LogInformation($"HTTP Service: Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
         // Incremement the Tokens
         _functionalityService.IncreaseTokens(clientID, numTokens);
 
@@ -118,7 +118,7 @@ public class CoordinatorController : ControllerBase {
         // Parallelize the commit process
         List<Task> taskList = new List<Task>();
         foreach (string address in addresses) {
-            _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
+            // _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
             Task task = null;
             switch(address) {
                 case "CatalogService":
@@ -147,7 +147,7 @@ public class CoordinatorController : ControllerBase {
         // Parallelize the commit process
         List<Task> taskList = new List<Task>();
         foreach (string address in addresses) {
-            _logger.LogInformation($"Issuing event confirmation to {address} for client {clientID}");
+            // _logger.LogInformation($"Issuing event confirmation to {address} for client {clientID}");
             Task task = null;
             switch(address) {
                 case "BasketService":
@@ -174,7 +174,7 @@ public class CoordinatorController : ControllerBase {
 
         var tasks = new List<Task<long>>();
         foreach (string service in services) {
-            _logger.LogInformation($"Issuing proposal request to {service} for client {clientID}");
+            // _logger.LogInformation($"Issuing proposal request to {service} for client {clientID}");
             switch (service) {
                 case "CatalogService":
                     tasks.Add(_catalogService.GetProposal(clientID));

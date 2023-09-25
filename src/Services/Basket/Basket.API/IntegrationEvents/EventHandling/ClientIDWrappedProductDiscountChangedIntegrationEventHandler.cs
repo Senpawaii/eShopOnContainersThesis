@@ -22,7 +22,7 @@ namespace Basket.API.IntegrationEvents.EventHandling {
 
         public async Task Handle(ClientIDWrappedProductDiscountChangedIntegrationEvent @event) {
             using (LogContext.PushProperty("IntegrationEventContext", $"{@event.Id}-{Program.AppName}")) {
-                _logger.LogInformation("----- Handling Wrapped integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
+                // _logger.LogInformation("----- Handling Wrapped integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
 
                 string clientID = @event.ClientID;
                 int tokens = @event.Tokens;
