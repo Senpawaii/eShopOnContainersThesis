@@ -139,30 +139,32 @@ public class CoordinatorController : ControllerBase {
     }
 
     private async ValueTask IssueCommitEventBasedServices(string clientID) {
-        // Get all services' addresses involved in the functionality
-        List<string> addresses = _functionalityService.ServicesEventTokensProposed[clientID]
-                                    .Distinct()
-                                    .ToList();
+        if(_functionalityService.ServicesEventTokensProposed.ContainsKey(clientID) && _functionalityService.ServicesEventTokensProposed[clientID].Count > 0) {
+            // Get all services' addresses involved in the functionality
+            List<string> addresses = _functionalityService.ServicesEventTokensProposed[clientID]
+                                        .Distinct()
+                                        .ToList();
 
-        // Parallelize the commit process
-        List<Task> taskList = new List<Task>();
-        foreach (string address in addresses) {
-            // _logger.LogInformation($"Issuing event confirmation to {address} for client {clientID}");
-            Task task = null;
-            switch(address) {
-                case "BasketService":
-                    // Implement BasketService, IBasketService, and declare the IBasketService object in this class
-                    task = _basketService.IssueCommitEventBased(clientID);
-                    break;
+            // Parallelize the commit process
+            List<Task> taskList = new List<Task>();
+            foreach (string address in addresses) {
+                // _logger.LogInformation($"Issuing event confirmation to {address} for client {clientID}");
+                Task task = null;
+                switch (address) {
+                    case "BasketService":
+                        // Implement BasketService, IBasketService, and declare the IBasketService object in this class
+                        task = _basketService.IssueCommitEventBased(clientID);
+                        break;
+                }
+                taskList.Add(task);
             }
-            taskList.Add(task);
+
+            // Issue commit to the ThesisFrontendService: this allows the service to return the functionality results to the client 
+            taskList.Add(_thesisFrontendService.IssueCommit(clientID));
+
+            // Wait for all the services to commit
+            await Task.WhenAll(taskList);
         }
-
-        // Issue commit to the ThesisFrontendService: this allows the service to return the functionality results to the client 
-        taskList.Add(_thesisFrontendService.IssueCommit(clientID));
-
-        // Wait for all the services to commit
-        await Task.WhenAll(taskList);
 
         // Clear all the data structures from the functionality
         _functionalityService.ClearFunctionality(clientID);
