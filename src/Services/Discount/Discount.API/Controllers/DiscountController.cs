@@ -136,14 +136,20 @@ public class DiscountController : ControllerBase {
         _discountContext.Discount.Update(discountItem);
 
         if(raiseProductDiscountChangedEvent) { // Save product's data and publish integration event through the Event Bus if price has changed
-            // Create Wrapped Integration Event to be published through the Event Bus
-            var discountChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductDiscountChangedIntegrationEvent(discountItem.Id, discountItem.DiscountValue, oldDiscount);
 
-            // Achieving atomicity between original Discountdatbase operation and the IntegrationEventLog thanks to a local transaction
-            await _discountIntegrationEventService.SaveEventAndDiscountContextChangesAsync(discountChangedEvent);
-            // await _discountContext.SaveChangesAsync();
-            // Publish through the Event Bus and mark the saved event as published
-            await _discountIntegrationEventService.PublishThroughEventBusAsync(discountChangedEvent);
+            if (_settings.PublishEventEnabled) {
+                // Create Wrapped Integration Event to be published through the Event Bus
+                var discountChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductDiscountChangedIntegrationEvent(discountItem.Id, discountItem.DiscountValue, oldDiscount);
+
+                // Achieving atomicity between original Discountdatbase operation and the IntegrationEventLog thanks to a local transaction
+                await _discountIntegrationEventService.SaveEventAndDiscountContextChangesAsync(discountChangedEvent);
+                
+                // Publish through the Event Bus and mark the saved event as published
+                await _discountIntegrationEventService.PublishThroughEventBusAsync(discountChangedEvent);
+            }
+            else {
+                await _discountContext.SaveChangesAsync();
+            }
         } 
         else { // Just save the updated product because the Product's Price hasn't changed.
             _logger.LogInformation($"The item: {itemName} {itemBrand} {itemType} has the same discount value: {discountToUpdate.DiscountValue} as the previous discount value: {oldDiscount}");

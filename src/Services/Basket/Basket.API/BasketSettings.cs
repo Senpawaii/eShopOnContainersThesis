@@ -7,7 +7,7 @@ public class BasketSettings
     public string DiscountUrl { get; set; }
     public string CoordinatorUrl { get; set; }
     public bool ThesisWrapperEnabled { get; set; }
-    public bool EventBasedEnabled { get; set; }
+    public bool PublishEventEnabled { get; set; }
 
 }
 
