@@ -75,13 +75,13 @@ public class DiscountService : IDiscountService {
 
                 return response.StatusCode;
             }
-        } catch (Exception ex) {
+        } catch (HttpRequestException ex) {
             _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}, uri={_remoteDiscountServiceBaseUrl}discounts");
             return HttpStatusCode.InternalServerError;
         } catch (TaskCanceledException) {
             // Handle the timeout exception here, or log it
             Console.WriteLine("HTTP request was canceled due to a timeout.");
-            return null;
+            return HttpStatusCode.InternalServerError;
         }
     }
 }

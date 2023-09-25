@@ -141,7 +141,7 @@ public class CatalogService : ICatalogService {
         } catch (TaskCanceledException) {
             // Handle the timeout exception here, or log it
             Console.WriteLine("HTTP request was canceled due to a timeout.");
-            return null;
+            return HttpStatusCode.InternalServerError;
         }
 
     }
