@@ -19,18 +19,18 @@ public class CatalogService : ICatalogService {
         _remoteCatalogServiceBaseUrl = settings.Value.CatalogUrl;
     }
 
-   //[Trace]
+    //[Trace]
     public async Task<CatalogItem> GetCatalogItemByIdAsync(int catalogItemId) {
         try {
             var uri = $"{_remoteCatalogServiceBaseUrl}items/{catalogItemId}";
 
             var response = await _httpClient.GetAsync(uri);
             if (response.StatusCode != HttpStatusCode.OK) {
-                if(response.StatusCode == HttpStatusCode.NotFound) {
+                if (response.StatusCode == HttpStatusCode.NotFound) {
                     _logger.LogError($"The catalog item with id {catalogItemId} was not found");
                     return null;
                 }
-                else if(response.StatusCode == HttpStatusCode.BadRequest) {
+                else if (response.StatusCode == HttpStatusCode.BadRequest) {
                     _logger.LogError($"The catalog item id {catalogItemId} is not valid");
                     return null;
                 }
@@ -38,17 +38,20 @@ public class CatalogService : ICatalogService {
 
             var responseString = await response.Content.ReadAsStringAsync();
 
-            if(string.IsNullOrEmpty(responseString)) {
+            if (string.IsNullOrEmpty(responseString)) {
                 _logger.LogError($"An error occurred while getting the catalog item. The response string is empty");
                 return null;
             }
             var catalogItem = JsonConvert.DeserializeObject<CatalogItem>(responseString);
 
             return catalogItem;
-        }
-        catch (HttpRequestException ex) {
+        } catch (HttpRequestException ex) {
             _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}, uri={_remoteCatalogServiceBaseUrl}items/{catalogItemId}");
             throw; // If needed, wrap the exception in a custom exception and throw it
+        } catch (TaskCanceledException) {
+            // Handle the timeout exception here, or log it
+            Console.WriteLine("HTTP request was canceled due to a timeout.");
+            return null;
         }
     }
 
@@ -76,6 +79,10 @@ public class CatalogService : ICatalogService {
         catch (HttpRequestException ex) {
             _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}");
             throw; // If needed, wrap the exception in a custom exception and throw it
+        } catch (TaskCanceledException) {
+            // Handle the timeout exception here, or log it
+            Console.WriteLine("HTTP request was canceled due to a timeout.");
+            return null;
         }
     }
 
@@ -103,6 +110,10 @@ public class CatalogService : ICatalogService {
         catch (HttpRequestException ex) {
             _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}, uri={_remoteCatalogServiceBaseUrl}catalogtypes");
             throw; // If needed, wrap the exception in a custom exception and throw it
+        } catch (TaskCanceledException) {
+            // Handle the timeout exception here, or log it
+            Console.WriteLine("HTTP request was canceled due to a timeout.");
+            return null;
         }
     }
 
@@ -127,6 +138,10 @@ public class CatalogService : ICatalogService {
         catch (HttpRequestException ex) {
             _logger.LogError($"An error occurered while making the HTTP request: {ex.Message}, uri={_remoteCatalogServiceBaseUrl}items");
             throw; // If needed, wrap the exception in a custom exception and throw it
+        } catch (TaskCanceledException) {
+            // Handle the timeout exception here, or log it
+            Console.WriteLine("HTTP request was canceled due to a timeout.");
+            return null;
         }
 
     }
