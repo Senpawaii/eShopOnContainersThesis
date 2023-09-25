@@ -1,8 +1,11 @@
 ﻿using Discount.API.IntegrationEvents.Events.Factories;
+using k8s.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.eShopOnContainers.BuildingBlocks.EventBus.Events;
 using Microsoft.eShopOnContainers.BuildingBlocks.IntegrationEventLogEF.Utilities;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Discount.API.IntegrationEvents;
+using Microsoft.eShopOnContainers.Services.Discount.API.IntegrationEvents.Events;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using Microsoft.IdentityModel.Tokens;
 
@@ -138,8 +141,16 @@ public class DiscountController : ControllerBase {
         if(raiseProductDiscountChangedEvent) { // Save product's data and publish integration event through the Event Bus if price has changed
 
             if (_settings.PublishEventEnabled) {
-                // Create Wrapped Integration Event to be published through the Event Bus
-                var discountChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductDiscountChangedIntegrationEvent(discountItem.Id, discountItem.DiscountValue, oldDiscount);
+                IntegrationEvent discountChangedEvent;
+                
+                if(_settings.ThesisWrapperEnabled) {
+                    // Create Wrapped Integration Event to be published through the Event Bus
+                    discountChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductDiscountChangedIntegrationEvent(discountItem.Id, discountItem.DiscountValue, oldDiscount);
+                }
+                else {
+                    // Create Integration Event to be published through the Event Bus
+                    discountChangedEvent = new ProductDiscountChangedIntegrationEvent(discountItem.Id, discountItem.DiscountValue, oldDiscount);
+                }
 
                 // Achieving atomicity between original Discountdatbase operation and the IntegrationEventLog thanks to a local transaction
                 await _discountIntegrationEventService.SaveEventAndDiscountContextChangesAsync(discountChangedEvent);

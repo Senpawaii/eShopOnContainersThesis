@@ -245,12 +245,20 @@ public class CatalogController : ControllerBase {
         if (raiseProductPriceChangedEvent) // Save product's data and publish integration event through the Event Bus if price has changed
         {
             if(_settings.PublishEventEnabled) {
-                //Create Wrapped Integration Event to be published through the Event Bus
-                var priceChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductPriceChangedIntegrationEvent(catalogItem.Id, catalogItem.Price, oldPrice);
+                IntegrationEvent priceChangedEvent;
+
+                if (_settings.ThesisWrapperEnabled) {
+                    //Create Wrapped Integration Event to be published through the Event Bus
+                    priceChangedEvent = _clientIDWrappedEventFactory.getClientIDWrappedProductPriceChangedIntegrationEvent(catalogItem.Id, catalogItem.Price, oldPrice);
+                }
+                else {
+                    //Create Integration Event to be published through the Event Bus
+                    priceChangedEvent = new ProductPriceChangedIntegrationEvent(catalogItem.Id, catalogItem.Price, oldPrice);
+                }
 
                 // Achieving atomicity between original Catalog database operation and the IntegrationEventLog thanks to a local transaction
                 await _catalogIntegrationEventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
-             
+
                 // Publish through the Event Bus and mark the saved event as published
                 await _catalogIntegrationEventService.PublishThroughEventBusAsync(priceChangedEvent);
             }
