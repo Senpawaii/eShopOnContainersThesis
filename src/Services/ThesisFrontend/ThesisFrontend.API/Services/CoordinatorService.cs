@@ -20,16 +20,16 @@ public class CoordinatorService : ICoordinatorService {
     }
 
     public async Task SendTokens() {
-        // _logger.LogInformation($"TF1.1 at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for clientID {_metadata.ClientID.Value}, with ReadOnly={_metadata.ReadOnly.Value}.");
-
         int tokensToSend = _remainingTokens.GetRemainingTokens(_metadata.ClientID.Value);
         string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={tokensToSend}&clientID={_metadata.ClientID.Value}&serviceName=ThesisFrontendService&readOnly={_metadata.ReadOnly.Value}";
-        
-        HttpResponseMessage response = await _httpClient.GetAsync(uri);
+        try {
+            HttpResponseMessage response = await _httpClient.GetAsync(uri);
 
-        var responseString = await response.Content.ReadAsStringAsync();
-        // _logger.LogInformation($"TF1.2 at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {_metadata.ClientID.Value}.");
-
+            var responseString = await response.Content.ReadAsStringAsync();
+        }
+        catch (TaskCanceledException) {
+            _logger.LogInformation("HTTP request (Send Tokens to Coord.) was canceled due to a timeout.");
+        }
     }
 
 }
