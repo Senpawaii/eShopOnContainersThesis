@@ -288,44 +288,49 @@ namespace Catalog.API.DependencyServices {
 
         //[Trace]
         public void SingletonRemoveWrappedItemsFromProposedSet(string clientID) {
-            // Get the proposed objects from the wrapper with given clientID
-            ConcurrentBag<CatalogItem> catalog_items_to_remove = wrapped_catalog_items.GetValueOrDefault(clientID, new ConcurrentBag<CatalogItem>());
-            ConcurrentBag<CatalogBrand> catalog_brands_to_remove = wrapped_catalog_brands.GetValueOrDefault(clientID, new ConcurrentBag<CatalogBrand>());
-            ConcurrentBag<CatalogType> catalog_types_to_remove = wrapped_catalog_types.GetValueOrDefault(clientID, new ConcurrentBag<CatalogType>());
+            try {
+                // Get the proposed objects from the wrapper with given clientID
+                ConcurrentBag<CatalogItem> catalog_items_to_remove = wrapped_catalog_items.GetValueOrDefault(clientID, new ConcurrentBag<CatalogItem>());
+                ConcurrentBag<CatalogBrand> catalog_brands_to_remove = wrapped_catalog_brands.GetValueOrDefault(clientID, new ConcurrentBag<CatalogBrand>());
+                ConcurrentBag<CatalogType> catalog_types_to_remove = wrapped_catalog_types.GetValueOrDefault(clientID, new ConcurrentBag<CatalogType>());
 
-            // Remove entries from the proposed set. These are identified by their key table identifiers.
-            foreach(CatalogItem item in catalog_items_to_remove) {
-                // _logger.LogInformation($"ClientID: {clientID} - the catalogItem id: {item.Id}");
-                ProposedCatalogItem proposedItem = new ProposedCatalogItem {
-                    Name = item.Name,
-                    CatalogBrandId = item.CatalogBrandId,
-                    CatalogTypeId = item.CatalogTypeId,
-                    Id = item.Id
-                };
-                // Remove entry in synchronized collection associated with ProposedItem, for the given clientID
-                if(proposed_catalog_items.TryGetValue(proposedItem, out var values)) {
-                    var toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
-                    foreach(var tuple in toRemove) {
-                        values.Remove(tuple);
+                // Remove entries from the proposed set. These are identified by their key table identifiers.
+                foreach (CatalogItem item in catalog_items_to_remove) {
+                    // _logger.LogInformation($"ClientID: {clientID} - the catalogItem id: {item.Id}");
+                    ProposedCatalogItem proposedItem = new ProposedCatalogItem {
+                        Name = item.Name,
+                        CatalogBrandId = item.CatalogBrandId,
+                        CatalogTypeId = item.CatalogTypeId,
+                        Id = item.Id
+                    };
+                    // Remove entry in synchronized collection associated with ProposedItem, for the given clientID
+                    if (proposed_catalog_items.TryGetValue(proposedItem, out var values)) {
+                        var toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
+                        foreach (var tuple in toRemove) {
+                            values.Remove(tuple);
+                        }
+                    }
+                    else {
+                        _logger.LogError($"ClientID: {clientID} - Proposed Catalog Item did not have entry for Item: {proposedItem}");
                     }
                 }
-                else {
-                    _logger.LogError($"ClientID: {clientID} - Proposed Catalog Item did not have entry for Item: {proposedItem}");
+                foreach (CatalogBrand brand in catalog_brands_to_remove) {
+                    ProposedCatalogBrand proposedBrand = new ProposedCatalogBrand {
+                        BrandName = brand.Brand
+                    };
+                    // Remove each brand from the proposed set
+                    proposed_catalog_brands.TryRemove(proposedBrand, out _);
+                }
+                foreach (CatalogType type in catalog_types_to_remove) {
+                    ProposedCatalogType proposedType = new ProposedCatalogType {
+                        TypeName = type.Type
+                    };
+                    // Remove each type from the proposed set
+                    proposed_catalog_types.TryRemove(proposedType, out _);
                 }
             }
-            foreach(CatalogBrand brand in catalog_brands_to_remove) {
-                ProposedCatalogBrand proposedBrand = new ProposedCatalogBrand {
-                    BrandName = brand.Brand
-                };
-                // Remove each brand from the proposed set
-                proposed_catalog_brands.TryRemove(proposedBrand, out _);
-            }
-            foreach(CatalogType type in catalog_types_to_remove) {
-                ProposedCatalogType proposedType = new ProposedCatalogType {
-                    TypeName = type.Type
-                };
-                // Remove each type from the proposed set
-                proposed_catalog_types.TryRemove(proposedType, out _);
+            catch (InvalidOperationException) {
+                return;
             }
         }
 

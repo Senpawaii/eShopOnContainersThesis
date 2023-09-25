@@ -3,6 +3,7 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure.SharedStr
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Threading;
 //using NewRelic.Api.Agent;
 
@@ -161,31 +162,36 @@ public class SingletonWrapper : ISingletonWrapper {
     public void SingletonRemoveWrappedItemsFromProposedSet(string clientID) {
         // TODO: Possible optimization: add structure that indexes proposed objects by the client ID that proposed them
 
-        // Get the proposed objects from the wrapper with given clientID
-        ConcurrentBag<DiscountItem> discount_items_to_remove = wrapped_discount_items.GetValueOrDefault(clientID, new ConcurrentBag<DiscountItem>());
+        try {
+            // Get the proposed objects from the wrapper with given clientID
+            ConcurrentBag<DiscountItem> discount_items_to_remove = wrapped_discount_items.GetValueOrDefault(clientID, new ConcurrentBag<DiscountItem>());
 
-        // Remove entries from the proposed set. These are identified by their key table identifiers.
-        foreach(DiscountItem item in discount_items_to_remove) {
-            ProposedDiscountItem proposedItem = new ProposedDiscountItem {
-                ItemName = item.ItemName,
-                ItemBrand = item.ItemBrand,
-                ItemType = item.ItemType,
-                Id = item.Id
-            };
-            
-            // Remove entry in synchronized collection associated with ProposedItem, for the given ClientID
-            if (proposed_discount_Items.TryGetValue(proposedItem, out var values)) {
-                var toRemove = new List<(long, string)>();
-                lock(values) {
-                    toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
+            // Remove entries from the proposed set. These are identified by their key table identifiers.
+            foreach (DiscountItem item in discount_items_to_remove) {
+                ProposedDiscountItem proposedItem = new ProposedDiscountItem {
+                    ItemName = item.ItemName,
+                    ItemBrand = item.ItemBrand,
+                    ItemType = item.ItemType,
+                    Id = item.Id
+                };
+
+                // Remove entry in synchronized collection associated with ProposedItem, for the given ClientID
+                if (proposed_discount_Items.TryGetValue(proposedItem, out var values)) {
+                    var toRemove = new List<(long, string)>();
+                    lock (values) {
+                        toRemove = values.Where(tuple => tuple.Item2 == clientID).ToList();
+                    }
+                    foreach (var tuple in toRemove) {
+                        values.Remove(tuple);
+                    }
                 }
-                foreach(var tuple in toRemove) {
-                    values.Remove(tuple);
+                else {
+                    _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
                 }
             }
-            else {
-                _logger.LogError($"ClientID: {clientID} - ProposedItem: {proposedItem.Id} - {proposedItem.ItemName} - {proposedItem.ItemBrand} - {proposedItem.ItemType} - not found in proposed_discount_Items");
-            }
+        }
+        catch (InvalidOperationException) {
+            return;
         }
     }
 
@@ -381,7 +387,7 @@ public class SingletonWrapper : ISingletonWrapper {
                 try {
                     guid_EM.Value.Event.Set(); // Set the first ManualResetEvent that is not set yet
                 } 
-                catch (Exception exc) {
+                catch (Exception) {
                     _logger.LogError($"ClientID: {clientID} - B: Could not find any ManualResetEvent for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
                     continue;
                 }
