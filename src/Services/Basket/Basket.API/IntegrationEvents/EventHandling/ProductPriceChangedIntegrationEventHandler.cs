@@ -15,18 +15,21 @@ public class ProductPriceChangedIntegrationEventHandler : IIntegrationEventHandl
 
     public async Task Handle(ProductPriceChangedIntegrationEvent @event)
     {
-        using (LogContext.PushProperty("IntegrationEventContext", $"{@event.Id}-{Program.AppName}"))
-        {
-            // _logger.LogInformation("----- Handling original integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
+        try {
+            using (LogContext.PushProperty("IntegrationEventContext", $"{@event.Id}-{Program.AppName}")) {
+                // _logger.LogInformation("----- Handling original integration event: {IntegrationEventId} at {AppName} - ({@IntegrationEvent})", @event.Id, Program.AppName, @event);
 
-            var userIds = _repository.GetUsers();
+                var userIds = _repository.GetUsers();
 
-            foreach (var id in userIds)
-            {
-                var basket = await _repository.GetBasketAsync(id);
+                foreach (var id in userIds) {
+                    var basket = await _repository.GetBasketAsync(id);
 
-                await UpdatePriceInBasketItems(@event.ProductId, @event.NewPrice, @event.OldPrice, basket);
+                    await UpdatePriceInBasketItems(@event.ProductId, @event.NewPrice, @event.OldPrice, basket);
+                }
             }
+        }
+        catch (NullReferenceException) {
+            return;
         }
     }
 
