@@ -22,6 +22,12 @@ public class RedisDatabaseInterceptor : IRedisDatabaseInterceptor {
     public async Task<bool> StringSetAsync(string buyerID, string jsonBasketSerialized) {
         string clientID = _scopedMetadata.ClientID.Value;
         PairedEvents events = _wrapper.GetEvents(clientID);
+        
+        if(events == null) {
+            _logger.LogInformation($"ClientID: {clientID} - No events associated with this clientID.");
+            return await _database.StringSetAsync(buyerID, jsonBasketSerialized);
+        }
+
         int productID = events.PriceEvent.ProductId;
         decimal newPrice = events.PriceEvent.NewPrice;
         decimal oldPrice = events.PriceEvent.OldPrice;

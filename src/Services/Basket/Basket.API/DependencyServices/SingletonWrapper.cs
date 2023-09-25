@@ -66,7 +66,9 @@ namespace Basket.API.DependencyServices {
         }
 
         public PairedEvents GetEvents(string clientID) {
-            return updateEvents[clientID];
+            // Return the events for the given clientID. If the clientID is not present, return null
+            updateEvents.TryGetValue(clientID, out PairedEvents pairEvs);
+            return pairEvs;
         }
     }
 }
