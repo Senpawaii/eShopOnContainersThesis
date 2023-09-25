@@ -37,11 +37,13 @@ public class Startup
             .AddIntegrationServices(Configuration)
             .AddEventBus(Configuration)
             .AddSwagger(Configuration)
-            .AddCustomHealthCheck(Configuration);
+            .AddCustomHealthCheck(Configuration)
+
+            .AddScoped<IScopedMetadata, ScopedMetadata>(); // IFactoryClientIDWrappedProductPriceChangedIntegrationEvent has this dependency
+
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services
-                .AddScoped<IScopedMetadata, ScopedMetadata>()
                 .AddSingleton<ISingletonWrapper, SingletonWrapper>()
                 .AddSingleton<ITokensContextSingleton, TokensContextSingleton>()
                 .AddHttpClient<ICoordinatorService, CoordinatorService>();

@@ -40,11 +40,13 @@ public class Startup {
             .AddIntegrationServices(Configuration)
             .AddEventBus(Configuration)
             .AddSwagger(Configuration)
-            .AddCustomHealthCheck(Configuration);
+            .AddCustomHealthCheck(Configuration)
+            
+            .AddScoped<IScopedMetadata, ScopedMetadata>();
+
 
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             services
-                .AddScoped<IScopedMetadata, ScopedMetadata>()
                 .AddSingleton<ITokensContextSingleton, TokensContextSingleton>()
                 .AddSingleton<ISingletonWrapper, SingletonWrapper>()
                 .AddHttpClient<ICoordinatorService, CoordinatorService>();

@@ -142,23 +142,21 @@ public class Startup
         services.AddTransient<IBasketRepository, RedisBasketRepository>();
         services.AddTransient<IIdentityService, IdentityService>();
 
-
+        services.AddTransient<IRedisDatabaseInterceptor, RedisDatabaseInterceptor>();
+        services.AddScoped<IScopedMetadata, ScopedMetadata>();
+        services.AddSingleton<ISingletonWrapper, SingletonWrapper>();
 
         // Register the HTTP client for Catalog.API and Discount.API
         if (Configuration["ThesisWrapperEnabled"] == "True") {
             // Register the HTTP Message Handler
             services.AddScoped<TCCHttpInjector>();
             
-            services.AddScoped<IScopedMetadata, ScopedMetadata>();
-            services.AddSingleton<ISingletonWrapper, SingletonWrapper>();
-
             services.AddSingleton<ITokensContextSingleton, TokensContextSingleton>();
 
             services.AddHttpClient<ICoordinatorService, CoordinatorService>();
             services.AddHttpClient<ICatalogService, CatalogService>().AddHttpMessageHandler<TCCHttpInjector>();
             services.AddHttpClient<IDiscountService, DiscountService>().AddHttpMessageHandler<TCCHttpInjector>();
 
-            services.AddTransient<IRedisDatabaseInterceptor, RedisDatabaseInterceptor>();
         } else {
             services.AddHttpClient<ICatalogService, CatalogService>();
             services.AddHttpClient<IDiscountService, DiscountService>();
