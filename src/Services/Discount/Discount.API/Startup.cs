@@ -300,7 +300,10 @@ public static class CustomExtensionMethods {
             Console.WriteLine("RabbitMQEnabled");
             try {
                 services.AddSingleton<IRabbitMQPersistentConnection>(sp => {
+                    Console.WriteLine("AAA");
                     var settings = sp.GetRequiredService<IOptions<DiscountSettings>>().Value;
+                    Console.WriteLine("BBB");
+
                     var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
                     Console.WriteLine("Creating RabbitMQ Persistent Connection");
                     var factory = new ConnectionFactory() {
