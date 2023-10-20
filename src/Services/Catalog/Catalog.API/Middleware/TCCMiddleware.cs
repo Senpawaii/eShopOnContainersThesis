@@ -32,18 +32,15 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 _request_metadata.ReadOnly = true;
 
                 string currentUri = ctx.Request.GetUri().ToString();
-                // _logger.LogInformation($"ClientID: {clientID} - Current URI: {currentUri}");
+                
                 if (currentUri.Contains("commit")) {
-                    // _logger.LogInformation($"ClientID: {clientID} - Committing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     // Start flushing the Wrapper Data into the Database associated with the client session
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
                     // Flush the Wrapper Data into the Database
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
-                    // _logger.LogInformation($"ClientID: {clientID} - Flushing Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     await _next.Invoke(ctx);
-                    // _logger.LogInformation($"ClientID: {clientID} - Transaction Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     return;
                 } 
                 else if(currentUri.Contains("proposeTS")) {
@@ -54,10 +51,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                 }
-                else {
-                    // _logger.LogInformation($"ClientID: {clientID} - Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-                }
-
+                
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     //_logger.LogInformation($"Registered timestamp: {timestamp}");
                     _request_metadata.Timestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm:ss.fffffffZ", CultureInfo.InvariantCulture);
@@ -113,13 +107,14 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
-                if(_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {                    
-                    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
-                    // Propose Timestamp with Tokens to the Coordinator
-                    await _coordinatorSvc.SendTokens();
-                }
-                // Clean the singleton fields for the current session context
-                _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
+                // Disabled for testing:
+                    //if(_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {                    
+                    //    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
+                    //    // Propose Timestamp with Tokens to the Coordinator
+                    //    await _coordinatorSvc.SendTokens();
+                    //}
+                    //// Clean the singleton fields for the current session context
+                    //_remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
             }
             else {
                 // This is not an HTTP request that requires change

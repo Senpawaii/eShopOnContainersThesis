@@ -255,7 +255,7 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
                 }
                 break;
-            case UPDATE_COMMAND: // Performance-tested
+            case UPDATE_COMMAND:
                 // Set the request readOnly flag to false
                 _request_metadata.ReadOnly = false;
 
@@ -302,10 +302,11 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
                     command.Parameters.AddRange(parameters);
                     command.CommandText = insertCommand.ToString();
                     
-                    // Store data in wrapper
-                    var updateToInsertReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
-                    // Supress the command and return the mock reader
-                    result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
+                    // Disabled for testing: (write directly to storage):
+                        //// Store data in wrapper
+                        //var updateToInsertReader = StoreDataInWrapperV2(command, INSERT_COMMAND, targetTable);
+                        //// Supress the command and return the mock reader
+                        //result = InterceptionResult<DbDataReader>.SuppressWithResult(updateToInsertReader);
                 }
                 break;
         }
@@ -1061,7 +1062,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
             // This is a system transaction or a database initial population
             return result;
         }
-        // _logger.LogInformation($"ClientID {clientID}, executing ReaderExecutedAsync.");
         string targetTable = GetTargetTable(command.CommandText);
         if (targetTable.IsNullOrEmpty()) {
             // Unsupported Table (Migration for example)
@@ -1070,7 +1070,10 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
 
         // Check if the command was originally an update command
         if (_originalCommandText.Contains("UPDATE")) {
-            // _logger.LogInformation($"ClientID {clientID}, update commandText= {_originalCommandText}");
+
+            // Returning temporarily for testing
+            return result;
+
             var newUpdatedData = new List<object[]>();
             newUpdatedData.Add(new object[] { 1 });
             // _logger.LogInformation("ClientID: {0}", clientID);
