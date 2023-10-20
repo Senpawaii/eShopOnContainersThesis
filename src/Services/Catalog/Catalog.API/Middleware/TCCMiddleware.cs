@@ -96,23 +96,23 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
                 _logger.LogInformation($"ClientID: {clientID} - Flushed Wrapper Data to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
-                // Set stream pointer position to 0 before reading
-                memStream.Seek(0, SeekOrigin.Begin);
+                //// Set stream pointer position to 0 before reading
+                //memStream.Seek(0, SeekOrigin.Begin);
 
-                // Read the body from the stream
-                var responseBodyText = await new StreamReader(memStream).ReadToEndAsync();
+                //// Read the body from the stream
+                //var responseBodyText = await new StreamReader(memStream).ReadToEndAsync();
 
-                // Reset the position to 0 after reading
-                memStream.Seek(0, SeekOrigin.Begin);
+                //// Reset the position to 0 after reading
+                //memStream.Seek(0, SeekOrigin.Begin);
 
-                // Do this last, that way you can ensure that the end results end up in the response.
-                // (This resulting response may come either from the redirected route or other special routes if you have any redirection/re-execution involved in the middleware.)
-                // This is very necessary. ASP.NET doesn't seem to like presenting the contents from the memory stream.
-                // Therefore, the original stream provided by the ASP.NET Core engine needs to be swapped back.
-                // Then write back from the previous memory stream to this original stream.
-                // (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
-                ctx.Response.Body = originalResponseBody;
-                await ctx.Response.Body.WriteAsync(memStream.ToArray());
+                //// Do this last, that way you can ensure that the end results end up in the response.
+                //// (This resulting response may come either from the redirected route or other special routes if you have any redirection/re-execution involved in the middleware.)
+                //// This is very necessary. ASP.NET doesn't seem to like presenting the contents from the memory stream.
+                //// Therefore, the original stream provided by the ASP.NET Core engine needs to be swapped back.
+                //// Then write back from the previous memory stream to this original stream.
+                //// (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
+                //ctx.Response.Body = originalResponseBody;
+                //await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
                 // Disabled for testing:
                 //if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {

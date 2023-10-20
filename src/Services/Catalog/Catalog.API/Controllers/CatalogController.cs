@@ -273,36 +273,6 @@ public class CatalogController : ControllerBase {
         }
         _logger.LogInformation($"The catalog item: {productToUpdate.Name} THE NEW PRICE IS: {productToUpdate.Price} AND THE OLD PRICE WAS: {oldPrice}");
         return CreatedAtAction(nameof(ItemByIdAsync), new { id = productToUpdate.Id }, null);
-
-        //// Update current product's price
-        //var updatedItem = new CatalogItem {
-        //    CatalogBrandId = brandId,
-        //    CatalogTypeId = typeId,
-        //    Description = item.Description,
-        //    Name = item.Name,
-        //    PictureFileName = item.PictureFileName,
-        //    Price = price
-        //};
-        //_catalogContext.CatalogItems.Add(updatedItem);
-
-        //if (raiseProductPriceChangedEvent) // Save product's data and publish integration event through the Event Bus if price has changed
-        //{
-        //    //Create Integration Event to be published through the Event Bus
-        //    var priceChangedEvent = new ProductPriceChangedIntegrationEvent(item.Id, price, oldPrice);
-
-        //    // Achieving atomicity between original Catalog database operation and the IntegrationEventLog thanks to a local transaction
-        //    await _catalogIntegrationEventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
-
-        //    // Publish through the Event Bus and mark the saved event as published
-        //    await _catalogIntegrationEventService.PublishThroughEventBusAsync(priceChangedEvent);
-        //}
-        //else // Just save the updated product because the Product's Price hasn't changed.
-        //{
-        //    await _catalogContext.SaveChangesAsync();
-        //}
-
-        //await _catalogContext.SaveChangesAsync();
-        //return CreatedAtAction(nameof(ItemByIdAsync), new { id = updatedItem.Id }, null);
     }
 
     //POST api/v1/[controller]/items
