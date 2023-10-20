@@ -121,7 +121,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
                     _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
-                    return;
+                    _logger.LogInformation($"ClientID: {clientID} - Flushed Wrapper Data to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             }
             else {
                 // This is not an HTTP request that requires change
