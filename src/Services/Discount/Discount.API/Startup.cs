@@ -298,42 +298,32 @@ public static class CustomExtensionMethods {
         }
         else {
             Console.WriteLine("RabbitMQEnabled");
-            try {
-                services.AddSingleton<IRabbitMQPersistentConnection>(sp => {
-                    Console.WriteLine("AAA");
-                    var settings = sp.GetRequiredService<IOptions<DiscountSettings>>().Value;
-                    Console.WriteLine("BBB");
+            services.AddSingleton<IRabbitMQPersistentConnection>(sp => {
+                var settings = sp.GetRequiredService<IOptions<DiscountSettings>>().Value;
+                var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
 
-                    var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
-                    Console.WriteLine("Creating RabbitMQ Persistent Connection");
-                    var factory = new ConnectionFactory() {
-                        HostName = configuration["EventBusConnection"],
-                        DispatchConsumersAsync = true
-                    };
-                    Console.WriteLine("Creating RabbitMQ Persistent Connection2");
+                var factory = new ConnectionFactory() {
+                    HostName = configuration["EventBusConnection"],
+                    DispatchConsumersAsync = true
+                };
 
-                    if (!string.IsNullOrEmpty(configuration["EventBusUserName"])) {
-                        factory.UserName = configuration["EventBusUserName"];
-                    }
-                    Console.WriteLine("Creating RabbitMQ Persistent Connection3");
+                if (!string.IsNullOrEmpty(configuration["EventBusUserName"])) {
+                    factory.UserName = configuration["EventBusUserName"];
+                }
 
-                    if (!string.IsNullOrEmpty(configuration["EventBusPassword"])) {
-                        factory.Password = configuration["EventBusPassword"];
-                    }
-                    Console.WriteLine("Creating RabbitMQ Persistent Connection4");
+                if (!string.IsNullOrEmpty(configuration["EventBusPassword"])) {
+                    factory.Password = configuration["EventBusPassword"];
+                }
 
-                    var retryCount = 5;
-                    if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"])) {
-                        retryCount = int.Parse(configuration["EventBusRetryCount"]);
-                    }
+                var retryCount = 5;
+                if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"])) {
+                    retryCount = int.Parse(configuration["EventBusRetryCount"]);
+                }
 
-                    Console.WriteLine("Returning RabbitMQ Persistent Connection");
-                    return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
-                });
-            } catch (Exception e) {
-                Console.WriteLine($"Exception: {e.Message}");
-            }
-            
+                Console.WriteLine("Returning RabbitMQ Persistent Connection");
+                return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
+            });
+
         }
 
         return services;
