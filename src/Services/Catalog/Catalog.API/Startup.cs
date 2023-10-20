@@ -307,6 +307,7 @@ public static class CustomExtensionMethods
 
         if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
         {
+            Console.WriteLine("AzureServiceBusEnabled");
             services.AddSingleton<IServiceBusPersisterConnection>(sp =>
             {
                 var settings = sp.GetRequiredService<IOptions<CatalogSettings>>().Value;
@@ -317,6 +318,7 @@ public static class CustomExtensionMethods
         }
         else
         {
+            Console.WriteLine("RabbitMQEnabled");
             services.AddSingleton<IRabbitMQPersistentConnection>(sp =>
             {
                 var settings = sp.GetRequiredService<IOptions<CatalogSettings>>().Value;

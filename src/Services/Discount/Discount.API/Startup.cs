@@ -295,22 +295,26 @@ public static class CustomExtensionMethods {
             });
         }
         else {
+            Console.WriteLine("RabbitMQEnabled");
             services.AddSingleton<IRabbitMQPersistentConnection>(sp => {
                 var settings = sp.GetRequiredService<IOptions<DiscountSettings>>().Value;
                 var logger = sp.GetRequiredService<ILogger<DefaultRabbitMQPersistentConnection>>();
-
+                Console.WriteLine("Creating RabbitMQ Persistent Connection");
                 var factory = new ConnectionFactory() {
                     HostName = configuration["EventBusConnection"],
                     DispatchConsumersAsync = true
                 };
+                Console.WriteLine("Creating RabbitMQ Persistent Connection2");
 
                 if (!string.IsNullOrEmpty(configuration["EventBusUserName"])) {
                     factory.UserName = configuration["EventBusUserName"];
                 }
+                Console.WriteLine("Creating RabbitMQ Persistent Connection3");
 
                 if (!string.IsNullOrEmpty(configuration["EventBusPassword"])) {
                     factory.Password = configuration["EventBusPassword"];
                 }
+                Console.WriteLine("Creating RabbitMQ Persistent Connection4");
 
                 var retryCount = 5;
                 if (!string.IsNullOrEmpty(configuration["EventBusRetryCount"])) {
