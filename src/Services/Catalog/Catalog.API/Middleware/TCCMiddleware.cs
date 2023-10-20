@@ -48,8 +48,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     var currentTS = _request_metadata.Timestamp.Ticks;
                     //_logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
-                    // Disabled for testing:
-                        //_dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
+                    _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                     await _next.Invoke(ctx);
                     return;

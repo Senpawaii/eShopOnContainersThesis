@@ -212,8 +212,6 @@ namespace Catalog.API.DependencyServices {
         public void SingletonAddWrappedItemsToProposedSet(string clientID, long proposedTS) {
             // Gather the items inside the wrapper with given clientID
             ConcurrentBag<CatalogItem> catalog_items_to_propose = wrapped_catalog_items.GetValueOrDefault(clientID, new ConcurrentBag<CatalogItem>());
-            ConcurrentBag<CatalogType> catalog_types_to_propose = wrapped_catalog_types.GetValueOrDefault(clientID, new ConcurrentBag<CatalogType>());
-            ConcurrentBag<CatalogBrand> catalog_brands_to_propose = wrapped_catalog_brands.GetValueOrDefault(clientID, new ConcurrentBag<CatalogBrand>());
 
             // For each item, add it to the proposed set, adding the proposed timestamp associated
             foreach (CatalogItem catalog_item_to_propose in catalog_items_to_propose) {
@@ -235,52 +233,33 @@ namespace Catalog.API.DependencyServices {
                 string guidString = guid.ToString();
 
                 // Create ManualEvent for catalog Item
-                lock(catalog_items_manual_reset_events) {
-                    catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<string, EventMonitor>(new KeyValuePair<string, EventMonitor>[] { new KeyValuePair<string, EventMonitor>(guidString, EM) }), (_, value) => {
-                        if (value.TryAdd(guidString, EM)) {
-                            // _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
-                        }
-                        else {
-                            _logger.LogError($"ClientID: {clientID} - \t Could not add ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
-                        }
-                        return value;
-                    });
-                }
+                //lock (catalog_items_manual_reset_events) {
+                //    catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<string, EventMonitor>(new KeyValuePair<string, EventMonitor>[] { new KeyValuePair<string, EventMonitor>(guidString, EM) }), (_, value) => {
+                //        if (value.TryAdd(guidString, EM)) {
+                //            // _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
+                //        }
+                //        else {
+                //            _logger.LogError($"ClientID: {clientID} - \t Could not add ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
+                //        }
+                //        return value;
+                //    });
+                //}
+
+                // Debugging version: without lock
+                catalog_items_manual_reset_events.AddOrUpdate(proposedItem, new ConcurrentDictionary<string, EventMonitor>(new KeyValuePair<string, EventMonitor>[] { new KeyValuePair<string, EventMonitor>(guidString, EM) }), (_, value) => {
+                    if (value.TryAdd(guidString, EM)) {
+                        // _logger.LogInformation($"ClientID: {clientID} - \t Added ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
+                    }
+                    else {
+                        _logger.LogError($"ClientID: {clientID} - \t Could not add ManualResetEvent for catalog item with parameters: {proposedItem.Name} - {proposedItem.CatalogBrandId} - {proposedItem.CatalogTypeId} - {proposedItem.Id} with GUID: {guidString}");
+                    }
+                    return value;
+                });
 
                 // _logger.LogInformation($"ClientID: {clientID} - \t .");
-                
+
                 proposed_catalog_items.AddOrUpdate(proposedItem, new SynchronizedCollection<(long, string)>(new List<(long, string)> { (proposedTS, clientID) }), (key, value) => {
                     value.Add((proposedTS, clientID));
-                    return value;
-                });
-            }
-
-            foreach (CatalogType catalog_type_to_propose in catalog_types_to_propose) {
-                ProposedCatalogType proposedCatalogType = new ProposedCatalogType {
-                    TypeName = catalog_type_to_propose.Type
-                };
-                
-                proposed_catalog_types.AddOrUpdate(proposedCatalogType, _ => {
-                    var innerDict = new ConcurrentDictionary<long, string>();
-                    innerDict.TryAdd(proposedTS, clientID);
-                    return innerDict;
-                }, (_, value) => {
-                    value.TryAdd(proposedTS, clientID);
-                    return value;
-                });
-            }
-
-            foreach (CatalogBrand catalog_brand_to_propose in catalog_brands_to_propose) {
-                ProposedCatalogBrand proposedCatalogType = new ProposedCatalogBrand {
-                    BrandName = catalog_brand_to_propose.Brand
-                };
-                //ProposedBrand newBrand = new ProposedBrand(catalog_brand_to_propose.BrandName);
-                proposed_catalog_brands.AddOrUpdate(proposedCatalogType, _ => {
-                    var innerDict = new ConcurrentDictionary<long, string>();
-                    innerDict.TryAdd(proposedTS, clientID);
-                    return innerDict;
-                }, (_, value) => {
-                    value.TryAdd(proposedTS, clientID);
                     return value;
                 });
             }
