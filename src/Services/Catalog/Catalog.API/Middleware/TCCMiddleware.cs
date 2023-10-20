@@ -115,13 +115,13 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 //}
                 //// Clean the singleton fields for the current session context
                 //_remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
-
+                
                 // Added for testing:
                 _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
                 _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
+                _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
-                await _next.Invoke(ctx);
-
+                return;
             }
             else {
                 // This is not an HTTP request that requires change
@@ -183,8 +183,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                             dbContext.CatalogItems.Add(catalogItemCopy);
                         }
                     }
-                    // _logger.LogInformation($"ClientID {clientID} Saving changes to database");
+                    _logger.LogInformation($"ClientID {clientID} Saving changes to database");
                     dbContext.SaveChanges();
+                    _logger.LogInformation("Changes saved to database");
                 } 
                 else {
                     _logger.LogError($"ClientID {clientID} - No catalog items to flush");
