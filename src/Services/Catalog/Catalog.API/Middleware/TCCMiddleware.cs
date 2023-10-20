@@ -62,7 +62,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     Int32.TryParse(tokens, out int numTokens);
                     _request_metadata.Tokens = numTokens;
                     _remainingTokens.AddRemainingTokens(clientID, numTokens);
-
                 }
 
                 var removeTheseParams = new List<string> { "clientID", "timestamp", "tokens" }.AsReadOnly();
@@ -76,7 +75,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                 // Create a new memory stream for reading the response; Response body streams are write-only, therefore memory stream is needed here to read
                 await using var memStream = new MemoryStream();
-
                 ctx.Response.Body = memStream;
 
                 ctx.Response.OnStarting(() => {
@@ -95,6 +93,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
                 _logger.LogInformation($"ClientID: {clientID} - Flushed Wrapper Data to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
 
                 //// Set stream pointer position to 0 before reading
                 //memStream.Seek(0, SeekOrigin.Begin);
@@ -122,8 +121,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 //}
                 //// Clean the singleton fields for the current session context
                 //_remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
-                
-                
             }
             else {
                 // This is not an HTTP request that requires change
@@ -144,14 +141,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
             // TODO: Note, if these were Tasks, we could await them all at once
             var catalogItemsToFlush = _dataWrapper.SingletonGetWrappedCatalogItemsToFlush(clientID, onlyUpdate);
-            // _logger.LogInformation($"ClientID: {clientID} - Flushing {catalogItemsToFlush.Count} catalog Items...");
-            
-            // var catalogBrandToFlush = _dataWrapper.SingletonGetWrappedCatalogBrandsToFlush(clientID, onlyUpdate);
-            // var catalogTypeToFlush = _dataWrapper.SingletonGetWrappedCatalogTypesToFlush(clientID, onlyUpdate);
             
             using (var scope = _scopeFactory.CreateScope()) {
                 var dbContext = scope.ServiceProvider.GetRequiredService<CatalogContext>();
                 dbContext.Database.SetCommandTimeout(TimeSpan.FromSeconds(180));
+                
                 // Copy the request metadata to the scoped metadata
                 var scopedMetadata = scope.ServiceProvider.GetRequiredService<IScopedMetadata>();
                 scopedMetadata.ClientID = _request_metadata.ClientID;
@@ -162,7 +156,6 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 if(catalogItemsToFlush != null) {
                     if(onlyUpdate) {
                         foreach(var catalogItem in catalogItemsToFlush) {
-                            // _logger.LogInformation($"ClientID: {clientID}, (FlushWrapper) Updating catalog item: {catalogItem}");
                             dbContext.CatalogItems.Update(catalogItem);
                         }
                     }

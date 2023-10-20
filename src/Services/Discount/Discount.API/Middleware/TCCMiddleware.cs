@@ -151,7 +151,8 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 scopedMetadata.ClientID = _request_metadata.ClientID;
                 scopedMetadata.Timestamp = _request_metadata.Timestamp;
                 scopedMetadata.Tokens = _request_metadata.Tokens;
-                
+
+                // Flush the wrapped items to the database
                 if (discountWrapperItems != null) {
                     if(onlyUpdate) {
                         foreach(var discountItem in discountWrapperItems) {
@@ -172,15 +173,21 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                             dbContext.Discount.Add(discountItemCopy);
                         }
                     }
-                    await dbContext.SaveChangesAsync();
+                    _logger.LogInformation($"ClientID {clientID} Saving changes to database");
+                    dbContext.SaveChanges();
+                    _logger.LogInformation("Changes saved to database");
+                }
+                else {
+                    _logger.LogError($"ClientID {clientID} - No discount items to flush");
                 }
             }
-            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
+            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             // The items have been committed. Notify all threads waiting on the commit to read
             _data_wrapper.NotifyReaderThreads(clientID, discountWrapperItems);
+            _logger.LogInformation($"ClientID: {clientID} - Notified all reader threads at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _data_wrapper.CleanWrappedObjects(clientID);
-            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
+            _logger.LogInformation($"ClientID: {clientID} - Cleaned wrapped objects at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         }
     }
 
