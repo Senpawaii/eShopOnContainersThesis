@@ -90,11 +90,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 await _next.Invoke(ctx);
 
                 // Added for testing:
-                //_dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
-                //_dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
-                //_logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-                //await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
-                //_logger.LogInformation($"ClientID: {clientID} - Flushed Wrapper Data to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
+                _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
+                _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
+                _logger.LogInformation($"ClientID: {clientID} - Flushed Wrapper Data to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                 //// Set stream pointer position to 0 before reading
                 //memStream.Seek(0, SeekOrigin.Begin);
