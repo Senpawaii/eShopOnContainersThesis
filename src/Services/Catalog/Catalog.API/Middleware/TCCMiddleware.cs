@@ -117,11 +117,11 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 //_remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
                 
                 // Added for testing:
-                _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
-                _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
-                _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-                await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
-                return;
+                    _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
+                    _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
+                    _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
+                    return;
             }
             else {
                 // This is not an HTTP request that requires change
@@ -191,11 +191,13 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _logger.LogError($"ClientID {clientID} - No catalog items to flush");
                 }
             }
-            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
+            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             // The items have been committed. Notify all threads waiting on the commit to read
             _dataWrapper.NotifyReaderThreads(clientID, catalogItemsToFlush);
+            _logger.LogInformation($"ClientID: {clientID} - Notified all reader threads at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _dataWrapper.CleanWrappedObjects(clientID);        
+            _logger.LogInformation($"ClientID: {clientID} - Cleaned wrapped objects at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         }
     }
 
