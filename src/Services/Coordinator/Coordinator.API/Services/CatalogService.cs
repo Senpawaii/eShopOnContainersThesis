@@ -23,9 +23,7 @@ public class CatalogService : ICatalogService {
     public async Task IssueCommit(string maxTS, string clientID) {
         string uri = $"{_settings.Value.CatalogUrl}commit?timestamp={maxTS}&clientID={clientID}";
 
-        HttpResponseMessage response = await _httpClient.GetAsync(uri);
-
-        var responseString = await response.Content.ReadAsStringAsync();
+        await _httpClient.GetAsync(uri);
     }
 
     public async Task<long> GetProposal(string clientID) {

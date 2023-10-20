@@ -42,9 +42,6 @@ public class TCCMiddleware {
         // Execute the next middleware in the pipeline (the controller)
         await _next.Invoke(httpctx);
 
-        // Testing:
-        return;
-
         // Send the rest of the tokens to the coordinator
         await _coordinatorSvc.SendTokens();
 
