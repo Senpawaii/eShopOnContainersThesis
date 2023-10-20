@@ -303,6 +303,7 @@ public static class CustomExtensionMethods
 
         services.AddTransient<ICatalogIntegrationEventService, CatalogIntegrationEventService>();
         services.AddScoped<IFactoryClientIDWrappedProductPriceChangedIntegrationEvent, FactoryClientIDWrappedProductPriceChangedIntegrationEvent>();
+        Console.WriteLine($"Wrapper Enabled: {configuration.GetValue<bool>("ThesisWrapperEnabled")}");
 
         if (configuration.GetValue<bool>("AzureServiceBusEnabled"))
         {
@@ -342,7 +343,8 @@ public static class CustomExtensionMethods
                 {
                     retryCount = int.Parse(configuration["EventBusRetryCount"]);
                 }
-
+                
+                Console.WriteLine("Returning RabbitMQ Persistent Connection");
                 return new DefaultRabbitMQPersistentConnection(factory, logger, retryCount);
             });
         }
