@@ -100,31 +100,40 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 // Log the current Time and the client ID
                 // _logger.LogInformation($"0.3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
-                // Set stream pointer position to 0 before reading
-                memStream.Seek(0, SeekOrigin.Begin);
+                // Added for testing:
+                _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
+                _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
+                _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
+                _logger.LogInformation($"ClientID: {clientID} - Flushed Wrapper Data to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
-                // Read the body from the stream
-                var responseBodyText = await new StreamReader(memStream).ReadToEndAsync();
 
-                // Reset the position to 0 after reading
-                memStream.Seek(0, SeekOrigin.Begin);
+                //// Set stream pointer position to 0 before reading
+                //memStream.Seek(0, SeekOrigin.Begin);
 
-                // Do this last, that way you can ensure that the end results end up in the response.
-                // (This resulting response may come either from the redirected route or other special routes if you have any redirection/re-execution involved in the middleware.)
-                // This is very necessary. ASP.NET doesn't seem to like presenting the contents from the memory stream.
-                // Therefore, the original stream provided by the ASP.NET Core engine needs to be swapped back.
-                // Then write back from the previous memory stream to this original stream.
-                // (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
-                ctx.Response.Body = originalResponseBody;
-                await ctx.Response.Body.WriteAsync(memStream.ToArray());
+                //// Read the body from the stream
+                //var responseBodyText = await new StreamReader(memStream).ReadToEndAsync();
 
-                if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
-                    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
-                    // Propose Timestamp with Tokens to the Coordinator
-                    await _coordinatorSvc.SendTokens();
-                }
-                // Clean the singleton fields for the current session context
-                _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
+                //// Reset the position to 0 after reading
+                //memStream.Seek(0, SeekOrigin.Begin);
+
+                //// Do this last, that way you can ensure that the end results end up in the response.
+                //// (This resulting response may come either from the redirected route or other special routes if you have any redirection/re-execution involved in the middleware.)
+                //// This is very necessary. ASP.NET doesn't seem to like presenting the contents from the memory stream.
+                //// Therefore, the original stream provided by the ASP.NET Core engine needs to be swapped back.
+                //// Then write back from the previous memory stream to this original stream.
+                //// (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
+                //ctx.Response.Body = originalResponseBody;
+                //await ctx.Response.Body.WriteAsync(memStream.ToArray());
+
+                // Disabled for testing:
+                //if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
+                //    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
+                //    // Propose Timestamp with Tokens to the Coordinator
+                //    await _coordinatorSvc.SendTokens();
+                //}
+                //// Clean the singleton fields for the current session context
+                //_remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
             }
             else {
                 // This is not an HTTP request that requires change

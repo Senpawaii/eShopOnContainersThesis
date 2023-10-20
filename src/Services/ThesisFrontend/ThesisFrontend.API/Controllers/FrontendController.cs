@@ -218,18 +218,16 @@ public class FrontendController : ControllerBase {
             return BadRequest();
         }
 
-        // Update the discount item value - disabled for testing
-        //try {
-        //    var discount_StatusCode = await _discountService.UpdateDiscountValueAsync(discountItem);
-        //    // Check if the status code is OK
-        //    if (discount_StatusCode != HttpStatusCode.Created) {
-        //        return BadRequest();
-        //    }
-        //} 
-        //catch (HttpRequestException) {
-        //    _logger.LogError($"An error occurered while updating the Discount Value async");
-        //    return BadRequest();
-        //}
+        try {
+            var discount_StatusCode = await _discountService.UpdateDiscountValueAsync(discountItem);
+            // Check if the status code is OK
+            if (discount_StatusCode != HttpStatusCode.Created) {
+                return BadRequest();
+            }
+        } catch (HttpRequestException) {
+            _logger.LogError($"An error occurered while updating the Discount Value async");
+            return BadRequest();
+        }
         return Ok();
     }
 
