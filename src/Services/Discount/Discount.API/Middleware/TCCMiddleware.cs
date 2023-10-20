@@ -59,9 +59,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                 }
-                else {
-                    // _logger.LogInformation($"ClientID: {clientID} - Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-                }
+
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     // _logger.LogInformation($"Registered timestamp: {timestamp}");
