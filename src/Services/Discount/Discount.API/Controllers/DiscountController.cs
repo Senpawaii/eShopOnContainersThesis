@@ -24,6 +24,7 @@ public class DiscountController : ControllerBase {
     public DiscountController(DiscountContext discountContext, IOptionsSnapshot<DiscountSettings> settings, IDiscountIntegrationEventService discountIntegrationEventService, ILogger<DiscountController> logger,
         IFactoryClientIDWrappedProductDiscountChangedIntegrationEvent clientIDWrappedEventFactory) {
         _discountContext = discountContext ?? throw new ArgumentNullException(nameof(discountContext));
+        _discountContext.Database.SetCommandTimeout(180);
         _discountIntegrationEventService = discountIntegrationEventService ?? throw new ArgumentNullException(nameof(discountIntegrationEventService));
         _clientIDWrappedEventFactory = clientIDWrappedEventFactory ?? throw new ArgumentNullException(nameof(clientIDWrappedEventFactory));
         _settings = settings.Value;
