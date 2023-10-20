@@ -46,10 +46,12 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 else if(currentUri.Contains("proposeTS")) {
                     // Update client session to Proposed State and Store data written in the current session in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
-                    // _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    //_logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                    await _next.Invoke(ctx);
+                    return;
                 }
                 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
