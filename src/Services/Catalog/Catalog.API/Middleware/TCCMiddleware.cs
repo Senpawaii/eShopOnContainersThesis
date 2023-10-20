@@ -50,7 +50,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                     // Disabled for testing:
                         //_dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
-                        //_dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                    _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                     await _next.Invoke(ctx);
                     return;
                 }
