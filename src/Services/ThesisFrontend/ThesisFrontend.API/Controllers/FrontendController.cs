@@ -204,31 +204,31 @@ public class FrontendController : ControllerBase {
         }
 
         //Update the catalog item price
-        try {
-            _logger.LogInformation($"Updating catalog item price to {catalogItem.Price}");
-            var catalog_StatusCode = await _catalogService.UpdateCatalogPriceAsync(catalogItem);
-            _logger.LogInformation($"Catalog item price updated to {catalogItem.Price}");
-            // Check if the status code is CREATED
-            if (catalog_StatusCode != HttpStatusCode.Created) {
-                return BadRequest();
-            }
-        } catch (HttpRequestException) {
-            _logger.LogError($"An error occurered while updating the Catalog Price async");
-            return BadRequest();
-        }
-
         //try {
-        //    _logger.LogInformation($"Updating discount value to {discountItem.DiscountValue}");
-        //    var discount_StatusCode = await _discountService.UpdateDiscountValueAsync(discountItem);
-        //    _logger.LogInformation($"Discount value updated to {discountItem.DiscountValue}");
-        //    // Check if the status code is OK
-        //    if (discount_StatusCode != HttpStatusCode.Created) {
+        //    _logger.LogInformation($"Updating catalog item price to {catalogItem.Price}");
+        //    var catalog_StatusCode = await _catalogService.UpdateCatalogPriceAsync(catalogItem);
+        //    _logger.LogInformation($"Catalog item price updated to {catalogItem.Price}");
+        //    // Check if the status code is CREATED
+        //    if (catalog_StatusCode != HttpStatusCode.Created) {
         //        return BadRequest();
         //    }
         //} catch (HttpRequestException) {
-        //    _logger.LogError($"An error occurered while updating the Discount Value async");
+        //    _logger.LogError($"An error occurered while updating the Catalog Price async");
         //    return BadRequest();
         //}
+
+        try {
+            _logger.LogInformation($"Updating discount value to {discountItem.DiscountValue}");
+            var discount_StatusCode = await _discountService.UpdateDiscountValueAsync(discountItem);
+            _logger.LogInformation($"Discount value updated to {discountItem.DiscountValue}");
+            // Check if the status code is OK
+            if (discount_StatusCode != HttpStatusCode.Created) {
+                return BadRequest();
+            }
+        } catch (HttpRequestException) {
+            _logger.LogError($"An error occurered while updating the Discount Value async");
+            return BadRequest();
+        }
         return Ok();
     }
 
