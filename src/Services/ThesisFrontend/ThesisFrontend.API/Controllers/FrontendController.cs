@@ -205,6 +205,7 @@ public class FrontendController : ControllerBase {
 
         // Update the catalog item price
         try {
+            _logger.LogInformation($"Updating catalog item price to {catalogItem.Price}");
             var catalog_StatusCode = await _catalogService.UpdateCatalogPriceAsync(catalogItem);
             // Check if the status code is CREATED
             if (catalog_StatusCode != HttpStatusCode.Created) {
