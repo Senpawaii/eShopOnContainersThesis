@@ -279,6 +279,8 @@ public static class CustomExtensionMethods {
     }
 
     public static IServiceCollection AddIntegrationServices(this IServiceCollection services, IConfiguration configuration) {
+        Console.WriteLine($"Wrapper Enabled AddIntegrationServices: {configuration.GetValue<bool>("ThesisWrapperEnabled")}");
+
         services.AddTransient<Func<DbConnection, IIntegrationEventLogService>>(
             sp => (DbConnection c) => new IntegrationEventLogService(c));
 
