@@ -38,10 +38,13 @@ public class TCCMiddleware {
         if( currentUri.Contains("updatepricediscount")) {
             _functionalitySingleton.AddManualResetEvent(_request_metadata.ClientID.Value);
         }
-        
+
+        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, invoking Catalog at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
         // Execute the next middleware in the pipeline (the controller)
         await _next.Invoke(httpctx);
 
+        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, recevied Catalog Result at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         //// Testing
         //return;
 
