@@ -61,6 +61,8 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
                     await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
+                    await _next.Invoke(ctx);
+                    return;
                 }
                 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
