@@ -34,11 +34,11 @@ public class CoordinatorService : ICoordinatorService {
     }
 
     public async Task Ping() {
-        string uri = $"{_settings.Value.CoordinatorUrl}ping";
+        string uri = $"{_settings.Value.CoordinatorUrl}ping?clientID={_metadata.ClientID}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
 
-        _logger.LogInformation($"ClientID: {_metadata.ClientID}, Coordinator pinged. Response: {response.StatusCode}");
+        _logger.LogInformation($"ClientID: {_metadata.ClientID}, Pinged Coordinator. Response: {response.StatusCode}");
     }
 
 }

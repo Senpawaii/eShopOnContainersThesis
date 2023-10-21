@@ -42,6 +42,6 @@ public class CatalogService : ICatalogService {
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
 
-        _logger.LogInformation($"ClientID: {clientID}, Catalog pinged. Response: {response.StatusCode}");
+        _logger.LogInformation($"ClientID: {clientID}, Pinging client {clientID}. Response: {response.StatusCode}");
     }
 }

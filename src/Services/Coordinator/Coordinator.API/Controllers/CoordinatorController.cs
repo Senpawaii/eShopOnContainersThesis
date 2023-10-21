@@ -207,7 +207,9 @@ public class CoordinatorController : ControllerBase {
     {
         // Fire and Forget Block
         _ = Task.Run(async () => {
+            _logger.LogInformation($"Coordinator pinging client {clientID}...");
             await _catalogService.Ping(clientID);
+            _logger.LogInformation($"Coordinator pinged client {clientID}. Finishing fire and forget block.");
         });
         return Ok($"Coordinator is alive! Received ping from client {clientID}");
     }
