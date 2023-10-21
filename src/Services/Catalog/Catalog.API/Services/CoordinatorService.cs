@@ -38,7 +38,7 @@ public class CoordinatorService : ICoordinatorService {
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
 
-        _logger.LogInformation($"ClientID: {_metadata.ClientID}, Pinged Coordinator. Response: {response.StatusCode}");
+        _logger.LogInformation($"ClientID: {_metadata.ClientID}, Pinged Coordinator. Response: {response.StatusCode} at {DateTime.UtcNow}");
     }
 
 }

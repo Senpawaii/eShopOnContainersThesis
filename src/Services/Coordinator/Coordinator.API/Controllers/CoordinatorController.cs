@@ -207,10 +207,15 @@ public class CoordinatorController : ControllerBase {
     {
         // Fire and Forget Block
         _ = Task.Run(async () => {
-            _logger.LogInformation($"Coordinator pinging client {clientID}...");
+            // Wait for 5000 ms
+            await Task.Delay(5000);
+            _logger.LogInformation($"Fire and forget: Coordinator pinging client {clientID} at {DateTime.UtcNow}...");
             await _catalogService.Ping(clientID);
-            _logger.LogInformation($"Coordinator pinged client {clientID}. Finishing fire and forget block.");
+            _logger.LogInformation($"Fire and forget: Coordinator pinged client {clientID}. Finishing fire and forget block.");
         });
+
+        // Measure current time in logger
+        _logger.LogInformation($"Coordinator was pinged. Returning OK at {DateTime.UtcNow}.");
         return Ok($"Coordinator is alive! Received ping from client {clientID}");
     }
 }
