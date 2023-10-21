@@ -129,6 +129,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 }
                 // Clean the singleton fields for the current session context
                 _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
+
+                _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
+                _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
             }
             else {
                 // This is not an HTTP request that requires change
