@@ -6,6 +6,7 @@ using Microsoft.eShopOnContainers.Services.Catalog.API.Services;
 using System.Collections.Concurrent;
 //using NewRelic.Api.Agent;
 using System.Diagnostics;
+using System.Net.NetworkInformation;
 
 namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
     public class TCCMiddleware {
@@ -92,6 +93,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
                 _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
                 await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
+
+                // Ping coordinator
+                await _coordinatorSvc.Ping();
 
                 //// Set stream pointer position to 0 before reading
                 //memStream.Seek(0, SeekOrigin.Begin);

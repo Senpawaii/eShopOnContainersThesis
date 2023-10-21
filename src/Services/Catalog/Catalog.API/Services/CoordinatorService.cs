@@ -33,4 +33,12 @@ public class CoordinatorService : ICoordinatorService {
         var responseString = await response.Content.ReadAsStringAsync();
     }
 
+    public async Task Ping() {
+        string uri = $"{_settings.Value.CoordinatorUrl}ping";
+
+        HttpResponseMessage response = await _httpClient.GetAsync(uri);
+
+        _logger.LogInformation($"ClientID: {_metadata.ClientID}, Coordinator pinged. Response: {response.StatusCode}");
+    }
+
 }
