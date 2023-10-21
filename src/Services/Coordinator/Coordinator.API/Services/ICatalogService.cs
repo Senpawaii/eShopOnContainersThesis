@@ -2,5 +2,6 @@
 public interface ICatalogService {
     public Task IssueCommit(string maxTS, string clientID);
     public Task<long> GetProposal(string clientID);
+    public Task Ping(string clientID);
 
 }

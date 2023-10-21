@@ -475,4 +475,12 @@ public class CatalogController : ControllerBase {
         var ticks = DateTime.UtcNow.Ticks;
         return Task.FromResult(ticks);
     }
+
+    [HttpGet]
+    [Route("ping")]
+    [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
+    public Task Ping() {
+        // Return the current timestamp
+        return Task.CompletedTask;
+    }
 }

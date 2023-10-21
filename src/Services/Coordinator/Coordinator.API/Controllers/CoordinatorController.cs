@@ -72,35 +72,39 @@ public class CoordinatorController : ControllerBase {
     [HttpGet]
     [Route("tokens")]
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
-    public async Task<ActionResult<int>> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
+    public ActionResult<int> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
         double.TryParse(tokens, out var numTokens);
         // _logger.LogInformation($"HTTP Service: Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
-        // Incremement the Tokens
-        _functionalityService.IncreaseTokens(clientID, numTokens);
 
-        if (!readOnly) {
-            // Register the service that sent the tokens and executed at least 1 write operation
-            _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
-        }
+        // Fire and Forget Block
+        _ = Task.Run(async () => {
+            // Incremement the Tokens
+            _functionalityService.IncreaseTokens(clientID, numTokens);
 
-        if (_functionalityService.HasCollectedAllTokens(clientID)) {
-            // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
-            // If no services are registered (read-only functionality), do not ask for proposals / commit
-            if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
-                // Clear all the data structures from the functionality
-                _functionalityService.ClearFunctionality(clientID);
-                return Ok(tokens);
+            if (!readOnly) {
+                // Register the service that sent the tokens and executed at least 1 write operation
+                _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
             }
 
-            await ReceiveProposals(clientID);
+            if (_functionalityService.HasCollectedAllTokens(clientID)) {
+                // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
+                // If no services are registered (read-only functionality), do not ask for proposals / commit
+                if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
+                    // Clear all the data structures from the functionality
+                    _functionalityService.ClearFunctionality(clientID);
+                    return;
+                }
 
-            long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
+                await ReceiveProposals(clientID);
 
-            // Call Services to commit with the MAX TS
-            await BeginCommitProcess(clientID, maxTS);
+                long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
 
-            await IssueCommitEventBasedServices(clientID);
-        }
+                // Call Services to commit with the MAX TS
+                await BeginCommitProcess(clientID, maxTS);
+
+                await IssueCommitEventBasedServices(clientID);
+            }
+        });
 
         return Ok(tokens);
     }
@@ -199,8 +203,12 @@ public class CoordinatorController : ControllerBase {
     [HttpGet]
     [Route("ping")]
     [ProducesResponseType(typeof(string), (int)HttpStatusCode.OK)]
-    public ActionResult<string> Ping()
+    public ActionResult<string> Ping([FromQuery] string clientID = "")
     {
-        return Ok("Coordinator is alive");
+        // Fire and Forget Block
+        _ = Task.Run(async () => {
+            await _catalogService.Ping(clientID);
+        });
+        return Ok($"Coordinator is alive! Received ping from client {clientID}");
     }
 }

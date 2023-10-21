@@ -54,6 +54,14 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     await _next.Invoke(ctx);
                     return;
                 }
+
+                else if(currentUri.Contains("ping")) {
+                    // Debugging purposes
+                    _logger.LogInformation($"ClientID: {clientID} - Pinged by coordinator with TS={_request_metadata.Timestamp.Ticks}"); 
+                    _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
+                    _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
+                    await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
+                }
                 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
                     //_logger.LogInformation($"Registered timestamp: {timestamp}");
@@ -90,11 +98,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 // Call the next middleware
                 await _next.Invoke(ctx);
 
-                _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
-                _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
-                await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
-
-                // Ping coordinator
+                // Ping coordinator - Debugging purposes
                 await _coordinatorSvc.Ping();
 
                 //// Set stream pointer position to 0 before reading
