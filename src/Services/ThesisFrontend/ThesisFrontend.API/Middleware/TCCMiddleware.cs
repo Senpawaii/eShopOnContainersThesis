@@ -19,7 +19,7 @@ public class TCCMiddleware {
         _coordinatorSvc = coordinatorSvc;
     }
 
-   //[Trace]
+    //[Trace]
     public async Task Invoke(HttpContext httpctx) {
         string currentUri = httpctx.Request.GetUri().ToString();
 
@@ -35,18 +35,12 @@ public class TCCMiddleware {
         // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         // Add a new ManualResetEvent associated with the clientID if we are handling a write request
-        if( currentUri.Contains("updatepricediscount")) {
+        if (currentUri.Contains("updatepricediscount")) {
             _functionalitySingleton.AddManualResetEvent(_request_metadata.ClientID.Value);
         }
 
-        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, invoking Catalog at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
         // Execute the next middleware in the pipeline (the controller)
         await _next.Invoke(httpctx);
-
-        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, recevied Catalog Result at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-        //// Testing
-        //return;
 
         // Send the rest of the tokens to the coordinator
         await _coordinatorSvc.SendTokens();
@@ -54,7 +48,7 @@ public class TCCMiddleware {
         // Clean the singleton fields for the current session context
         _functionalitySingleton.RemoveRemainingTokens(_request_metadata.ClientID.Value);
 
-        if( currentUri.Contains("updatepricediscount")) {
+        if (currentUri.Contains("updatepricediscount")) {
             // Block the result until the transaction is ready to be committed (and return the result of the write transaction to the client)
             var mre = _functionalitySingleton.GetManualResetEvent(_request_metadata.ClientID.Value);
             var success = mre.WaitOne();
@@ -71,7 +65,7 @@ public class TCCMiddleware {
         return;
     }
 
-   //[Trace]
+    //[Trace]
     private async Task HandleCommitProtocol(HttpContext httpctx) {
         if (httpctx.Request.Query.TryGetValue("clientID", out var clientID)) {
             _request_metadata.ClientID.Value = clientID;
@@ -104,10 +98,10 @@ public class TCCMiddleware {
         _request_metadata.ReadOnly.Value = true;
     }
 
-   //[Trace]
+    //[Trace]
     private string GenerateRandomString(int length) {
-    Random random = new Random();
-    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        Random random = new Random();
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         return new string(Enumerable.Repeat(chars, length)
                        .Select(s => s[random.Next(s.Length)]).ToArray());
     }

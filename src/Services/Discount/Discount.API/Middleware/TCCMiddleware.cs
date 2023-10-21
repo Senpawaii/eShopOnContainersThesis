@@ -3,7 +3,9 @@ using Microsoft.eShopOnContainers.Services.Discount.API.Services;
 using Microsoft.eShopOnContainers.Services.Discount.API.DependencyServices;
 using Microsoft.eShopOnContainers.Services.Discount.API.Infrastructure;
 using Microsoft.eShopOnContainers.Services.Discount.API.Model;
+using System.Collections.Concurrent;
 using System.Globalization;
+using static System.Net.Mime.MediaTypeNames;
 using Microsoft.EntityFrameworkCore;
 //using NewRelic.Api.Agent;
 
@@ -21,35 +23,44 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
         }
 
         // Middleware has access to Scoped Data, dependency-injected at Startup
-       //[Trace]
+        //[Trace]
         public async Task Invoke(HttpContext ctx, ICoordinatorService _coordinatorSvc, IScopedMetadata _request_metadata,
             ITokensContextSingleton _remainingTokens, ISingletonWrapper _dataWrapper, IOptions<DiscountSettings> settings) {
-            
-            // To differentiate from a regular call, check for the client ID
+
+            // To differentiate from a regular call, check for the functionality ID
             if (ctx.Request.Query.TryGetValue("clientID", out var clientID)) {
                 _request_metadata.ClientID = clientID;
+
                 // Initially set the read-only flag to true. Update it as write operations are performed.
                 _request_metadata.ReadOnly = true;
-                
+
+                // Log the current Time and the client ID
+                // _logger.LogInformation($"0D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+
                 string currentUri = ctx.Request.GetUri().ToString();
-                
                 if (currentUri.Contains("commit")) {
-                    // Start flushing the Wrapper Data into the Database associated with the client session
+                    // _logger.LogInformation($"ClientID: {clientID} - Committing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    // Start flushing the Wrapper Data into the Database associated with the functionality
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
                     // Flush the Wrapper Data into the Database
                     await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
+
                     await _next.Invoke(ctx);
+                    // _logger.LogInformation($"ClientID: {clientID} - Transaction Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+
                     return;
                 }
                 else if (currentUri.Contains("proposeTS")) {
                     // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
                     // _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                }
+                else {
+                    // _logger.LogInformation($"ClientID: {clientID} - Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                 }
 
                 if (ctx.Request.Query.TryGetValue("timestamp", out var timestamp)) {
@@ -86,41 +97,34 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 // Call the next middleware
                 await _next.Invoke(ctx);
+                // Log the current Time and the client ID
+                // _logger.LogInformation($"0.3D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
-                // Added for testing:
-                _dataWrapper.SingletonAddProposedFunctionality(clientID, _request_metadata.Timestamp.Ticks);
-                _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, _request_metadata.Timestamp.Ticks);
-                _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-                await FlushWrapper(clientID, _request_metadata.Timestamp.Ticks, _dataWrapper, _request_metadata, settings);
-                _logger.LogInformation($"ClientID: {clientID} - Flushed Wrapper Data to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                // Set stream pointer position to 0 before reading
+                memStream.Seek(0, SeekOrigin.Begin);
 
+                // Read the body from the stream
+                var responseBodyText = await new StreamReader(memStream).ReadToEndAsync();
 
-                //// Set stream pointer position to 0 before reading
-                //memStream.Seek(0, SeekOrigin.Begin);
+                // Reset the position to 0 after reading
+                memStream.Seek(0, SeekOrigin.Begin);
 
-                //// Read the body from the stream
-                //var responseBodyText = await new StreamReader(memStream).ReadToEndAsync();
+                // Do this last, that way you can ensure that the end results end up in the response.
+                // (This resulting response may come either from the redirected route or other special routes if you have any redirection/re-execution involved in the middleware.)
+                // This is very necessary. ASP.NET doesn't seem to like presenting the contents from the memory stream.
+                // Therefore, the original stream provided by the ASP.NET Core engine needs to be swapped back.
+                // Then write back from the previous memory stream to this original stream.
+                // (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
+                ctx.Response.Body = originalResponseBody;
+                await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
-                //// Reset the position to 0 after reading
-                //memStream.Seek(0, SeekOrigin.Begin);
-
-                //// Do this last, that way you can ensure that the end results end up in the response.
-                //// (This resulting response may come either from the redirected route or other special routes if you have any redirection/re-execution involved in the middleware.)
-                //// This is very necessary. ASP.NET doesn't seem to like presenting the contents from the memory stream.
-                //// Therefore, the original stream provided by the ASP.NET Core engine needs to be swapped back.
-                //// Then write back from the previous memory stream to this original stream.
-                //// (The content is written in the memory stream at this point; it's just that the ASP.NET engine refuses to present the contents from the memory stream.)
-                //ctx.Response.Body = originalResponseBody;
-                //await ctx.Response.Body.WriteAsync(memStream.ToArray());
-
-                // Disabled for testing:
-                //if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
-                //    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
-                //    // Propose Timestamp with Tokens to the Coordinator
-                //    await _coordinatorSvc.SendTokens();
-                //}
-                //// Clean the singleton fields for the current session context
-                //_remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
+                if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
+                    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
+                    // Propose Timestamp with Tokens to the Coordinator
+                    await _coordinatorSvc.SendTokens();
+                }
+                // Clean the singleton fields for the current session context
+                _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
             }
             else {
                 // This is not an HTTP request that requires change
@@ -128,7 +132,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
             }
         }
 
-       //[Trace]
+        //[Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
             // _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database");
             // Set functionality state to the in commit
@@ -152,17 +156,16 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 scopedMetadata.Timestamp = _request_metadata.Timestamp;
                 scopedMetadata.Tokens = _request_metadata.Tokens;
 
-                // Flush the wrapped items to the database
                 if (discountWrapperItems != null) {
-                    if(onlyUpdate) {
-                        foreach(var discountItem in discountWrapperItems) {
+                    if (onlyUpdate) {
+                        foreach (var discountItem in discountWrapperItems) {
                             dbContext.Discount.Update(discountItem);
                         }
                     }
                     else {
-                        foreach(var discountItem in discountWrapperItems) {
+                        foreach (var discountItem in discountWrapperItems) {
                             // _logger.LogInformation($"ClientID: {clientID}, Adding discount item id: {discountItem.Id}, name: {discountItem.ItemName}, brand: {discountItem.ItemBrand}, type: {discountItem.ItemType}, discount: {discountItem.DiscountValue}");
-                            
+
                             // Make a copy of the discountItem with the Id = 0 (EF Core will generate a new Id for the new item, which is the PK)
                             var discountItemCopy = new DiscountItem() {
                                 ItemName = discountItem.ItemName,
@@ -173,27 +176,21 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                             dbContext.Discount.Add(discountItemCopy);
                         }
                     }
-                    _logger.LogInformation($"ClientID {clientID} Saving changes to database");
-                    dbContext.SaveChanges();
-                    _logger.LogInformation("Changes saved to database");
-                }
-                else {
-                    _logger.LogError($"ClientID {clientID} - No discount items to flush");
+                    await dbContext.SaveChangesAsync();
                 }
             }
-            _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
             // The items have been committed. Notify all threads waiting on the commit to read
             _data_wrapper.NotifyReaderThreads(clientID, discountWrapperItems);
-            _logger.LogInformation($"ClientID: {clientID} - Notified all reader threads at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _data_wrapper.CleanWrappedObjects(clientID);
-            _logger.LogInformation($"ClientID: {clientID} - Cleaned wrapped objects at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
         }
     }
 
     public static class TCCMiddlewareExtension {
         public static IApplicationBuilder UseTCCMiddleware(this IApplicationBuilder app) {
-            return app.UseMiddleware<TCCMiddleware>(); 
+            return app.UseMiddleware<TCCMiddleware>();
         }
     }
 }

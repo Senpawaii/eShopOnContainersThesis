@@ -72,45 +72,35 @@ public class CoordinatorController : ControllerBase {
     [HttpGet]
     [Route("tokens")]
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
-    public ActionResult<int> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
+    public async Task<ActionResult<int>> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
         double.TryParse(tokens, out var numTokens);
-        _logger.LogInformation($"HTTP Service: Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}, at {DateTime.UtcNow}");
+        // _logger.LogInformation($"HTTP Service: Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
+        // Incremement the Tokens
+        _functionalityService.IncreaseTokens(clientID, numTokens);
 
-        // Fire and Forget Block
-        _ = Task.Run(async () => {
-            // Incremement the Tokens
-            _functionalityService.IncreaseTokens(clientID, numTokens);
+        if (!readOnly) {
+            // Register the service that sent the tokens and executed at least 1 write operation
+            _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
+        }
 
-            if (!readOnly) {
-                // Register the service that sent the tokens and executed at least 1 write operation
-                _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
+        if (_functionalityService.HasCollectedAllTokens(clientID)) {
+            // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
+            // If no services are registered (read-only functionality), do not ask for proposals / commit
+            if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
+                // Clear all the data structures from the functionality
+                _functionalityService.ClearFunctionality(clientID);
+                return Ok(tokens);
             }
 
-            if (_functionalityService.HasCollectedAllTokens(clientID)) {
-                // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
-                // If no services are registered (read-only functionality), do not ask for proposals / commit
-                if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
-                    // Clear all the data structures from the functionality
-                    _functionalityService.ClearFunctionality(clientID);
-                    return;
-                }
+            await ReceiveProposals(clientID);
 
-                // Debug testing...
-                await ReceiveProposals(clientID);
+            long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
 
-                long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
+            // Call Services to commit with the MAX TS
+            await BeginCommitProcess(clientID, maxTS);
 
-                //// Added for testing purposes
-                //long maxTS = 637842777837859675;
-                //List<string> services = _functionalityService.ServicesTokensProposed[clientID];
-                //_functionalityService.AddNewProposalGivenService(clientID, services[0], 637842777837859675);
-
-                // Call Services to commit with the MAX TS
-                await BeginCommitProcess(clientID, maxTS); // Fire and forget here as well
-
-                await IssueCommitEventBasedServices(clientID); // Fire and forget here as well
-            }
-        });
+            await IssueCommitEventBasedServices(clientID);
+        }
 
         return Ok(tokens);
     }
@@ -130,7 +120,7 @@ public class CoordinatorController : ControllerBase {
         foreach (string address in addresses) {
             // _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
             Task task = null;
-            switch(address) {
+            switch (address) {
                 case "CatalogService":
                     task = _catalogService.IssueCommit(maxTS.ToString(), clientID);
                     break;
@@ -149,7 +139,7 @@ public class CoordinatorController : ControllerBase {
     }
 
     private async ValueTask IssueCommitEventBasedServices(string clientID) {
-        if(_functionalityService.ServicesEventTokensProposed.ContainsKey(clientID) && _functionalityService.ServicesEventTokensProposed[clientID].Count > 0) {
+        if (_functionalityService.ServicesEventTokensProposed.ContainsKey(clientID) && _functionalityService.ServicesEventTokensProposed[clientID].Count > 0) {
             // Get all services' addresses involved in the functionality
             List<string> addresses = _functionalityService.ServicesEventTokensProposed[clientID]
                                         .Distinct()
@@ -209,19 +199,7 @@ public class CoordinatorController : ControllerBase {
     [HttpGet]
     [Route("ping")]
     [ProducesResponseType(typeof(string), (int)HttpStatusCode.OK)]
-    public ActionResult<string> Ping([FromQuery] string clientID = "")
-    {
-        // Fire and Forget Block
-        _ = Task.Run(async () => {
-            // Wait for 5000 ms
-            //await Task.Delay(5000);
-            _logger.LogInformation($"Fire and forget: Coordinator pinging client {clientID} at {DateTime.UtcNow}...");
-            await _catalogService.Ping(clientID);
-            _logger.LogInformation($"Fire and forget: Coordinator pinged client {clientID}. Finishing fire and forget block.");
-        });
-
-        // Measure current time in logger
-        _logger.LogInformation($"Coordinator was pinged. Returning OK at {DateTime.UtcNow}.");
-        return Ok($"Coordinator is alive! Received ping from client {clientID}");
+    public ActionResult<string> Ping() {
+        return Ok("Coordinator is alive");
     }
 }
