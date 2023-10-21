@@ -271,7 +271,7 @@ public class CatalogController : ControllerBase {
             _logger.LogInformation($"The catalog item: {productToUpdate.Name} THE NEW PRICE IS THE SAME AS THE OLD PRICE: {productToUpdate.Price} = {oldPrice}");
             await _catalogContext.SaveChangesAsync();
         }
-        _logger.LogInformation($"The catalog item: {productToUpdate.Name} THE NEW PRICE IS: {productToUpdate.Price} AND THE OLD PRICE WAS: {oldPrice}");
+        //_logger.LogInformation($"The catalog item: {productToUpdate.Name} THE NEW PRICE IS: {productToUpdate.Price} AND THE OLD PRICE WAS: {oldPrice}");
         return CreatedAtAction(nameof(ItemByIdAsync), new { id = productToUpdate.Id }, null);
     }
 
