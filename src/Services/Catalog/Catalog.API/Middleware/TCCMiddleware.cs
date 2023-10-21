@@ -101,7 +101,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 await _next.Invoke(ctx);
 
                 // Ping coordinator - Debugging purposes
-                await _coordinatorSvc.Ping();
+                //await _coordinatorSvc.Ping();
 
                 //// Set stream pointer position to 0 before reading
                 //memStream.Seek(0, SeekOrigin.Begin);
@@ -122,13 +122,13 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 //await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
                 // Disabled for now
-                //if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
-                //    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
-                //    // Propose Timestamp with Tokens to the Coordinator
-                //    await _coordinatorSvc.SendTokens();
-                //}
-                //// Clean the singleton fields for the current session context
-                //_remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
+                if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
+                    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
+                    // Propose Timestamp with Tokens to the Coordinator
+                    await _coordinatorSvc.SendTokens();
+                }
+                // Clean the singleton fields for the current session context
+                _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
             }
             else {
                 // This is not an HTTP request that requires change

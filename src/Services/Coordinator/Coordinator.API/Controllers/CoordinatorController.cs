@@ -74,7 +74,7 @@ public class CoordinatorController : ControllerBase {
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     public ActionResult<int> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
         double.TryParse(tokens, out var numTokens);
-        // _logger.LogInformation($"HTTP Service: Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
+        _logger.LogInformation($"HTTP Service: Received {numTokens} tokens from {serviceName} for client {clientID} with readOnly = {readOnly}");
 
         // Fire and Forget Block
         _ = Task.Run(async () => {
@@ -100,9 +100,9 @@ public class CoordinatorController : ControllerBase {
                 long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
 
                 // Call Services to commit with the MAX TS
-                await BeginCommitProcess(clientID, maxTS);
+                await BeginCommitProcess(clientID, maxTS); // Fire and forget here as well
 
-                await IssueCommitEventBasedServices(clientID);
+                await IssueCommitEventBasedServices(clientID); // Fire and forget here as well
             }
         });
 
