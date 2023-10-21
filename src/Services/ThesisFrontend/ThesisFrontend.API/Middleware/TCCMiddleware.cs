@@ -54,21 +54,20 @@ public class TCCMiddleware {
         // Clean the singleton fields for the current session context
         _functionalitySingleton.RemoveRemainingTokens(_request_metadata.ClientID.Value);
 
-        // debug Testing 
-        //if( currentUri.Contains("updatepricediscount")) {
-        //    // Block the result until the transaction is ready to be committed (and return the result of the write transaction to the client)
-        //    var mre = _functionalitySingleton.GetManualResetEvent(_request_metadata.ClientID.Value);
-        //    var success = mre.WaitOne();
+        if( currentUri.Contains("updatepricediscount")) {
+            // Block the result until the transaction is ready to be committed (and return the result of the write transaction to the client)
+            var mre = _functionalitySingleton.GetManualResetEvent(_request_metadata.ClientID.Value);
+            var success = mre.WaitOne();
 
-        //    // Clean the singleton fields for the current session context
-        //    _functionalitySingleton.RemoveTransactionState(_request_metadata.ClientID.Value);
-        //    _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
+            // Clean the singleton fields for the current session context
+            _functionalitySingleton.RemoveTransactionState(_request_metadata.ClientID.Value);
+            _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
 
-        //    // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, WRITE transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-        //}
-        //else {
-        //    // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, READ transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-        //}
+            // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, WRITE transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        }
+        else {
+            // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, READ transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        }
         return;
     }
 

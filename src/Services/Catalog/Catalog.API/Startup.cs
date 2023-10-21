@@ -155,6 +155,7 @@ public static class CustomExtensionMethods
         {
             options.Filters.Add(typeof(HttpGlobalExceptionFilter));
         })
+        .AddNewtonsoftJson()
         .AddJsonOptions(options => options.JsonSerializerOptions.WriteIndented = true);
 
         services.AddCors(options =>
