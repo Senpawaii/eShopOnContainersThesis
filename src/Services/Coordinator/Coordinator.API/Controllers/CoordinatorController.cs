@@ -96,14 +96,14 @@ public class CoordinatorController : ControllerBase {
                 }
 
                 // Debug testing...
-                    //await ReceiveProposals(clientID);
+                await ReceiveProposals(clientID);
 
-                    //long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
-                    
-                    // Added for testing purposes
-                    long maxTS = 637842777837859675;
-                    List<string> services = _functionalityService.ServicesTokensProposed[clientID];
-                    _functionalityService.AddNewProposalGivenService(clientID, services[0], 637842777837859675);
+                long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
+
+                //// Added for testing purposes
+                //long maxTS = 637842777837859675;
+                //List<string> services = _functionalityService.ServicesTokensProposed[clientID];
+                //_functionalityService.AddNewProposalGivenService(clientID, services[0], 637842777837859675);
 
                 // Call Services to commit with the MAX TS
                 await BeginCommitProcess(clientID, maxTS); // Fire and forget here as well
