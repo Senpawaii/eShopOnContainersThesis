@@ -38,7 +38,7 @@ public class CatalogService : ICatalogService {
 
     public async Task Ping(string clientID) {
         string currentTime = DateTime.UtcNow.Ticks.ToString();
-        string uri = $"{_settings.Value.CatalogUrl}ping?timestamp={currentTime}clientID={clientID}";
+        string uri = $"{_settings.Value.CatalogUrl}ping?timestamp={currentTime}&clientID={clientID}";
 
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
 
