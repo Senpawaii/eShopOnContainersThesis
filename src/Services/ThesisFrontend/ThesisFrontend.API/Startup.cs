@@ -102,6 +102,7 @@ public static class CustomExtensionMethods {
         services.AddControllers(options => {
             options.Filters.Add(typeof(HttpGlobalExceptionFilter));
         })
+        .AddNewtonsoftJson()
         .AddJsonOptions(options => options.JsonSerializerOptions.WriteIndented = true);
 
         services.AddCors(options => {
