@@ -74,15 +74,25 @@ public class CoordinatorController : ControllerBase {
     [ProducesResponseType(typeof(int), (int)HttpStatusCode.OK)]
     public async Task<ActionResult<int>> ReceiveTokens([FromQuery] string tokens = "", [FromQuery] string clientID = "", [FromQuery] string serviceName = "", [FromQuery] bool readOnly = false) {
         double.TryParse(tokens, out var numTokens);
-        // Incremement the Tokens
-        _functionalityService.IncreaseTokens(clientID, numTokens);
 
-        if (!readOnly) {
-            // Register the service that sent the tokens and executed at least 1 write operation
-            _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
+        // Synchronize access to the functionality service (we don't want concurrent services issuing proposals)
+        bool hasAllTokens = false;
+
+        lock (_functionalityService) {
+            // Incremement the Tokens
+            _functionalityService.IncreaseTokens(clientID, numTokens);
+
+            if (!readOnly) {
+                // Register the service that sent the tokens and executed at least 1 write operation
+                _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
+            }
+            _logger.LogInformation($"Received {numTokens} tokens from {serviceName} for client {clientID}");
+            if (_functionalityService.HasCollectedAllTokens(clientID)) {
+                hasAllTokens = true;
+            }
         }
-        _logger.LogInformation($"Received {numTokens} tokens from {serviceName} for client {clientID}");
-        if (_functionalityService.HasCollectedAllTokens(clientID)) {
+
+        if(hasAllTokens) {
             // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
             // If no services are registered (read-only functionality), do not ask for proposals / commit
             if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || _functionalityService.ServicesTokensProposed[clientID].Count == 0) {
@@ -100,7 +110,6 @@ public class CoordinatorController : ControllerBase {
 
             await IssueCommitEventBasedServices(clientID);
         }
-
         return Ok(tokens);
     }
 
