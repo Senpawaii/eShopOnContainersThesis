@@ -122,18 +122,19 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 // Decrement the tokens
                 int remainingTokens = _remainingTokens.GetRemainingTokens(clientID);
                 _remainingTokens.DecrementRemainingTokens(clientID, remainingTokens);
-                
-                // Start a fire and forget task to send the tokens to the coordinator
-                Task _ = Task.Run(async () => {
-                    _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_request_metadata.Tokens}. Sending to coordinator {remainingTokens} tokens...");
-                    if (remainingTokens > 0) {
+
+                if (remainingTokens > 0) {
+                    // Start a fire and forget task to send the tokens to the coordinator
+                    Task _ = Task.Run(async () => {
+                        _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_request_metadata.Tokens}. Sending to coordinator {remainingTokens} tokens...");
                         // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
                         // Propose Timestamp with Tokens to the Coordinator
                         await _coordinatorSvc.SendTokens();
-                    }
+                    });
+                    
                     // Clean the singleton fields for the current session context
                     _remainingTokens.RemoveRemainingTokens(clientID);
-                });
+                }
             }
             else {
                 // This is not an HTTP request that requires change
