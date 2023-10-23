@@ -69,7 +69,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 }
 
                 if (ctx.Request.Query.TryGetValue("tokens", out var tokens)) {
-                    // _logger.LogInformation($"Registered tokens: {tokens}");
+                    _logger.LogInformation($"Registered tokens: {tokens}");
                     Int32.TryParse(tokens, out int numTokens);
                     _request_metadata.Tokens = numTokens;
                     _remainingTokens.AddRemainingTokens(clientID, numTokens);
