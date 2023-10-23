@@ -100,7 +100,7 @@ public class CoordinatorController : ControllerBase {
                 _functionalityService.ClearFunctionality(clientID);
                 return Ok(tokens);
             }
-            _logger.LogInformation($" {clientID} has collected all tokens, asking for proposals");
+            //_logger.LogInformation($" {clientID} has collected all tokens, asking for proposals");
             await ReceiveProposals(clientID);
 
             long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
