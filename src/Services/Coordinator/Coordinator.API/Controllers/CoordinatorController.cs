@@ -81,7 +81,7 @@ public class CoordinatorController : ControllerBase {
             // Register the service that sent the tokens and executed at least 1 write operation
             _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
         }
-
+        _logger.LogInformation($"Received {numTokens} tokens from {serviceName} for client {clientID}");
         if (_functionalityService.HasCollectedAllTokens(clientID)) {
             // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
             // If no services are registered (read-only functionality), do not ask for proposals / commit
@@ -90,7 +90,7 @@ public class CoordinatorController : ControllerBase {
                 _functionalityService.ClearFunctionality(clientID);
                 return Ok(tokens);
             }
-
+            _logger.LogInformation($" {clientID} has collected all tokens, asking for proposals");
             await ReceiveProposals(clientID);
 
             long maxTS = _functionalityService.Proposals[clientID].Max(t => t.Item2);
@@ -171,7 +171,7 @@ public class CoordinatorController : ControllerBase {
     private async Task ReceiveProposals(string clientID) {
         // Get all services' addresses involved in the functionality
         List<string> services = _functionalityService.ServicesTokensProposed[clientID];
-
+        _logger.LogInformation($"Issuing proposals to {string.Join(", ", services)} for client {clientID}");
         var tasks = new List<Task<long>>();
         foreach (string service in services) {
             switch (service) {
