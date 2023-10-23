@@ -77,6 +77,7 @@ public class SingletonWrapper : ISingletonWrapper {
                 ItemType = (string)item[3],
                 DiscountValue = (int)item[4]
             };
+            _logger.LogInformation($"ClientID: {clientID} - \t Adding wrapped item with ID {wrapped_item.Id}.");
             wrapped_discount_items.AddOrUpdate(clientID, new ConcurrentBag<DiscountItem> { wrapped_item }, (key, bag) => {
                 bag.Add(wrapped_item);
                 return bag;

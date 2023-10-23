@@ -39,7 +39,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {
-                    // _logger.LogInformation($"ClientID: {clientID} - Committing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    _logger.LogInformation($"ClientID: {clientID} - Committing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     // Start flushing the Wrapper Data into the Database associated with the functionality
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -140,6 +140,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
             // _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database");
             // Set functionality state to the in commit
+            _logger.LogInformation($"ClientID: {clientID} - Setting Transaction State to true");
             _data_wrapper.SingletonSetTransactionState(clientID, true);
 
             // Assign the received commit timestamp to the request scope
