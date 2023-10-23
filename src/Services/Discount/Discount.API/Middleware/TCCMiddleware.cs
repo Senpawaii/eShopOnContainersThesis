@@ -35,7 +35,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 _request_metadata.ReadOnly = true;
 
                 // Log the current Time and the client ID
-                // _logger.LogInformation($"0D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
+                _logger.LogInformation($"0D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
 
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {

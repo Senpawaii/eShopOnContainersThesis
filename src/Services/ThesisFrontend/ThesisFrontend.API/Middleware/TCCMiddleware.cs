@@ -32,7 +32,7 @@ public class TCCMiddleware {
         // Else, we are handling a read request or the beginning of a write request
         // Initialize the metadata fields
         SeedMetadata(currentUri);
-        // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+        _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         // Add a new ManualResetEvent associated with the clientID if we are handling a write request
         if (currentUri.Contains("updatepricediscount")) {
