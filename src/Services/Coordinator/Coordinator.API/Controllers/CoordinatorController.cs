@@ -47,7 +47,7 @@ public class CoordinatorController : ControllerBase {
         _functionalityService.AddNewServiceSentEventTokens(clientID, serviceName);
 
         if (_functionalityService.HasCollectedAllTokens(clientID)) {
-            // _logger.LogInformation("Received all tokens for client {clientID}", clientID);
+            _logger.LogInformation("Received all tokens for client {clientID}", clientID);
             // If no services are registered (read-only functionality), and no Event-based services sent tokens do not ask for proposals / commit
             if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || allServicesReadOnly(clientID)) {
                 // Clear all the data structures from the functionality
@@ -118,7 +118,7 @@ public class CoordinatorController : ControllerBase {
         // Parallelize the commit process
         List<Task> taskList = new List<Task>();
         foreach (string address in addresses) {
-            // _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
+            _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
             Task task = null;
             switch (address) {
                 case "CatalogService":

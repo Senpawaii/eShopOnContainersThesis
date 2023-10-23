@@ -121,6 +121,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 // Start a fire and forget task to send the tokens to the coordinator
                 Task _ = Task.Run(async () => {
+                    _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(clientID)}. Sending to coordinator...");
                     if (_remainingTokens.GetRemainingTokens(clientID) > 0) {
                         // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
                         // Propose Timestamp with Tokens to the Coordinator
