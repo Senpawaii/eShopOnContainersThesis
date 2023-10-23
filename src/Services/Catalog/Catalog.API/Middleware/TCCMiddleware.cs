@@ -39,11 +39,9 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
 
-                    // Flush the Wrapper Data into the Database
-                    await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
-                    // _logger.LogInformation($"ClientID: {clientID} - Flushing Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    // Fire and forget the FlushWrapper method and concurrently invoke the next middleware by using Task.Run
+                    _ = Task.Run(() => FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings));
                     await _next.Invoke(ctx);
-                    // _logger.LogInformation($"ClientID: {clientID} - Transaction Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     return;
                 }
                 else if (currentUri.Contains("proposeTS")) {
@@ -121,10 +119,7 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                 if (remainingTokens > 0) {
                     // Start a fire and forget task to send the tokens to the coordinator
-                    Task _ = Task.Run(async () => {
-                        // Propose Timestamp with Tokens to the Coordinator
-                        await _coordinatorSvc.SendTokens();
-                    });
+                    Task _ = Task.Run(_coordinatorSvc.SendTokens);
 
                     // Clean the singleton fields for the current session context
                     _remainingTokens.RemoveRemainingTokens(clientID);
