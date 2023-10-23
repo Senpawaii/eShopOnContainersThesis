@@ -77,7 +77,6 @@ public class SingletonWrapper : ISingletonWrapper {
                 ItemType = (string)item[3],
                 DiscountValue = (int)item[4]
             };
-            _logger.LogInformation($"ClientID: {clientID} - \t Adding wrapped item with ID {wrapped_item.Id}.");
             wrapped_discount_items.AddOrUpdate(clientID, new ConcurrentBag<DiscountItem> { wrapped_item }, (key, bag) => {
                 bag.Add(wrapped_item);
                 return bag;
@@ -385,14 +384,9 @@ public class SingletonWrapper : ISingletonWrapper {
                     _logger.LogError($"ClientID: {clientID} - A: Could not find any ManualResetEvent for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
                 }
                 // Find the MRE associated with the notifier ClientID
-                //var guid_EM = EMs_PropItem_dict.Where(EM => EM.Value.ClientID == clientID).Single();
-                var guid_EM = EMs_PropItem_dict.Where(EM => EM.Value.ClientID == clientID);
-                foreach (var kvp in guid_EM) {
-                    _logger.LogInformation($"ClientID: {clientID} - Found MRE for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS} and GUID {kvp.Value.ClientID}");
-                }
-                var singleGuid_EM = guid_EM.Single();
+                var guid_EM = EMs_PropItem_dict.Where(EM => EM.Value.ClientID == clientID).Single();
                 try {
-                    singleGuid_EM.Value.Event.Set(); // Set the first ManualResetEvent that is not set yet
+                    guid_EM.Value.Event.Set(); // Set the first ManualResetEvent that is not set yet
                 } 
                 catch (Exception) {
                     _logger.LogError($"ClientID: {clientID} - B: Could not find any ManualResetEvent for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");

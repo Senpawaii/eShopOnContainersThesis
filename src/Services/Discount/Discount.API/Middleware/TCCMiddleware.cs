@@ -138,7 +138,6 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
         //[Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
             // Set functionality state to the in commit
-            _logger.LogInformation($"ClientID: {clientID} - Setting Transaction State to true");
             _data_wrapper.SingletonSetTransactionState(clientID, true);
 
             // Assign the received commit timestamp to the request scope

@@ -23,7 +23,6 @@ public class CoordinatorService : ICoordinatorService {
     public async Task SendTokens() {
         int tokensToSend = _metadata.Tokens;
         string uri = $"{_settings.Value.CoordinatorUrl}tokens?tokens={tokensToSend}&clientID={_metadata.ClientID}&serviceName=DiscountService&readOnly={_metadata.ReadOnly}";
-        _logger.LogInformation($"ClientID: {_metadata.ClientID} Sending {tokensToSend} tokens to Coordinator");
         HttpResponseMessage _ = await _httpClient.GetAsync(uri);
     }
 }
