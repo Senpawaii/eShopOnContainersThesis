@@ -41,7 +41,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     long ticks = Convert.ToInt64(ticksStr);
 
                     // Flush the Wrapper Data into the Database
-                    await FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings);
+                    _ = Task.Run(() => FlushWrapper(clientID, ticks, _dataWrapper, _request_metadata, settings));
 
                     await _next.Invoke(ctx);
                     // _logger.LogInformation($"ClientID: {clientID} - Transaction Complete at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
