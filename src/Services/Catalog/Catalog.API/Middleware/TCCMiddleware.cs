@@ -113,13 +113,16 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
                 ctx.Response.Body = originalResponseBody;
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
-                if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID) > 0) {
-                    // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
-                    // Propose Timestamp with Tokens to the Coordinator
-                    await _coordinatorSvc.SendTokens();
-                }
-                // Clean the singleton fields for the current session context
-                _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID);
+                // Start a fire and forget task to send the tokens to the coordinator
+                Task _ = Task.Run(async () => {
+                    if (_remainingTokens.GetRemainingTokens(clientID) > 0) {
+                        // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
+                        // Propose Timestamp with Tokens to the Coordinator
+                        await _coordinatorSvc.SendTokens();
+                    }
+                    // Clean the singleton fields for the current session context
+                    _remainingTokens.RemoveRemainingTokens(clientID);
+                });
             }
             else {
                 // This is not an HTTP request that requires change
