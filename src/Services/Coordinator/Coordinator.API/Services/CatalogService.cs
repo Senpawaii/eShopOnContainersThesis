@@ -28,7 +28,7 @@ public class CatalogService : ICatalogService {
 
     public async Task<long> GetProposal(string clientID) {
         string uri = $"{_settings.Value.CatalogUrl}proposeTS?clientID={clientID}";
-        _logger.LogInformation($"Issuing GET request to {uri}");
+        //_logger.LogInformation($"Issuing GET request to {uri}");
         HttpResponseMessage response = await _httpClient.GetAsync(uri);
         // response.EnsureSuccessStatusCode();
         var responseString = await response.Content.ReadAsStringAsync();

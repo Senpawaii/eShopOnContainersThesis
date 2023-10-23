@@ -136,7 +136,7 @@ public class SingletonWrapper : ISingletonWrapper {
 
             // Create ManualEvent for Discount item
             lock(discount_items_manual_reset_events) {
-                _logger.LogInformation($"ClientID: {clientID} - \t Creating ManualResetEvent for catalog item with ID {proposedItem.ItemName} with proposed TS {proposedTS} and GUID {guidString}.");
+                //_logger.LogInformation($"ClientID: {clientID} - \t Creating ManualResetEvent for catalog item with ID {proposedItem.ItemName} with proposed TS {proposedTS} and GUID {guidString}.");
                 discount_items_manual_reset_events.AddOrUpdate(proposedItem,
                     key => new ConcurrentDictionary<string, EventMonitor> { [guidString] = EM },
                     (key, value) => {

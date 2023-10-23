@@ -51,7 +51,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 else if (currentUri.Contains("proposeTS")) {
                     // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
-                    _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    //_logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                     await _next.Invoke(ctx);

@@ -47,7 +47,7 @@ public class CoordinatorController : ControllerBase {
         _functionalityService.AddNewServiceSentEventTokens(clientID, serviceName);
 
         if (_functionalityService.HasCollectedAllTokens(clientID)) {
-            _logger.LogInformation("Received all tokens for client {clientID}", clientID);
+            //_logger.LogInformation("Received all tokens for client {clientID}", clientID);
             // If no services are registered (read-only functionality), and no Event-based services sent tokens do not ask for proposals / commit
             if (!_functionalityService.ServicesTokensProposed.ContainsKey(clientID) || allServicesReadOnly(clientID)) {
                 // Clear all the data structures from the functionality
@@ -86,7 +86,7 @@ public class CoordinatorController : ControllerBase {
                 // Register the service that sent the tokens and executed at least 1 write operation
                 _functionalityService.AddNewServiceSentTokens(clientID, serviceName);
             }
-            _logger.LogInformation($"Received {numTokens} tokens from {serviceName} for client {clientID}");
+            //_logger.LogInformation($"Received {numTokens} tokens from {serviceName} for client {clientID}");
             if (_functionalityService.HasCollectedAllTokens(clientID)) {
                 hasAllTokens = true;
             }
@@ -180,7 +180,7 @@ public class CoordinatorController : ControllerBase {
     private async Task ReceiveProposals(string clientID) {
         // Get all services' addresses involved in the functionality
         List<string> services = _functionalityService.ServicesTokensProposed[clientID];
-        _logger.LogInformation($"Issuing proposals to {string.Join(", ", services)} for client {clientID}");
+        //_logger.LogInformation($"Issuing proposals to {string.Join(", ", services)} for client {clientID}");
         var tasks = new List<Task<long>>();
         foreach (string service in services) {
             switch (service) {
