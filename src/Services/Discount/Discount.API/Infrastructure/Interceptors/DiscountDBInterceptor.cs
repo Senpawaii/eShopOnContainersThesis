@@ -182,7 +182,6 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
                 bool funcStateIns = _wrapper.SingletonGetTransactionState(clientID);
                 if (!funcStateIns) {
-                    _logger.LogInformation($"ClientID: {clientID} is not in commit state. Storing data in wrapper.");
                     // If the Transaction is not in commit state, store data in wrapper
                     var mockReader = StoreDataInWrapper(command, INSERT_COMMAND, targetTable);
                     result = InterceptionResult<DbDataReader>.SuppressWithResult(mockReader);
@@ -448,7 +447,6 @@ public class DiscountDBInterceptor : DbCommandInterceptor {
 
         switch (targetTable) {
             case "Discount":
-                _logger.LogInformation($"Storing data in Wrapper... ClientID: {clientID}, commandText= {command.CommandText}");
                 _wrapper.SingletonAddDiscountItem(clientID, rows.ToArray());
                 break;
         }

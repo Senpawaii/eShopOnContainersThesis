@@ -188,7 +188,7 @@ public class FrontendController : ControllerBase {
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     //[Trace]
     public async Task<IActionResult> UpdatePriceDiscountAsync([FromBody] UpdatePriceDiscountRequest request) {
-        _logger.LogInformation($"Received request to update the price and discount of the item {request.CatalogItem.Name} with id {request.CatalogItem.Id}");
+        //_logger.LogInformation($"Received request to update the price and discount of the item {request.CatalogItem.Name} with id {request.CatalogItem.Id}");
         
         // Check if the CatalogItem and DiscountItem are valid
         if (request == null) {

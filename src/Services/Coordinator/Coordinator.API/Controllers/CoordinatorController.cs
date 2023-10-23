@@ -118,7 +118,6 @@ public class CoordinatorController : ControllerBase {
         // Parallelize the commit process
         List<Task> taskList = new List<Task>();
         foreach (string address in addresses) {
-            _logger.LogInformation($"Issuing commit to {address} for client {clientID}");
             Task task = null;
             switch (address) {
                 case "CatalogService":
@@ -176,7 +175,6 @@ public class CoordinatorController : ControllerBase {
 
         var tasks = new List<Task<long>>();
         foreach (string service in services) {
-            // _logger.LogInformation($"Issuing proposal request to {service} for client {clientID}");
             switch (service) {
                 case "CatalogService":
                     tasks.Add(_catalogService.GetProposal(clientID));
@@ -188,10 +186,8 @@ public class CoordinatorController : ControllerBase {
         }
         var results = await Task.WhenAll(tasks);
 
-        // _logger.LogInformation($"Tasks count: {tasks.Count} - Results count: {results.Count()}");
         for (int i = 0; i < tasks.Count; i++) {
             // Note that services might include the ThesisFrontendService, which does not have a proposal, thus we use tasks.Count instead of services.Count
-            // _logger.LogInformation($"Received proposal {results[i]} from {services[i]} for client {clientID}");
             _functionalityService.AddNewProposalGivenService(clientID, services[i], results[i]);
         }
     }

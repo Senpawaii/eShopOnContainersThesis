@@ -34,12 +34,8 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 // Initially set the read-only flag to true. Update it as write operations are performed.
                 _request_metadata.ReadOnly = true;
 
-                // Log the current Time and the client ID
-                _logger.LogInformation($"0D: Request received at {DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt", CultureInfo.InvariantCulture)} for functionality {clientID}.");
-
                 string currentUri = ctx.Request.GetUri().ToString();
                 if (currentUri.Contains("commit")) {
-                    _logger.LogInformation($"ClientID: {clientID} - Committing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     // Start flushing the Wrapper Data into the Database associated with the functionality
                     ctx.Request.Query.TryGetValue("timestamp", out var ticksStr);
                     long ticks = Convert.ToInt64(ticksStr);
@@ -126,8 +122,6 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 if (remainingTokens > 0) {
                     // Start a fire and forget task to send the tokens to the coordinator
                     Task _ = Task.Run(async () => {
-                        _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_request_metadata.Tokens}. Sending to coordinator {remainingTokens} tokens...");
-                        // _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(_request_metadata.ClientID)}");
                         // Propose Timestamp with Tokens to the Coordinator
                         await _coordinatorSvc.SendTokens();
                     });
@@ -144,7 +138,6 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
         //[Trace]
         private async Task FlushWrapper(string clientID, long ticks, ISingletonWrapper _data_wrapper, IScopedMetadata _request_metadata, IOptions<DiscountSettings> settings) {
-            // _logger.LogInformation($"ClientID: {clientID} - Flushing Wrapper Data to Database");
             // Set functionality state to the in commit
             _logger.LogInformation($"ClientID: {clientID} - Setting Transaction State to true");
             _data_wrapper.SingletonSetTransactionState(clientID, true);
@@ -190,12 +183,10 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                     await dbContext.SaveChangesAsync();
                 }
             }
-            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");    
             // The items have been committed. Notify all threads waiting on the commit to read
             _data_wrapper.NotifyReaderThreads(clientID, discountWrapperItems);
             // There are 3 data types that need to be cleaned: Wrapped items, Functionality State, and Proposed Objects
             _data_wrapper.CleanWrappedObjects(clientID);
-            // _logger.LogInformation($"ClientID: {clientID} - Wrapper Data flushed to Database");    
         }
     }
 
