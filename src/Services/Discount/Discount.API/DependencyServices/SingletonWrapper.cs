@@ -383,9 +383,14 @@ public class SingletonWrapper : ISingletonWrapper {
                     _logger.LogError($"ClientID: {clientID} - A: Could not find any ManualResetEvent for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
                 }
                 // Find the MRE associated with the notifier ClientID
-                var guid_EM = EMs_PropItem_dict.Where(EM => EM.Value.ClientID == clientID).Single();
+                //var guid_EM = EMs_PropItem_dict.Where(EM => EM.Value.ClientID == clientID).Single();
+                var guid_EM = EMs_PropItem_dict.Where(EM => EM.Value.ClientID == clientID);
+                foreach (var kvp in guid_EM) {
+                    _logger.LogInformation($"ClientID: {clientID} - Found MRE for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS} and GUID {kvp.Value.ClientID}");
+                }
+                var singleGuid_EM = guid_EM.Single();
                 try {
-                    guid_EM.Value.Event.Set(); // Set the first ManualResetEvent that is not set yet
+                    singleGuid_EM.Value.Event.Set(); // Set the first ManualResetEvent that is not set yet
                 } 
                 catch (Exception) {
                     _logger.LogError($"ClientID: {clientID} - B: Could not find any ManualResetEvent for discount item with ID {proposedItem.ItemName} with proposed TS {proposedTS}");
