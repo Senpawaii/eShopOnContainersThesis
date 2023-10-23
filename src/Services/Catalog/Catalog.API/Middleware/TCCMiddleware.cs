@@ -53,6 +53,8 @@ namespace Microsoft.eShopOnContainers.Services.Catalog.API.Middleware {
 
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
+                    await _next.Invoke(ctx);
+                    return;
                 }
                 else {
                     // _logger.LogInformation($"ClientID: {clientID} - Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
