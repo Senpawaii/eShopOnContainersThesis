@@ -119,6 +119,10 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
 
+                // Decrement the tokens
+                int remainingTokens = _remainingTokens.RemainingTokens[clientID];
+                _remainingTokens.RemoveRemainingTokens(clientID);
+                
                 // Start a fire and forget task to send the tokens to the coordinator
                 Task _ = Task.Run(async () => {
                     _logger.LogInformation($"ClientID: {clientID} - Remaining Tokens: {_remainingTokens.GetRemainingTokens(clientID)}. Sending to coordinator...");
@@ -128,7 +132,6 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                         await _coordinatorSvc.SendTokens();
                     }
                     // Clean the singleton fields for the current session context
-                    _remainingTokens.RemoveRemainingTokens(clientID);
                 });
             }
             else {
