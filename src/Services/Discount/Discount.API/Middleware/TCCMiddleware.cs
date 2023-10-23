@@ -51,7 +51,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
                 else if (currentUri.Contains("proposeTS")) {
                     // Update functionality to Proposed State and Store data written in the current functionality in a proposed-state structure
                     var currentTS = _request_metadata.Timestamp.Ticks;
-                    // _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
+                    _logger.LogInformation($"ClientID: {clientID} - Proposing Transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
                     _dataWrapper.SingletonAddProposedFunctionality(clientID, currentTS);
                     _dataWrapper.SingletonAddWrappedItemsToProposedSet(clientID, currentTS);
                 }
@@ -121,10 +121,7 @@ namespace Microsoft.eShopOnContainers.Services.Discount.API.Middleware {
 
                 if (remainingTokens > 0) {
                     // Start a fire and forget task to send the tokens to the coordinator
-                    Task _ = Task.Run(async () => {
-                        // Propose Timestamp with Tokens to the Coordinator
-                        await _coordinatorSvc.SendTokens();
-                    });
+                    Task _ = Task.Run(_coordinatorSvc.SendTokens);
                     
                     // Clean the singleton fields for the current session context
                     _remainingTokens.RemoveRemainingTokens(clientID);
