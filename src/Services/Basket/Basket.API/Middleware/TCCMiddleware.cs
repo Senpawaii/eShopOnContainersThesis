@@ -98,12 +98,17 @@ public class TCCMiddleware {
             ctx.Response.Body = originalResponseBody;
             await ctx.Response.Body.WriteAsync(memStream.ToArray());
 
-            if (_remainingTokens.GetRemainingTokens(_request_metadata.ClientID.Value) > 0) {
-                // send any remaining Tokens to the Coordinator
-                await _coordinatorSvc.SendTokens();
+            // Decrement the tokens
+            int remainingTokens = _remainingTokens.GetRemainingTokens(clientID);
+            _remainingTokens.DecrementRemainingTokens(clientID, remainingTokens);
+
+            if (remainingTokens > 0) {
+                // Start a fire and forget task to send the tokens to the coordinator
+                Task _ = Task.Run(_coordinatorSvc.SendTokens);
+
+                // Clean the singleton fields for the current session context
+                _remainingTokens.RemoveRemainingTokens(clientID);
             }
-            // Clean the singleton fields for the current session context
-            _remainingTokens.RemoveRemainingTokens(_request_metadata.ClientID.Value);
         }
         else {
             // This is not an HTTP request that requires change
