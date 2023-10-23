@@ -31,7 +31,7 @@ public class TCCMiddleware {
 
         // Else, we are handling a read request or the beginning of a write request
         // Initialize the metadata fields
-        SeedMetadata();
+        SeedMetadata(currentUri);
         // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, Starting transaction at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
 
         // Add a new ManualResetEvent associated with the clientID if we are handling a write request
@@ -42,8 +42,10 @@ public class TCCMiddleware {
         // Execute the next middleware in the pipeline (the controller)
         await _next.Invoke(httpctx);
 
-        // Send the rest of the tokens to the coordinator
-        await _coordinatorSvc.SendTokens();
+        // Send the rest of the tokens to the coordinator. If there are 0 tokens, ignore the call to the coordinator
+        if (_request_metadata.Tokens.Value > 0) {
+            await _coordinatorSvc.SendTokens();
+        }
 
         // Clean the singleton fields for the current session context
         _functionalitySingleton.RemoveRemainingTokens(_request_metadata.ClientID.Value);
@@ -58,9 +60,6 @@ public class TCCMiddleware {
             _functionalitySingleton.RemoveManualResetEvent(_request_metadata.ClientID.Value);
 
             // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, WRITE transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
-        }
-        else {
-            // _logger.LogInformation($"ClientID: {_request_metadata.ClientID.Value}, READ transaction completed at {DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")}");
         }
         return;
     }
@@ -81,7 +80,7 @@ public class TCCMiddleware {
         return;
     }
 
-    private void SeedMetadata() {
+    private void SeedMetadata(string uri) {
         // Generate a 32 bit random string for the client ID
         string clientID = GenerateRandomString(32);
 
@@ -89,8 +88,11 @@ public class TCCMiddleware {
         // string timestamp = DateTime.UtcNow.AddMilliseconds(-100).ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
         string timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ");
 
-        // Generate tokens
-        int tokens = 1000000000;
+        int tokens = 0;
+        if (!uri.Contains("readbasket")) {
+            // Generate tokens for non-read-only functionality
+            tokens = 1000000000;
+        }
         _functionalitySingleton.AddRemainingTokens(clientID, tokens);
         _request_metadata.Tokens.Value = tokens;
         _request_metadata.Timestamp.Value = timestamp;
