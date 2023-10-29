@@ -36,9 +36,9 @@ public class DiscountIntegrationEventService : IDiscountIntegrationEventService,
         {
             // _logger.LogInformation("----- Publishing integration event: {IntegrationEventId_published} from {AppName} - ({@IntegrationEvent})", evt.Id, Program.AppName, evt);
 
-            await _eventLogService.MarkEventAsInProgressAsync(evt.Id);
+            //await _eventLogService.MarkEventAsInProgressAsync(evt.Id);
             _eventBus.Publish(evt);
-            await _eventLogService.MarkEventAsPublishedAsync(evt.Id);
+            //await _eventLogService.MarkEventAsPublishedAsync(evt.Id);
         }
         catch (Exception ex)
         {

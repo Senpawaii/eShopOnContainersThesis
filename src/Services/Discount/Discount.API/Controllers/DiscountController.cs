@@ -154,7 +154,9 @@ public class DiscountController : ControllerBase {
                 }
 
                 // Achieving atomicity between original Discountdatbase operation and the IntegrationEventLog thanks to a local transaction
-                await _discountIntegrationEventService.SaveEventAndDiscountContextChangesAsync(discountChangedEvent);
+                await _discountContext.SaveChangesAsync();
+
+                //await _discountIntegrationEventService.SaveEventAndDiscountContextChangesAsync(discountChangedEvent);
                 
                 // Publish through the Event Bus and mark the saved event as published
                 await _discountIntegrationEventService.PublishThroughEventBusAsync(discountChangedEvent);
