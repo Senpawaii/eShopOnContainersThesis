@@ -69,15 +69,6 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
           { "Id", 0 },
           { "Type", 1 }
     };
-
-    // Benchmarking stuff
-    public static ConcurrentBag<TimeSpan> Timespans = new ConcurrentBag<TimeSpan>();
-    public static ConcurrentBag<TimeSpan> Timespans2 = new ConcurrentBag<TimeSpan>();
-    public static ConcurrentBag<TimeSpan> Timespans3 = new ConcurrentBag<TimeSpan>();
-    public static ConcurrentBag<TimeSpan> Timespans4 = new ConcurrentBag<TimeSpan>();
-    public static ConcurrentBag<TimeSpan> Timespans5 = new ConcurrentBag<TimeSpan>();
-    public static ConcurrentBag<TimeSpan> Timespans6 = new ConcurrentBag<TimeSpan>();
-
     public static TimeSpan Average(IEnumerable<TimeSpan> spans) {
         return TimeSpan.FromSeconds(spans.Select(s => s.TotalSeconds).Average());
     }
@@ -313,44 +304,44 @@ public class CatalogDBInterceptor : DbCommandInterceptor {
     }
 
     // Not performance-tested
-    private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, Dictionary<string, SqlParameter> columnNamesAndParameters, string targetTable) {
-        var clientID = _request_metadata.ClientID;
+    // private MockDbDataReader StoreDataInWrapper1RowVersion(DbCommand command, Dictionary<string, SqlParameter> columnNamesAndParameters, string targetTable) {
+    //     var clientID = _request_metadata.ClientID;
 
-        Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
-        // Get the number of rows being inserted
-        var rowsAffected = 0;
+    //     Dictionary<string, int> standardColumnIndexes = GetDefaultColumIndexesForUpdate(targetTable);  // Get the expected order of the columns
+    //     // Get the number of rows being inserted
+    //     var rowsAffected = 0;
         
-        var rows = new List<object[]>();
-        var row = new object[columnNamesAndParameters.Keys.Count + 1]; // Added Timestamp at the end
+    //     var rows = new List<object[]>();
+    //     var row = new object[columnNamesAndParameters.Keys.Count + 1]; // Added Timestamp at the end
 
-        foreach(var columnName in columnNamesAndParameters.Keys) {
-            var sqlParameter = columnNamesAndParameters[columnName];
-            var correctIndexToStore = standardColumnIndexes[columnName];
-            row[correctIndexToStore] = sqlParameter.Value;
-        }
-        // Define the uncommitted timestamp as the current time
-        row[^1] = DateTime.UtcNow;
-        rowsAffected++;
-        rows.Add(row);
-        // Log the rows
-        // foreach (object[] roww in rows) {
-        //     _logger.LogInformation($"ClientID: {clientID} adding to the wrapper row: {string.Join(", ", roww)}");
-        // }
-        var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
+    //     foreach(var columnName in columnNamesAndParameters.Keys) {
+    //         var sqlParameter = columnNamesAndParameters[columnName];
+    //         var correctIndexToStore = standardColumnIndexes[columnName];
+    //         row[correctIndexToStore] = sqlParameter.Value;
+    //     }
+    //     // Define the uncommitted timestamp as the current time
+    //     row[^1] = DateTime.UtcNow;
+    //     rowsAffected++;
+    //     rows.Add(row);
+    //     // Log the rows
+    //     // foreach (object[] roww in rows) {
+    //     //     _logger.LogInformation($"ClientID: {clientID} adding to the wrapper row: {string.Join(", ", roww)}");
+    //     // }
+    //     var mockReader = new MockDbDataReader(rows, rowsAffected, targetTable);
 
-        switch (targetTable) {
-            case "CatalogBrand":
-                _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
-                break;
-            case "CatalogType":
-                _wrapper.SingletonAddCatalogType(clientID, rows.ToArray());
-                break;
-            case "Catalog":
-                _wrapper.SingletonAddCatalogItem(clientID, rows.ToArray());
-                break;
-        }
-        return mockReader;
-    }
+    //     switch (targetTable) {
+    //         case "CatalogBrand":
+    //             _wrapper.SingletonAddCatalogBrand(clientID, rows.ToArray());
+    //             break;
+    //         case "CatalogType":
+    //             _wrapper.SingletonAddCatalogType(clientID, rows.ToArray());
+    //             break;
+    //         case "Catalog":
+    //             _wrapper.SingletonAddCatalogItem(clientID, rows.ToArray());
+    //             break;
+    //     }
+    //     return mockReader;
+    // }
 
     // Performance-tested
    //[Trace]

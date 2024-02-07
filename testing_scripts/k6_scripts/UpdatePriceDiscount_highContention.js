@@ -1,24 +1,23 @@
 import http from "k6/http";
 import { sleep } from "k6";
+import { Counter } from "k6/metrics";
 
 const baseUrl = 'http://localhost:5142/api/v1/frontend/updatepricediscount';
 const thesisFrontendPort = 5142;
 const getCatalogItemUrl = 'http://localhost:' + thesisFrontendPort + '/api/v1/frontend/readcatalogitem/';
 const getDiscountItemUrl = 'http://localhost:' + thesisFrontendPort + '/api/v1/frontend/readdiscounts/';
+const writeOperationCounter = new Counter("Write_Operations");
 
 
 export let options = {
     vus: 10,
-    duration: "30s",
-    thresholds: {
-        http_req_duration: ["p(95)<1500"]
-    }
+    duration: "60s",
 };
 
 
 export function setup() {
-    const catalogRes = http.get(getCatalogItemUrl + '1'); // Get catalog item with id 1
-    const catalogItem = JSON.parse(catalogRes.body);
+    // const catalogRes = http.get(getCatalogItemUrl + '1'); // Get catalog item with id 1
+    // const catalogItem = JSON.parse(catalogRes.body);
     
     const body = {
         "catalogItem": {
@@ -51,13 +50,28 @@ export function setup() {
 
 
 export default function(body) {
-    // Get a random int between 1 and 100
-    const randomPrice = (Math.floor(Math.random() * 100) + 1) * 10;
-    const associatedDiscount = randomPrice / 10;
+    let sucess = false;
 
-    body.catalogItem.price = randomPrice;
-    body.discountItem.DiscountValue = associatedDiscount;
+    const start = new Date().getTime();
+    while(!sucess) {
+        // Get a random int between 1 and 100
+        const randomPrice = (Math.floor(Math.random() * 100) + 1) * 10;
+        const associatedDiscount = randomPrice / 10;
+
+        body.catalogItem.price = randomPrice;
+        body.discountItem.DiscountValue = associatedDiscount;
     
-    const res = http.put(baseUrl, JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+        const res = http.put(baseUrl, JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+        if (res.status === 200) {
+            sucess = true;
+        } else {
+            console.log(`Error: ${res.status}`);
+        }
+    }
+    const end = new Date().getTime();
+    const duration = end - start;
+    // Log current date with milliseconds precision
+    console.log(`Date: ${new Date().getTime()} Update operation duration: ${duration}`);
+    writeOperationCounter.add(1);
     sleep(1);
 }

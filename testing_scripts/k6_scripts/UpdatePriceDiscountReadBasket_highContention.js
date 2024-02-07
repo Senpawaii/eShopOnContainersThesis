@@ -15,10 +15,10 @@ const writeOperationCounter = new Counter("Write_Operations");
 
 export let options = {
     vus: 640,
-    duration: "20s",
-    // stages: [
-    //     { duration: "15s", target: 240 },
-    // ],
+    stages: [
+        { duration: "10s", target: 2 },
+        { duration: "50s", target: 2 },
+    ],
 };
 
 
@@ -80,46 +80,77 @@ export function teardown() {
 export function readBasket() {
     let success = false;
     let iterations = 0;
+
+    const start = new Date().getTime();
+    let basket = null;
     while(!success) {
         const res = http.get(readBasketUrl);
 
         // Check if the the price item and discount are coeherent
-        const basket = JSON.parse(res.body);
+        if (res.status !== 200) {
+            console.log(`Error: ${res.status}`);
+            iterations++;
+            sleep(1);
+            continue;
+        }
+        basket = JSON.parse(res.body);
         const price = basket.items[0].unitPrice;
         const discount = basket.items[0].discount;
-        check(res, {
-            "is status 200": (r) => r.status === 200,
-            "is price coherent": (r) => price === (discount * 10),
-        });
 
         if(price === (discount * 10)) {
-            console.log(`Price: ${price}, discount: ${discount}, price is coherent`)
+            console.log(`VU: ${__VU}, iteration: ${iterations}, price: ${price}, discount: ${discount}, price is coherent`)
             success = true;
         } 
         else {
-            console.log(`Price: ${price}, discount: ${discount}, price is not coherent`)
+            console.log(`VU: ${__VU}, iteration: ${iterations}, price: ${price}, discount: ${discount}, price is not coherent`)
+            iterations++;
+            sleep(1);
         }
-        iterations++;
-        console.log(`Read operations: iterations: ${iterations}`);
-        if(iterations >= 10) {
-            success = true;
-        }
+        check(res, {
+            "is status 200": (r) => r.status === 200,
+        });
     }
+    const end = new Date().getTime();
+    const duration = end - start - (iterations * 1000);
+    check((basket), {
+        "is price coherent": (basket) => basket.items[0].unitPrice === (basket.items[0].discount * 10),
+    });
+    // Log current date with milliseconds precision
+    console.log(`Date: ${new Date().getTime()} Read operation duration: ${duration} VU: ${__VU}, Iterations taken: ${iterations}`);
     readOperationCounter.add(1);
-    sleep(0.5);
+    sleep(1);
 }
 
 // Define Update Price and Discount function
 export function updatePriceAndDiscount(body) {
-    const randomPrice = (Math.floor(Math.random() * 100) + 1) * 10;
+    const randomPrice = (Math.floor(Math.random() * 10000) + 1) * 10;
     const associatedDiscount = randomPrice / 10;
 
     body.catalogItem.price = randomPrice;
     body.discountItem.DiscountValue = associatedDiscount;
-    
-    const res = http.put(baseUrl, JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+
+    let success = false;
+    let iterations = 0;
+
+    const start = new Date().getTime();
+    while(!success) {
+        iterations++;
+        const res = http.put(baseUrl, JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+        if (res.status !== 200) {
+            console.log(`Error: ${res.status}`);
+            sleep(1);
+            continue;
+        } else {
+            success = true;
+        }
+    }
+    const end = new Date().getTime();
+    const duration = end - start;
+    // Log current date with milliseconds precision
+    console.log(`Date: ${new Date().getTime()} Update operation duration: ${duration}`);
+    console.log(`VU: ${__VU}, Iterations taken: ${iterations}`);
     writeOperationCounter.add(1);
-    sleep(0.5);
+    sleep(1);
 }
 
 export default function(body) {

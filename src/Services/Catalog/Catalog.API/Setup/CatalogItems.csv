@@ -1,33 +1,33 @@
 CatalogTypeName,CatalogBrandName,Description,Name,Price,PictureFileName,availablestock,onreorder,Timestamp
-T-Shirt,.NET,".NET Bot Black Hoodie, and more",.NET Bot Black Hoodie,20,1.png,100,false,2023-04-10 14:58:07.000
-Mug,.NET,.NET Black & White Mug,.NET Black & White Mug,8.50,2.png,89,true,2023-04-10 14:58:07.000
-T-Shirt,Other,Prism White T-Shirt,Prism White T-Shirt,12,3.png,56,false,2023-04-10 14:58:07.000
-T-Shirt,.NET,.NET Foundation T-shirt,.NET Foundation T-shirt,12,4.png,120,false,2023-04-10 14:58:07.000
-Pin,Other,Roslyn Red Pin,Roslyn Red Pin,8.5,5.png,55,false,2023-04-10 14:58:07.000
-T-Shirt,.NET,.NET Blue Hoodie,.NET Blue Hoodie,12,6.png,17,false,2023-04-10 14:58:07.000
-T-Shirt,Other,Roslyn Red T-Shirt,Roslyn Red T-Shirt,12,7.png,8,false,2023-04-10 14:58:07.000
-T-Shirt,Other,Kudu Purple Hoodie,Kudu Purple Hoodie,8.5,8.png,34,false,2023-04-10 14:58:07.000
-Mug,Other,Cup<T> White Mug,Cup<T> White Mug,12,9.png,76,false,2023-04-10 14:58:07.000
-Pin,.NET,.NET Foundation Pin,.NET Foundation Pin,12,10.png,11,false,2023-04-10 14:58:07.000
+T-Shirt,.NET,".NET Bot Black Hoodie, and more",.NET Bot Black Hoodie,210,1.png,100,false,2023-04-10 14:58:07.000
+Mug,.NET,.NET Black & White Mug,.NET Black & White Mug,8.510,2.png,89,true,2023-04-10 14:58:07.000
+T-Shirt,Other,Prism White T-Shirt,Prism White T-Shirt,120,3.png,56,false,2023-04-10 14:58:07.000
+T-Shirt,.NET,.NET Foundation T-shirt,.NET Foundation T-shirt,120,4.png,120,false,2023-04-10 14:58:07.000
+Pin,Other,Roslyn Red Pin,Roslyn Red Pin,80,5.png,55,false,2023-04-10 14:58:07.000
+T-Shirt,.NET,.NET Blue Hoodie,.NET Blue Hoodie,120,6.png,17,false,2023-04-10 14:58:07.000
+T-Shirt,Other,Roslyn Red T-Shirt,Roslyn Red T-Shirt,120,7.png,8,false,2023-04-10 14:58:07.000
+T-Shirt,Other,Kudu Purple Hoodie,Kudu Purple Hoodie,85,8.png,34,false,2023-04-10 14:58:07.000
+Mug,Other,Cup<T> White Mug,Cup<T> White Mug,120,9.png,76,false,2023-04-10 14:58:07.000
+Pin,.NET,.NET Foundation Pin,.NET Foundation Pin,120,10.png,11,false,2023-04-10 14:58:07.000
 Pin,.NET,Cup<T> Pin,Cup<T> Pin,8.5,11.png,3,false,2023-04-10 14:58:07.000
-T-Shirt,Other,Prism White TShirt,Prism White Bag TShirt,12,12.png,0,false,2023-04-10 14:58:07.000
-Mug,.NET,Modern .NET Black & White Mug,Modern .NET Black & White Mug,8.50,13.png,89,true,2023-04-10 14:58:07.000
-Mug,Other,Modern Cup<T> White Mug,Modern Cup<T> White Mug,12,14.png,76,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Table,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Chair,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Bed,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Bureau,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Bookcase,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Console,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Chaise longue,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Cabinetry,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Mattress,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Ottoman,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Desk,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Coffee table,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Wing chair,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Office chair,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Garden furniture,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Sideboard,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Bench,100,14.png,100,false,2023-04-10 14:58:07.000
-Furniture,Other,ExampleDescription,Sink,100,14.png,100,false,2023-04-10 14:58:07.000
+T-Shirt,Other,Prism White TShirt,Prism White Bag TShirt,120,12.png,0,false,2023-04-10 14:58:07.000
+Mug,.NET,Modern .NET Black & White Mug,Modern .NET Black & White Mug,8.500,13.png,89,true,2023-04-10 14:58:07.000
+Mug,Other,Modern Cup<T> White Mug,Modern Cup<T> White Mug,120,14.png,76,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Table,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Chair,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Bed,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Bureau,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Bookcase,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Console,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Chaise longue,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Cabinetry,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Mattress,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Ottoman,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Desk,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Coffee table,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Wing chair,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Office chair,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Garden furniture,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Sideboard,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Bench,1000,14.png,100,false,2023-04-10 14:58:07.000
+Furniture,Other,ExampleDescription,Sink,1000,14.png,100,false,2023-04-10 14:58:07.000

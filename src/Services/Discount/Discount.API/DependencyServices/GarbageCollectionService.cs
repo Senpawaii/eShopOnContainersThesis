@@ -10,7 +10,6 @@ public class GarbageCollectionService : BackgroundService {
 
     private int _executionCount = 0;
     private readonly int MAX_VERSIONS = 25;
-
     private readonly int TIMER = 5; // milliseconds
 
     public GarbageCollectionService(IServiceScopeFactory scopeFactory, ILogger<GarbageCollectionService> logger, ISingletonWrapper singletonWrapper) {
